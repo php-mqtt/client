@@ -33,6 +33,12 @@ class MQTTClient
     /** @var DateTime|null */
     private $lastPingAt;
 
+    /** @var int */
+    private $messageId = 1;
+
+    /** @var array */
+    private $subscribedTopics = [];
+
     /**
      * Constructs a new MQTT client which subsequently supports publishing and subscribing.
      * 
@@ -171,6 +177,7 @@ class MQTTClient
 
             // read and process the acknowledgement
             $acknowledgement = $this->readFromSocket(4);
+            // TODO: improve response handling for better error handling (connection refused, etc.)
             if (ord($acknowledgement[0]) >> 4 === 2 && $acknowledgement[3] === chr(0)) {
                 // TODO: add logging - successfully connected to broker
                 $this->lastPingAt = microtime(true);
@@ -251,6 +258,149 @@ class MQTTClient
     protected function disconnect(): void
     {
         $this->writeToSocket(chr(0xe0) . chr(0x00));
+    }
+
+    /**
+     * Publishes the given message on the given topic. If the additional quality of service
+     * and retention flags are set, the message will be published using these settings.
+     * 
+     * @param string $topic
+     * @param string $message
+     * @param int    $qualityOfService
+     * @param bool   $retain
+     * @return void
+     * @throws DataTransferException
+     */
+    public function publish(string $topic, string $message, int $qualityOfService = 0, bool $retain = false): void
+    {
+        $i      = 0;
+        $buffer = '';
+
+        $topicPart = $this->buildLengthPrefixedString($topic);
+        $buffer   .= $topicPart;
+        $i        += strlen($topicPart);
+
+        if ($qualityOfService > 0)
+        {
+            $id      = $this->nextMessageId();
+            $buffer .= chr($id >> 8); $i++;
+            $buffer .= chr($id % 256); $i++;
+        }
+
+        $buffer .= $message;
+        $i      += strlen($message);
+
+        $cmd = 0x30;
+        if ($retain) {
+            $cmd += 1 << 0;
+        }
+        if ($qualityOfService > 0) {
+            $cmd += $qualityOfService << 1;
+        }
+
+        $header = chr($cmd) . $this->encodeMessageLength($i);
+
+        $this->writeToSocket($header . $buffer);
+    }
+
+    /**
+     * Subscribe to the given topics with the given quality of service.
+     * 
+     * @param string   $topic
+     * @param callable $callback
+     * @param int      $qualityOfService
+     * @return void
+     * @throws DataTransferException
+     */
+    public function subscribe(string $topic, callable $callback, int $qualityOfService = 0): void
+    {
+        $i       = 0;
+        $buffer  = '';
+        $id      = $this->currentMessageId();
+        $buffer .= chr($id >> 8); $i++;
+        $buffer .= chr($id % 256); $i++;
+
+        $topicPart = $this->buildLengthPrefixedString($topic);
+        $buffer   .= $topicPart;
+        $i        += strlen($topicPart);
+        $buffer   .= chr($qualityOfService); $i++;
+
+        $this->addTopicSubscription($topic, $callback, $qualityOfService);
+
+        $cmd    = 0x80 | ($qualityOfService << 1);
+        $header = chr($cmd) . chr($i);
+
+        $this->writeToSocket($header . $buffer);
+
+        // TODO: this should be in the loop and we should flag subscriptions as acknowledged in the store
+        $acknowledgement = $this->readFromSocket(2);
+        
+        $bytes                      = ord(substr($acknowledgement, 1, 1));
+        $qualityOfServiceAgreements = $this->read($bytes);
+    }
+
+    /**
+     * Adds a topic subscription.
+     * 
+     * @param string   $topic
+     * @param callable $callback
+     * @param int      $qualityOfService
+     * @return void
+     */
+    protected function addTopicSubscription(string $topic, callable $callback, int $qualityOfService): void
+    {
+        $this->subscribedTopics = array_merge($this->subscribedTopics, [
+            $topic => [
+                'callback' => $callback,
+                'qos' => $qualityOfService,
+            ],
+        ]);
+    }
+
+    /**
+     * Encodes the length of a message as string, so it can be transmitted
+     * over the wire.
+     * 
+     * @param int $length
+     * @return string
+     */
+    protected function encodeMessageLength(int $length): string
+    {
+        $result = '';
+        
+        do {
+          $digit  = $length % 128;
+          $length = $length >> 7;
+          
+          // if there are more digits to encode, set the top bit of this digit
+          if ($length > 0) {
+              $digit = ($digit | 0x80);
+          }
+
+          $result .= chr($digit);
+        } while ($length > 0);
+        
+        return $result;
+    }
+
+    /**
+     * Gets the current message id.
+     * 
+     * @return int
+     */
+    protected function currentMessageId(): int
+    {
+        return $this->messageId;
+    }
+
+    /**
+     * Gets the next message id to be used.
+     * 
+     * @return int
+     */
+    protected function nextMessageId(): int
+    {
+        return $this->messageId++;
     }
 
     /**
