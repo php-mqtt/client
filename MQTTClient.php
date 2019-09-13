@@ -349,12 +349,104 @@ class MQTTClient
      */
     protected function addTopicSubscription(string $topic, callable $callback, int $qualityOfService): void
     {
+        $regex = str_replace(['$', '/', '+', '#'], ['\$', '\/', '[^\/]*', '.*'], $topic);
+
         $this->subscribedTopics = array_merge($this->subscribedTopics, [
             $topic => [
                 'callback' => $callback,
                 'qos' => $qualityOfService,
+                'regex' => "/^{$regex}$/",
             ],
         ]);
+    }
+
+    /**
+     * Runs an event loop that handles messages from the server and calls the registered
+     * callbacks for published messages.
+     * 
+     * @param bool $allowSleep
+     * @return void
+     */
+    public function loop(bool $allowSleep = true): void
+    {
+        if (1) {
+            $cmd = 0;
+            
+            // when we receive an eof, we reconnect to get a clean connection
+            // if (feof($this->socket)) {
+            //     fclose($this->socket);
+            //     $this->connect_auto(false);
+            //     foreach ($this->subscribedTopics as $topic => $settings) {
+            //         $this->subscribe($topic, $settings['callback'], $settings['qos']);
+            //     }
+            // }
+            
+            $byte = $this->read(1, true);
+            
+            if (!strlen($byte)) {
+                if($allowSleep){
+                    usleep(100000); // 100ms
+                }
+            } else {
+                $cmd        = (int)(ord($byte) / 16);
+                $multiplier = 1; 
+                $value      = 0;
+
+                do {
+                    $digit       = ord($this->read(1));
+                    $value      += ($digit & 127) * $multiplier; 
+                    $multiplier *= 128;
+                } while (($digit & 128) !== 0);
+
+                if ($value) {
+                    $buffer = $this->read($value);
+                }
+                
+                if ($cmd) {
+                    switch($cmd){
+                        case 3:
+                            $this->handlePublishedMessage($buffer);
+                        break;
+                        // TODO: implement remaining commands
+                    }
+
+                    $this->lastPingAt = microtime(true);
+                }
+            }
+
+            if ($this->lastPingAt < (microtime(true) - $this->settings->getKeepAlive())) {
+                $this->ping();    
+            }
+
+            // when we do not receive a package in a long time, we reconnect to avoid issues with the connection
+            // if ($this->lastPingAt < (microtime(true) - ($this->settings->getKeepAlive() * 2))) {
+            //     fclose($this->socket);
+            //     $this->connect_auto(false);
+            //     if(count($this->topics))
+            //         $this->subscribe($this->topics);
+            // }
+        }
+    }
+
+    /**
+     * Handles a received message.
+     * 
+     * @param string $message
+     * @return void
+     */
+    protected function handlePublishedMessage(string $message): void
+    {
+        $topicLength = (ord($message[0]) << 8) + ord($message[1]);
+        $topic       = substr($message, 2, $topicLength);
+        $message     = substr($message, ($topicLength + 2));
+
+        foreach ($this->subscribedTopics as $subscribedTopic => $settings) {
+            if (preg_match($settings['regex'], $topic)) {
+                if (is_callable($settings['callback'])) {
+                    call_user_func($settings['callback'], $topic, $message);
+                }
+            }
+        }
     }
 
     /**
