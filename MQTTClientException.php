@@ -9,12 +9,16 @@ namespace Namoshek\MQTT;
  */
 class MQTTClientException extends \Exception
 {
-    public function __construct(string $message, int $code = 0, \Throwable $parentException = null)
+    public function __construct(string $message = '', int $code = 0, \Throwable $parentException = null)
     {
-        parent::__construct(
-            sprintf('[%s] The MQTT client encountered an error.', $code),
-            $code,
-            $parentException
-        );
+        if (empty($message)) {
+            parent::__construct(
+                sprintf('[%s] The MQTT client encountered an error.', $code),
+                $code,
+                $parentException
+            );
+        } else {
+            parent::__construct($message, $code, $parentException);
+        }
     }
 }

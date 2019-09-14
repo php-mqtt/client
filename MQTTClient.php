@@ -11,6 +11,7 @@ class MQTTClient
     const EXCEPTION_CONNECTION_FAILED = 0001;
     const EXCEPTION_TX_DATA           = 0101;
     const EXCEPTION_RX_DATA           = 0102;
+    const EXCEPTION_ACK_SUBSCRIBE     = 0201;
 
     /** @var string */
     private $host;
@@ -36,7 +37,7 @@ class MQTTClient
     /** @var int */
     private $messageId = 1;
 
-    /** @var array */
+    /** @var MQTTTopicSubscription[] */
     private $subscribedTopics = [];
 
     /**
@@ -282,9 +283,9 @@ class MQTTClient
 
         if ($qualityOfService > 0)
         {
-            $id      = $this->nextMessageId();
-            $buffer .= chr($id >> 8); $i++;
-            $buffer .= chr($id % 256); $i++;
+            $messageId = $this->nextMessageId();
+            $buffer   .= chr($messageId >> 8); $i++;
+            $buffer   .= chr($messageId % 256); $i++;
         }
 
         $buffer .= $message;
@@ -314,29 +315,23 @@ class MQTTClient
      */
     public function subscribe(string $topic, callable $callback, int $qualityOfService = 0): void
     {
-        $i       = 0;
-        $buffer  = '';
-        $id      = $this->currentMessageId();
-        $buffer .= chr($id >> 8); $i++;
-        $buffer .= chr($id % 256); $i++;
+        $i         = 0;
+        $buffer    = '';
+        $messageId = $this->nextMessageId();
+        $buffer   .= chr($messageId >> 8); $i++;
+        $buffer   .= chr($messageId % 256); $i++;
 
         $topicPart = $this->buildLengthPrefixedString($topic);
         $buffer   .= $topicPart;
         $i        += strlen($topicPart);
         $buffer   .= chr($qualityOfService); $i++;
 
-        $this->addTopicSubscription($topic, $callback, $qualityOfService);
+        $this->addTopicSubscription($topic, $callback, $messageId, $qualityOfService);
 
         $cmd    = 0x80 | ($qualityOfService << 1);
         $header = chr($cmd) . chr($i);
 
         $this->writeToSocket($header . $buffer);
-
-        // TODO: this should be in the loop and we should flag subscriptions as acknowledged in the store
-        $acknowledgement = $this->readFromSocket(2);
-        
-        $bytes                      = ord(substr($acknowledgement, 1, 1));
-        $qualityOfServiceAgreements = $this->read($bytes);
     }
 
     /**
@@ -344,20 +339,13 @@ class MQTTClient
      * 
      * @param string   $topic
      * @param callable $callback
+     * @param int      $messageId
      * @param int      $qualityOfService
      * @return void
      */
-    protected function addTopicSubscription(string $topic, callable $callback, int $qualityOfService): void
+    protected function addTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): void
     {
-        $regex = str_replace(['$', '/', '+', '#'], ['\$', '\/', '[^\/]*', '.*'], $topic);
-
-        $this->subscribedTopics = array_merge($this->subscribedTopics, [
-            $topic => [
-                'callback' => $callback,
-                'qos' => $qualityOfService,
-                'regex' => "/^{$regex}$/",
-            ],
-        ]);
+        $this->subscribedTopics[] = new MQTTTopicSubscription($topic, $callback, $messageId, $qualityOfService);
     }
 
     /**
@@ -369,7 +357,7 @@ class MQTTClient
      */
     public function loop(bool $allowSleep = true): void
     {
-        if (1) {
+        while (true) {
             $cmd = 0;
             
             // when we receive an eof, we reconnect to get a clean connection
@@ -381,9 +369,9 @@ class MQTTClient
             //     }
             // }
             
-            $byte = $this->read(1, true);
+            $byte = $this->readFromSocket(1, true);
             
-            if (!strlen($byte)) {
+            if (strlen($byte) === 0) {
                 if($allowSleep){
                     usleep(100000); // 100ms
                 }
@@ -393,21 +381,24 @@ class MQTTClient
                 $value      = 0;
 
                 do {
-                    $digit       = ord($this->read(1));
+                    $digit       = ord($this->readFromSocket(1));
                     $value      += ($digit & 127) * $multiplier; 
                     $multiplier *= 128;
                 } while (($digit & 128) !== 0);
 
                 if ($value) {
-                    $buffer = $this->read($value);
+                    $buffer = $this->readFromSocket($value);
                 }
                 
                 if ($cmd) {
                     switch($cmd){
+                        // TODO: implement remaining commands
                         case 3:
                             $this->handlePublishedMessage($buffer);
-                        break;
-                        // TODO: implement remaining commands
+                            break;
+                        case 9:
+                            $this->handleSubscriptionAcknowledgement($buffer);
+                            break;
                     }
 
                     $this->lastPingAt = microtime(true);
@@ -429,24 +420,99 @@ class MQTTClient
     }
 
     /**
-     * Handles a received message.
+     * Handles a received message. The buffer contains the whole message except
+     * command and length. The message structure is:
      * 
-     * @param string $message
+     *   [topic-length:topic:message]+
+     * 
+     * @param string $buffer
      * @return void
      */
-    protected function handlePublishedMessage(string $message): void
+    protected function handlePublishedMessage(string $buffer): void
     {
-        $topicLength = (ord($message[0]) << 8) + ord($message[1]);
-        $topic       = substr($message, 2, $topicLength);
-        $message     = substr($message, ($topicLength + 2));
+        $topicLength = (ord($buffer[0]) << 8) + ord($buffer[1]);
+        $topic       = substr($buffer, 2, $topicLength);
+        $message     = substr($buffer, ($topicLength + 2));
 
-        foreach ($this->subscribedTopics as $subscribedTopic => $settings) {
-            if (preg_match($settings['regex'], $topic)) {
-                if (is_callable($settings['callback'])) {
-                    call_user_func($settings['callback'], $topic, $message);
+        foreach ($this->subscribedTopics as $subscribedTopic) {
+            if (preg_match($subscribedTopic->getRegexifiedTopic(), $topic)) {
+                $callback = $subscribedTopic->getCallback();
+                if (is_callable($callback)) {
+                    call_user_func($callback, $topic, $message);
                 }
             }
         }
+    }
+
+    /**
+     * Handles a received subscription acknowledgement. The buffer contains the whole
+     * message except command and length. The message structure is:
+     * 
+     *   [message-identifier:[qos-level]+]
+     * 
+     * The order of the received QoS levels matches the order of the sent subscriptions.
+     * 
+     * @param string $buffer
+     * @return void
+     * @throws UnexpectedAcknowledgementException
+     */
+    protected function handleSubscriptionAcknowledgement(string $buffer): void
+    {
+        if (strlen($buffer) < 3) {
+            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_SUBSCRIBE, 'The MQTT broker responded with an invalid acknowledgement.');
+        }
+
+        $messageId        = $this->stringToNumber($this->pop($buffer, 2));
+        $subscriptions    = $this->getTopicSubscriptionsWithMessageId($messageId);
+        $acknowledgements = str_split($buffer);
+
+        if (count($acknowledgements) !== count($subscriptions)) {
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_SUBSCRIBE, 
+                sprintf(
+                    'The MQTT broker responded with a different amount of QoS acknowledgements as we have subscriptions.'
+                        . ' Subscriptions: %s, QoS Acknowledgements: %s',
+                    count($subscriptions),
+                    count($acknowledgements)
+                )
+            );
+        }
+
+        foreach ($acknowledgements as $index => $qualityOfServiceLevel) {
+            $subscriptions[$index]->setAcknowledgedQualityOfServiceLevel(intval($qualityOfServiceLevel));
+        }
+    }
+
+    /**
+     * Returns all topic subscriptions with the given message identifier.
+     * 
+     * @param int $messageId
+     * @return MQTTTopicSubscription[]
+     */
+    protected function getTopicSubscriptionsWithMessageId(int $messageId): array
+    {
+        return array_values(array_filter($this->subscribedTopics, function (MQTTTopicSubscription $subscription) use ($messageId) {
+            return $subscription->getMessageId() === $messageId;
+        }));
+    }
+
+    /**
+     * Converts the given string to a number, assuming it is an MSB encoded
+     * number. This means preceding characters have higher value.
+     * 
+     * @param string $buffer
+     * @return int
+     */
+    protected function stringToNumber(string $buffer): int
+    {
+        $length = strlen($buffer);
+        $result = 0;
+
+        foreach (str_split($buffer) as $index => $char) {
+            $result += ord($char) << (($length - 1) * 8 - ($index * 8));
+        }
+
+        return $result;
     }
 
     /**
@@ -620,6 +686,23 @@ class MQTTClient
         $lsb    = $length % 256;
         
         return chr($msb) . chr($lsb) . $data;
+    }
+
+    /**
+     * Pops the first $limit bytes from the given buffer and returns them.
+     * 
+     * @param string $buffer
+     * @param int    $limit
+     * @return string
+     */
+    protected function pop(string &$buffer, int $limit): string
+    {
+        $limit = min(strlen($buffer), $limit);
+
+        $result = substr($buffer, 0, $limit);
+        $buffer = substr($buffer, $limit);
+
+        return $result;
     }
 
     /**
