@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
-// TODO: add logging using a PSR logging interface
-
 use DateInterval;
 use DateTime;
 use PhpMqtt\Client\Contracts\Repository;
@@ -13,6 +11,7 @@ use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\Repositories\MemoryRepository;
+use Psr\Log\LoggerInterface;
 
 /** @noinspection PhpDocMissingThrowsInspection */
 
@@ -56,16 +55,27 @@ class MQTTClient
     /** @var Repository */
     private $repository;
 
+    /** @var LoggerInterface */
+    private $logger;
+
     /**
      * Constructs a new MQTT client which subsequently supports publishing and subscribing.
      *
-     * @param string          $host
-     * @param int             $port
-     * @param string|null     $clientId
-     * @param string|null     $caFile
-     * @param Repository|null $repository
+     * @param string               $host
+     * @param int                  $port
+     * @param string|null          $clientId
+     * @param string|null          $caFile
+     * @param Repository|null      $repository
+     * @param LoggerInterface|null $logger
      */
-    public function __construct(string $host, int $port = 1883, string $clientId = null, string $caFile = null, Repository $repository = null)
+    public function __construct(
+        string $host,
+        int $port = 1883,
+        string $clientId = null,
+        string $caFile = null,
+        Repository $repository = null,
+        LoggerInterface $logger = null
+    )
     {
         if ($repository === null) {
             $repository = new MemoryRepository();
@@ -76,10 +86,13 @@ class MQTTClient
         $this->clientId   = $clientId ?? $this->generateRandomClientId();
         $this->caFile     = $caFile;
         $this->repository = $repository;
+        $this->logger     = new Logger($logger);
     }
 
     /**
      * Connect to the MQTT broker using the given credentials and settings.
+     * If no custom settings are passed, the client will use the default settings.
+     * See {@see ConnectionSettings} for more details about the defaults.
      *
      * @param string|null        $username
      * @param string|null        $password
@@ -88,8 +101,15 @@ class MQTTClient
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
-    public function connect(string $username = null, string $password = null, ConnectionSettings $settings = null, bool $sendCleanSessionFlag = false): void
+    public function connect(
+        string $username = null,
+        string $password = null,
+        ConnectionSettings $settings = null,
+        bool $sendCleanSessionFlag = false
+    ): void
     {
+        $this->logger->info(sprintf('Connecting to MQTT broker [%s:%s].', $this->host, $this->port));
+
         $this->settings = $settings ?? new ConnectionSettings();
 
         $this->establishSocketConnection();
@@ -104,10 +124,9 @@ class MQTTClient
      */
     protected function establishSocketConnection(): void
     {
-        // TODO: add logging
-        // TODO: build Uri object from PSR
-
         if ($this->hasCertificateAuthorityFile()) {
+            $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->caFile));
+
             $socketContext = stream_context_create([
                 'ssl' => [
                 'verify_peer_name' => true,
@@ -122,6 +141,7 @@ class MQTTClient
         }
 
         if ($this->socket === false) {
+            $this->logger->error(sprintf('Establishing a connection with the MQTT broker using connection string [%s] failed.', $connectionString));
             throw new ConnectingToBrokerFailedException($errorCode, $errorMessage);
         }
 
@@ -196,20 +216,25 @@ class MQTTClient
             $header = chr(0x10) . chr($i);
 
             // send the connection message
+            $this->logger->info('Sending connection handshake to MQTT broker.');
             $this->writeToSocket($header . $buffer);
 
             // read and process the acknowledgement
             $acknowledgement = $this->readFromSocket(4);
             // TODO: improve response handling for better error handling (connection refused, etc.)
             if (ord($acknowledgement[0]) >> 4 === 2 && $acknowledgement[3] === chr(0)) {
-                // TODO: add logging - successfully connected to broker
+                $this->logger->info(sprintf('Connection with MQTT broker at [%s:%s] established successfully.', $this->host, $this->port));
                 $this->lastPingAt = microtime(true);
             } else {
-                // TODO: add logging - connection failed
+                $this->logger->error(sprintf('The MQTT broker at [%s:%s] refused the connection.', $this->host, $this->port));
                 throw new ConnectingToBrokerFailedException(self::EXCEPTION_CONNECTION_FAILED, 'A connection could not be established.');
             }
         } catch (DataTransferException $e) {
-            throw new ConnectingToBrokerFailedException(self::EXCEPTION_CONNECTION_FAILED, 'A connection could not be established due to data transfer issues.');
+            $this->logger->error(sprintf('While connecting to the MQTT broker at [%s:%s], a transfer error occurred.', $this->host, $this->port));
+            throw new ConnectingToBrokerFailedException(
+                self::EXCEPTION_CONNECTION_FAILED,
+                'A connection could not be established due to data transfer issues.'
+            );
         }
     }
 
@@ -226,26 +251,32 @@ class MQTTClient
         $flags = 0;
 
         if ($sendCleanSessionFlag) {
+            $this->logger->debug('Using the [clean session] flag for the MQTT connection.');
             $flags += 1 << 1; // set the `clean session` flag
         }
 
         if ($this->settings->hasLastWill()) {
+            $this->logger->debug('Using the [will] flag for the MQTT connection.');
             $flags += 1 << 2; // set the `will` flag
 
             if ($this->settings->requiresQualityOfService()) {
+                $this->logger->debug(sprintf('Using QoS level [%s] for the MQTT connection.', $this->settings->getQualityOfServiceLevel()));
                 $flags += $this->settings->getQualityOfServiceLevel() << 3; // set the `qos` bits
             }
 
             if ($this->settings->requiresMessageRetention()) {
+                $this->logger->debug('Using the [retain] flag for the MQTT connection.');
                 $flags += 1 << 5; // set the `retain` flag
             }
         }
 
         if ($password !== null) {
+            $this->logger->debug('Using the [password] flag for the MQTT connection.');
             $flags += 1 << 6; // set the `has password` flag
         }
 
         if ($username !== null) {
+            $this->logger->debug('Using the [username] flag for the MQTT connection.');
             $flags += 1 << 7; // set the `has username` flag
         }
 
@@ -260,6 +291,10 @@ class MQTTClient
      */
     public function ping(): void
     {
+        $this->logger->debug('Sending ping to the MQTT broker to keep the connection alive.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
         $this->writeToSocket(chr(0xc0) . chr(0x00));
     }
 
@@ -271,6 +306,8 @@ class MQTTClient
      */
     public function close(): void
     {
+        $this->logger->info(sprintf('Closing the connection to the MQTT broker at [%s:%s].', $this->host, $this->port));
+
         $this->disconnect();
 
         if ($this->socket !== null && is_resource($this->socket)) {
@@ -286,6 +323,8 @@ class MQTTClient
      */
     protected function disconnect(): void
     {
+        $this->logger->debug('Sending disconnect package to the MQTT broker.', ['broker' => sprintf('%s:%s', $this->host, $this->port)]);
+
         $this->writeToSocket(chr(0xe0) . chr(0x00));
     }
 
@@ -333,6 +372,16 @@ class MQTTClient
         bool $isDuplicate = false
     ): void
     {
+        $this->logger->debug('Publishing an MQTT message.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'topic' => $topic,
+            'message' => $message,
+            'qos' => $qualityOfService,
+            'retain' => $retain,
+            'message_id' => $messageId,
+            'is_duplicate' => $isDuplicate,
+        ]);
+
         $i      = 0;
         $buffer = '';
 
@@ -376,6 +425,12 @@ class MQTTClient
      */
     public function subscribe(string $topic, callable $callback, int $qualityOfService = 0): void
     {
+        $this->logger->debug('Subscribing to an MQTT topic.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'topic' => $topic,
+            'qos' => $qualityOfService,
+        ]);
+
         $i         = 0;
         $buffer    = '';
         $messageId = $this->nextMessageId();
@@ -406,6 +461,8 @@ class MQTTClient
      */
     public function loop(bool $allowSleep = true): void
     {
+        $this->logger->debug('Starting MQTT client loop.');
+
         $lastRepublishedAt = microtime(true);
 
         while (true) {
@@ -486,8 +543,17 @@ class MQTTClient
         $topic       = substr($buffer, 2, $topicLength);
         $message     = substr($buffer, ($topicLength + 2));
 
-        foreach ($this->repository->getTopicSubscriptionsMatchingTopic($topic) as $subscription) {
-            call_user_func($subscription->getCallback(), $topic, $message);
+        $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
+
+        $this->logger->debug('Handling published message received from an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'topic' => $topic,
+            'message' => $message,
+            'subscribers' => count($subscribers),
+        ]);
+
+        foreach ($subscribers as $subscriber) {
+            call_user_func($subscriber->getCallback(), $topic, $message);
         }
     }
 
@@ -503,15 +569,31 @@ class MQTTClient
      */
     protected function handlePublishAcknowledgement(string $buffer): void
     {
+        $this->logger->debug('Handling publish acknowledgement received from an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
         if (strlen($buffer) !== 2) {
-            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_PUBLISH, 'The MQTT broker responded with an invalid publish acknowledgement.');
+            $this->logger->notice('Received invalid publish acknowledgement from an MQTT broker.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_PUBLISH,
+                'The MQTT broker responded with an invalid publish acknowledgement.'
+            );
         }
 
         $messageId = $this->stringToNumber($this->pop($buffer, 2));
 
         $result = $this->repository->removePendingPublishedMessage($messageId);
         if ($result === false) {
-            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_PUBLISH, 'The MQTT broker acknowledged a publish that has not been pending anymore.');
+            $this->logger->notice('Received publish acknowledgement from an MQTT broker for already acknowledged message.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_PUBLISH,
+                'The MQTT broker acknowledged a publish that has not been pending anymore.'
+            );
         }
     }
 
@@ -529,8 +611,18 @@ class MQTTClient
      */
     protected function handleSubscribeAcknowledgement(string $buffer): void
     {
+        $this->logger->debug('Handling subscribe acknowledgement received from an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
         if (strlen($buffer) < 3) {
-            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_SUBSCRIBE, 'The MQTT broker responded with an invalid subscribe acknowledgement.');
+            $this->logger->notice('Received invalid subscribe acknowledgement from an MQTT broker.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_SUBSCRIBE,
+                'The MQTT broker responded with an invalid subscribe acknowledgement.'
+            );
         }
 
         $messageId        = $this->stringToNumber($this->pop($buffer, 2));
@@ -538,6 +630,11 @@ class MQTTClient
         $acknowledgements = str_split($buffer);
 
         if (count($acknowledgements) !== count($subscriptions)) {
+            $this->logger->notice('Received subscribe acknowledgement from an MQTT broker with wrong number of QoS acknowledgements.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'required' => count($subscriptions),
+                'received' => count($acknowledgements),
+            ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_SUBSCRIBE,
                 sprintf(
@@ -578,6 +675,10 @@ class MQTTClient
      */
     protected function handlePingRequest(): void
     {
+        $this->logger->debug('Received ping request from an MQTT broker. Sending response.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
         $this->writeToSocket(chr(0xd0) . chr(0x00));
     }
 
@@ -588,6 +689,8 @@ class MQTTClient
      */
     protected function handlePingAcknowledgement(): void
     {
+        $this->logger->debug('Received ping acknowledgement from an MQTT broker.', ['broker' => sprintf('%s:%s', $this->host, $this->port)]);
+
         $this->lastPingAt = new DateTime();
     }
 
@@ -599,11 +702,20 @@ class MQTTClient
      */
     protected function republishPendingMessages(): void
     {
+        $this->logger->debug('Re-publishing pending messages to MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
         /** @noinspection PhpUnhandledExceptionInspection */
         $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getRepublishInterval() . 'S'));
         $messages = $this->repository->getPendingPublishedMessagesLastSentBefore($dateTime);
 
         foreach ($messages as $message) {
+            $this->logger->debug('Re-publishing pending message to MQTT broker.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'message_id' => $message->getMessageId(),
+            ]);
+
             $this->publishMessage(
                 $message->getTopic(),
                 $message->getMessage(),
@@ -690,6 +802,9 @@ class MQTTClient
         $result = fwrite($this->socket, $data, $length);
 
         if ($result === false || $result !== $length) {
+            $this->logger->error('Sending data over the socket to an MQTT broker failed.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
             throw new DataTransferException(self::EXCEPTION_TX_DATA, 'Sending data over the socket failed. Has it been closed?');
         }
     }
@@ -712,6 +827,9 @@ class MQTTClient
         if ($withoutBlocking) {
             $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
+                $this->logger->error('Reading data from the socket from an MQTT broker failed.', [
+                    'broker' => sprintf('%s:%s', $this->host, $this->port),
+                ]);
                 throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket failed. Has it been closed?');
             }
             return $receivedData;
@@ -720,6 +838,9 @@ class MQTTClient
         while (feof($this->socket) === false && $remaining > 0) {
             $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
+                $this->logger->error('Reading data from the socket from an MQTT broker failed.', [
+                    'broker' => sprintf('%s:%s', $this->host, $this->port),
+                ]);
                 throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket failed. Has it been closed?');
             }
             $result .= $receivedData;
