@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace PhpMqtt\Client\Contracts;
 
 use DateTime;
-use PhpMqtt\Client\MQTTPublishedMessage;
-use PhpMqtt\Client\MQTTTopicSubscription;
+use PhpMqtt\Client\PublishedMessage;
+use PhpMqtt\Client\TopicSubscription;
 
 interface Repository
 {
     /**
      * Adds a topic subscription to the repository.
      * 
-     * @param MQTTTopicSubscription $subscription
+     * @param TopicSubscription $subscription
      * @return void
      */
-    public function addTopicSubscription(MQTTTopicSubscription $subscription): void;
+    public function addTopicSubscription(TopicSubscription $subscription): void;
 
     /**
      * Adds a new topic subscription with the given settings to the repository.
@@ -25,15 +25,15 @@ interface Repository
      * @param callable $callback
      * @param int      $messageId
      * @param int      $qualityOfService
-     * @return MQTTTopicSubscription
+     * @return TopicSubscription
      */
-    public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): MQTTTopicSubscription;
+    public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): TopicSubscription;
 
     /**
      * Get all topic subscriptions with the given message identifier.
      *
      * @param int $messageId
-     * @return MQTTTopicSubscription[]
+     * @return TopicSubscription[]
      */
     public function getTopicSubscriptionsWithMessageId(int $messageId): array;
 
@@ -41,17 +41,17 @@ interface Repository
      * Get all topic subscriptions matching the given topic.
      * 
      * @param string $topic
-     * @return MQTTTopicSubscription[]
+     * @return TopicSubscription[]
      */
     public function getTopicSubscriptionsMatchingTopic(string $topic): array;
 
     /**
      * Adds a pending published message to the repository.
      * 
-     * @param MQTTPublishedMessage $message
+     * @param PublishedMessage $message
      * @return void
      */
-    public function addPendingPublishedMessage(MQTTPublishedMessage $message): void;
+    public function addPendingPublishedMessage(PublishedMessage $message): void;
 
     /**
      * Adds a new pending published message with the given settings to the repository.
@@ -62,23 +62,23 @@ interface Repository
      * @param int           $qualityOfService
      * @param bool          $retain
      * @param DateTime|null $sentAt
-     * @return MQTTPublishedMessage
+     * @return PublishedMessage
      */
-    public function addNewPendingPublishedMessage(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null): MQTTPublishedMessage;
+    public function addNewPendingPublishedMessage(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null): PublishedMessage;
 
     /**
      * Gets a pending published message with the given message identifier, if found.
      * 
      * @param int $messageId
-     * @return MQTTPublishedMessage|null
+     * @return PublishedMessage|null
      */
-    public function getPendingPublishedMessageWithMessageId(int $messageId): ?MQTTPublishedMessage;
+    public function getPendingPublishedMessageWithMessageId(int $messageId): ?PublishedMessage;
 
     /**
      * Gets a list of pending published messages last sent before the given date time.
      * 
      * @param DateTime $dateTime
-     * @return MQTTPublishedMessage[]
+     * @return PublishedMessage[]
      */
     public function getPendingPublishedMessagesLastSentBefore(DateTime $dateTime): array;
 

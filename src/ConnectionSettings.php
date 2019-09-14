@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
-class MQTTConnectionSettings
+class ConnectionSettings
 {
     /** @var int */
     private $qualityOfService;

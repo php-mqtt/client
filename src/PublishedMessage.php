@@ -6,7 +6,7 @@ namespace PhpMqtt\Client;
 
 use DateTime;
 
-class MQTTPublishedMessage
+class PublishedMessage
 {
     /** @var int */
     private $messageId;

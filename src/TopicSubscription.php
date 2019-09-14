@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
-class MQTTTopicSubscription
+class TopicSubscription
 {
     /** @var string */
     private $topic;

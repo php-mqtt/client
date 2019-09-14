@@ -9,6 +9,9 @@ namespace PhpMqtt\Client;
 use DateInterval;
 use DateTime;
 use PhpMqtt\Client\Contracts\Repository;
+use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
+use PhpMqtt\Client\Exceptions\DataTransferException;
+use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 
 class MQTTClient
@@ -33,7 +36,7 @@ class MQTTClient
     /** @var string */
     private $clientId;
 
-    /** @var MQTTConnectionSettings|null */
+    /** @var ConnectionSettings|null */
     private $settings;
 
     /** @var string|null */
@@ -76,16 +79,16 @@ class MQTTClient
     /**
      * Connect to the MQTT broker using the given credentials and settings.
      *
-     * @param string|null            $username
-     * @param string|null            $password
-     * @param MQTTConnectionSettings $settings
-     * @param bool                   $sendCleanSessionFlag
+     * @param string|null        $username
+     * @param string|null        $password
+     * @param ConnectionSettings $settings
+     * @param bool               $sendCleanSessionFlag
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
-    public function connect(string $username = null, string $password = null, MQTTConnectionSettings $settings = null, bool $sendCleanSessionFlag = false): void
+    public function connect(string $username = null, string $password = null, ConnectionSettings $settings = null, bool $sendCleanSessionFlag = false): void
     {
-        $this->settings = $settings ?? new MQTTConnectionSettings();
+        $this->settings = $settings ?? new ConnectionSettings();
 
         $this->establishSocketConnection();
         $this->performConnectionHandshake($username, $password, $sendCleanSessionFlag);

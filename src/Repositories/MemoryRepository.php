@@ -5,24 +5,24 @@ declare(strict_types=1);
 namespace PhpMqtt\Client\Repositories;
 
 use Datetime;
-use PhpMqtt\Client\MQTTPublishedMessage;
-use PhpMqtt\Client\MQTTTopicSubscription;
+use PhpMqtt\Client\PublishedMessage;
+use PhpMqtt\Client\TopicSubscription;
 
 class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
 {
-    /** @var MQTTTopicSubscription[] */
+    /** @var TopicSubscription[] */
     private $topicSubscriptions = [];
 
-    /** @var MQTTPublishedMessage[] */
+    /** @var PublishedMessage[] */
     private $pendingPublishedMessages = [];
 
     /**
      * Adds a topic subscription to the repository.
      * 
-     * @param MQTTTopicSubscription $subscription
+     * @param TopicSubscription $subscription
      * @return void
      */
-    public function addTopicSubscription(MQTTTopicSubscription $subscription): void
+    public function addTopicSubscription(TopicSubscription $subscription): void
     {
         $this->topicSubscriptions[] = $subscription;
     }
@@ -34,11 +34,11 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
      * @param callable $callback
      * @param int      $messageId
      * @param int      $qualityOfService
-     * @return MQTTTopicSubscription
+     * @return TopicSubscription
      */
-    public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): MQTTTopicSubscription
+    public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): TopicSubscription
     {
-        $subscription = new MQTTTopicSubscription($topic, $callback, $messageId, $qualityOfService);
+        $subscription = new TopicSubscription($topic, $callback, $messageId, $qualityOfService);
         
         $this->addTopicSubscription($subscription);
 
@@ -49,11 +49,11 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
      * Get all topic subscriptions with the given message identifier.
      *
      * @param int $messageId
-     * @return MQTTTopicSubscription[]
+     * @return TopicSubscription[]
      */
     public function getTopicSubscriptionsWithMessageId(int $messageId): array
     {
-        return array_values(array_filter($this->topicSubscriptions, function (MQTTTopicSubscription $subscription) use ($messageId) {
+        return array_values(array_filter($this->topicSubscriptions, function (TopicSubscription $subscription) use ($messageId) {
             return $subscription->getMessageId() === $messageId;
         }));
     }
@@ -62,11 +62,11 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
      * Get all topic subscriptions matching the given topic.
      * 
      * @param string $topic
-     * @return MQTTTopicSubscription[]
+     * @return TopicSubscription[]
      */
     public function getTopicSubscriptionsMatchingTopic(string $topic): array
     {
-        return array_values(array_filter($this->topicSubscriptions, function (MQTTTopicSubscription $subscription) use ($topic) {
+        return array_values(array_filter($this->topicSubscriptions, function (TopicSubscription $subscription) use ($topic) {
             return preg_match($subscription->getRegexifiedTopic(), $topic);
         }));
     }
@@ -74,10 +74,10 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
     /**
      * Adds a pending published message to the repository.
      * 
-     * @param MQTTPublishedMessage $message
+     * @param PublishedMessage $message
      * @return void
      */
-    public function addPendingPublishedMessage(MQTTPublishedMessage $message): void
+    public function addPendingPublishedMessage(PublishedMessage $message): void
     {
         $this->pendingPublishedMessages[] = $message;
     }
@@ -91,11 +91,11 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
      * @param int           $qualityOfService
      * @param bool          $retain
      * @param DateTime|null $sentAt
-     * @return MQTTPublishedMessage
+     * @return PublishedMessage
      */
-    public function addNewPendingPublishedMessage(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null): MQTTPublishedMessage
+    public function addNewPendingPublishedMessage(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null): PublishedMessage
     {
-        $message = new MQTTPublishedMessage($messageId, $topic, $message, $qualityOfService, $retain, $sentAt);
+        $message = new PublishedMessage($messageId, $topic, $message, $qualityOfService, $retain, $sentAt);
 
         $this->addPendingPublishedMessage($message);
 
@@ -108,11 +108,11 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
      * Gets a pending published message with the given message identifier, if found.
      * 
      * @param int $messageId
-     * @return MQTTPublishedMessage|null
+     * @return PublishedMessage|null
      */
-    public function getPendingPublishedMessageWithMessageId(int $messageId): ?MQTTPublishedMessage
+    public function getPendingPublishedMessageWithMessageId(int $messageId): ?PublishedMessage
     {
-        $messages = array_filter($this->pendingPublishedMessages, function (MQTTPublishedMessage $message) use ($messageId) {
+        $messages = array_filter($this->pendingPublishedMessages, function (PublishedMessage $message) use ($messageId) {
             return $messageId->getMessageId() === $messageId;
         });
 
@@ -127,11 +127,11 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
      * Gets a list of pending published messages last sent before the given date time.
      * 
      * @param DateTime $dateTime
-     * @return MQTTPublishedMessage[]
+     * @return PublishedMessage[]
      */
     public function getPendingPublishedMessagesLastSentBefore(DateTime $dateTime): array
     {
-        return array_values(array_filter($this->pendingPublishedMessages, function (MQTTPublishedMessage $message) use ($dateTime) {
+        return array_values(array_filter($this->pendingPublishedMessages, function (PublishedMessage $message) use ($dateTime) {
             return $message->getLastSentAt() < $dateTime;
         }));
     }
