@@ -798,6 +798,9 @@ class MQTTClient
                 $message->getMessageId(),
                 true
             );
+
+            $message->setLastSentAt(new DateTime());
+            $message->incrementSendingAttempts();
         }
     }
 
@@ -824,6 +827,9 @@ class MQTTClient
             ]);
 
             $this->sendUnsubscribeRequest($request->getMessageId(), $request->getTopic(), true);
+
+            $request->setLastSentAt(new DateTime());
+            $request->incrementSendingAttempts();
         }
     }
 
