@@ -1,0 +1,14 @@
+{
+    "name": "php-mqtt/client",
+    "description": "An MQTT client written in and for PHP.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Namoshek",
+            "email": "namoshek@gmx.at"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {}
+}

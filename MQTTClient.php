@@ -70,8 +70,8 @@ class MQTTClient
     {
         $this->settings = $settings ?? new MQTTConnectionSettings();
 
-        $this->openSocket();
-        $this->sendConnectionMessage($username, $password, $sendCleanSessionFlag);
+        $this->establishSocketConnection();
+        $this->performConnectionHandshake($username, $password, $sendCleanSessionFlag);
     }
 
     /**
@@ -80,7 +80,7 @@ class MQTTClient
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
-    protected function openSocket(): void
+    protected function establishSocketConnection(): void
     {
         // TODO: add logging
         // TODO: build Uri object from PSR
@@ -108,7 +108,7 @@ class MQTTClient
     }
 
     /**
-     * Sends a connection message over the socket.
+     * Sends a connection message over the socket and processes the response.
      * If the socket connection is not established, an exception is thrown.
      * 
      * @param string|null $username
@@ -117,7 +117,7 @@ class MQTTClient
      * @return void
      * @throws DataTransferException
      */
-    protected function sendConnectionMessage(string $username = null, string $password = null, bool $sendCleanSessionFlag): void
+    protected function performConnectionHandshake(string $username = null, string $password = null, bool $sendCleanSessionFlag): void
     {
         try {
             $i = 0;
@@ -358,17 +358,7 @@ class MQTTClient
     public function loop(bool $allowSleep = true): void
     {
         while (true) {
-            $cmd = 0;
-            
-            // when we receive an eof, we reconnect to get a clean connection
-            // if (feof($this->socket)) {
-            //     fclose($this->socket);
-            //     $this->connect_auto(false);
-            //     foreach ($this->subscribedTopics as $topic => $settings) {
-            //         $this->subscribe($topic, $settings['callback'], $settings['qos']);
-            //     }
-            // }
-            
+            $cmd  = 0;
             $byte = $this->readFromSocket(1, true);
             
             if (strlen($byte) === 0) {
@@ -377,12 +367,12 @@ class MQTTClient
                 }
             } else {
                 $cmd        = (int)(ord($byte) / 16);
-                $multiplier = 1; 
+                $multiplier = 1;
                 $value      = 0;
 
                 do {
                     $digit       = ord($this->readFromSocket(1));
-                    $value      += ($digit & 127) * $multiplier; 
+                    $value      += ($digit & 127) * $multiplier;
                     $multiplier *= 128;
                 } while (($digit & 128) !== 0);
 
@@ -406,16 +396,8 @@ class MQTTClient
             }
 
             if ($this->lastPingAt < (microtime(true) - $this->settings->getKeepAlive())) {
-                $this->ping();    
+                $this->ping();
             }
-
-            // when we do not receive a package in a long time, we reconnect to avoid issues with the connection
-            // if ($this->lastPingAt < (microtime(true) - ($this->settings->getKeepAlive() * 2))) {
-            //     fclose($this->socket);
-            //     $this->connect_auto(false);
-            //     if(count($this->topics))
-            //         $this->subscribe($this->topics);
-            // }
         }
     }
 
