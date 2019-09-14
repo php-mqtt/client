@@ -14,6 +14,8 @@ use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 
+/** @noinspection PhpDocMissingThrowsInspection */
+
 class MQTTClient
 {
     const EXCEPTION_CONNECTION_FAILED = 0001;
@@ -135,9 +137,9 @@ class MQTTClient
      * @param string|null $password
      * @param bool        $sendCleanSessionFlag
      * @return void
-     * @throws DataTransferException
+     * @throws ConnectingToBrokerFailedException
      */
-    protected function performConnectionHandshake(string $username = null, string $password = null, bool $sendCleanSessionFlag): void
+    protected function performConnectionHandshake(string $username = null, string $password = null, bool $sendCleanSessionFlag = false): void
     {
         try {
             $i = 0;
@@ -219,7 +221,7 @@ class MQTTClient
      * @param bool        $sendCleanSessionFlag
      * @return int
      */
-    protected function buildConnectionFlags(string $username = null, string $password = null, bool $sendCleanSessionFlag): int
+    protected function buildConnectionFlags(string $username = null, string $password = null, bool $sendCleanSessionFlag = false): int
     {
         $flags = 0;
 
@@ -254,6 +256,7 @@ class MQTTClient
      * Sends a ping to the MQTT broker.
      *
      * @return void
+     * @throws DataTransferException
      */
     public function ping(): void
     {
@@ -279,6 +282,7 @@ class MQTTClient
      * Sends a disconnect message to the MQTT broker.
      *
      * @return void
+     * @throws DataTransferException
      */
     protected function disconnect(): void
     {
@@ -305,22 +309,29 @@ class MQTTClient
             $this->repository->addNewPendingPublishedMessage($messageId, $topic, $message, $qualityOfService, $retain);
         }
 
-        $this->publishMessage($messageId, $topic, $message, $qualityOfService, $retain);
+        $this->publishMessage($topic, $message, $qualityOfService, $retain, $messageId);
     }
 
     /**
      * Builds and publishes a message.
      * 
-     * @param int|null $messageId
      * @param string   $topic
      * @param string   $message
      * @param int      $qualityOfService
      * @param bool     $retain
+     * @param int|null $messageId
      * @param bool     $isDuplicate
      * @return void
      * @throws DataTransferException
      */
-    protected function publishMessage(int $messageId = null, string $topic, string $message, int $qualityOfService, bool $retain, bool $isDuplicate = false): void
+    protected function publishMessage(
+        string $topic,
+        string $message,
+        int $qualityOfService,
+        bool $retain,
+        int $messageId = null,
+        bool $isDuplicate = false
+    ): void
     {
         $i      = 0;
         $buffer = '';
@@ -391,13 +402,13 @@ class MQTTClient
      * @param bool $allowSleep
      * @return void
      * @throws UnexpectedAcknowledgementException
+     * @throws DataTransferException
      */
     public function loop(bool $allowSleep = true): void
     {
         $lastRepublishedAt = microtime(true);
 
         while (true) {
-            $cmd    = 0;
             $buffer = null;
             $byte   = $this->readFromSocket(1, true);
 
@@ -561,8 +572,9 @@ class MQTTClient
 
     /**
      * Handles a received ping request. Simply sends an acknowledgement.
-     * 
+     *
      * @return void
+     * @throws DataTransferException
      */
     protected function handlePingRequest(): void
     {
@@ -571,9 +583,8 @@ class MQTTClient
 
     /**
      * Handles a received ping acknowledgement.
-     * 
+     *
      * @return void
-     * @throws UnexpectedAcknowledgementException
      */
     protected function handlePingAcknowledgement(): void
     {
@@ -582,21 +593,23 @@ class MQTTClient
 
     /**
      * Republishes pending messages.
-     * 
+     *
      * @return void
+     * @throws DataTransferException
      */
     protected function republishPendingMessages(): void
     {
+        /** @noinspection PhpUnhandledExceptionInspection */
         $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getRepublishInterval() . 'S'));
         $messages = $this->repository->getPendingPublishedMessagesLastSentBefore($dateTime);
 
         foreach ($messages as $message) {
             $this->publishMessage(
-                $message->getMessageId(),
                 $message->getTopic(),
                 $message->getMessage(),
                 $message->getQualityOfServiceLevel(),
                 $message->wantsToBeRetained(),
+                $message->getMessageId(),
                 true
             );
         }
@@ -645,16 +658,6 @@ class MQTTClient
         } while ($length > 0);
 
         return $result;
-    }
-
-    /**
-     * Gets the current message id.
-     *
-     * @return int
-     */
-    protected function currentMessageId(): int
-    {
-        return $this->messageId;
     }
 
     /**
