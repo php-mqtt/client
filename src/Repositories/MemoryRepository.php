@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Namoshek\MQTT\Repositories;
+namespace PhpMqtt\Client\Repositories;
 
-use Namoshek\MQTT\MQTTPublishedMessage;
-use Namoshek\MQTT\MQTTTopicSubscription;
+use Datetime;
+use PhpMqtt\Client\MQTTPublishedMessage;
+use PhpMqtt\Client\MQTTTopicSubscription;
 
-class MemoryRepository implements MQTT\Contracts\Repository
+class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
 {
     /** @var MQTTTopicSubscription[] */
     private $topicSubscriptions = [];

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Namoshek\MQTT;
+namespace PhpMqtt\Client;
 
 // TODO: add logging using a PSR logging interface
 
 use DateInterval;
 use DateTime;
-use Namoshek\MQTT\Contracts\Repository;
-use Namoshek\MQTT\Repositories\MemoryRepository;
+use PhpMqtt\Client\Contracts\Repository;
+use PhpMqtt\Client\Repositories\MemoryRepository;
 
 class MQTTClient
 {

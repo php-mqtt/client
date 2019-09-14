@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Namoshek\MQTT\Contracts;
+namespace PhpMqtt\Client\Contracts;
 
 use DateTime;
-use Namoshek\MQTT\MQTTPublishedMessage;
-use Namoshek\MQTT\MQTTTopicSubscription;
+use PhpMqtt\Client\MQTTPublishedMessage;
+use PhpMqtt\Client\MQTTTopicSubscription;
 
 interface Repository
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Namoshek\MQTT;
+namespace PhpMqtt\Client;
 
 /**
  * Exception to be thrown if an MQTT client encountered an error while transfering data.

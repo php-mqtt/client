@@ -2,13 +2,29 @@
     "name": "php-mqtt/client",
     "description": "An MQTT client written in and for PHP.",
     "type": "library",
+    "keywords": [
+        "mqtt",
+        "client",
+        "publish",
+        "subscribe"
+    ],
     "license": "MIT",
     "authors": [
         {
             "name": "Namoshek",
-            "email": "namoshek@gmx.at"
+            "email": "namoshek@gmx.at",
+            "role": "developer"
         }
     ],
-    "minimum-stability": "stable",
-    "require": {}
+    "autoload": {
+        "psr-4": {
+            "PhpMqtt\\Client\\": "src"
+        }
+    },
+    "require": {
+        "php": "^7.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^8.0"
+    }
 }
