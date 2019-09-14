@@ -6,6 +6,7 @@ namespace PhpMqtt\Client\Repositories;
 
 use Datetime;
 use PhpMqtt\Client\Contracts\Repository;
+use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
 use PhpMqtt\Client\PublishedMessage;
 use PhpMqtt\Client\TopicSubscription;
 use PhpMqtt\Client\UnsubscribeRequest;
@@ -20,6 +21,9 @@ class MemoryRepository implements Repository
 
     /** @var UnsubscribeRequest[] */
     private $pendingUnsubscribeRequests = [];
+
+    /** @var string[] */
+    private $pendingPublishConfirmations = [];
 
     /**
      * Adds a topic subscription to the repository.
@@ -231,6 +235,73 @@ class MemoryRepository implements Repository
         }
 
         $this->pendingUnsubscribeRequests = array_diff($this->pendingUnsubscribeRequests, [$request]);
+
+        return true;
+    }
+
+    /**
+     * Adds a pending publish confirmation to the repository.
+     *
+     * @param PublishedMessage $message
+     * @return void
+     * @throws PendingPublishConfirmationAlreadyExistsException
+     */
+    public function addPendingPublishConfirmation(PublishedMessage $message): void
+    {
+        if ($this->getPendingPublishConfirmationWithMessageId($message->getMessageId()) !== null) {
+            throw new PendingPublishConfirmationAlreadyExistsException($message->getMessageId());
+        }
+
+        $this->pendingPublishConfirmations[] = $message;
+    }
+
+    /**
+     * Adds a new pending publish confirmation with the given settings to the repository.
+     *
+     * @param int    $messageId
+     * @param string $topic
+     * @param string $message
+     * @return PublishedMessage
+     * @throws PendingPublishConfirmationAlreadyExistsException
+     */
+    public function addNewPendingPublishConfirmation(int $messageId, string $topic, string $message): PublishedMessage
+    {
+        $message = new PublishedMessage($messageId, $topic, $message, 2, false);
+
+        $this->addPendingPublishConfirmation($message);
+
+        return $message;
+    }
+
+    /**
+     * Gets a pending publish confirmation with the given message identifier, if found.
+     *
+     * @param int $messageId
+     * @return PublishedMessage|null
+     */
+    public function getPendingPublishConfirmationWithMessageId(int $messageId): ?PublishedMessage
+    {
+        $messages = array_filter($this->pendingPublishConfirmations, function (PublishedMessage $message) use ($messageId) {
+            return $message->getMessageId() === $messageId;
+        });
+
+        return empty($messages) ? null : $messages[0];
+    }
+
+    /**
+     * Removes the given message identifier from the list of pending publish confirmations.
+     * This is normally done as soon as a transaction has been successfully finished.
+     *
+     * @param int $messageId
+     * @return bool
+     */
+    public function removePendingPublishConfirmation(int $messageId): bool
+    {
+        if (!in_array($messageId, $this->pendingPublishConfirmations)) {
+            return false;
+        }
+
+        $this->pendingPublishConfirmations = array_diff($this->pendingPublishConfirmations, [$messageId]);
 
         return true;
     }

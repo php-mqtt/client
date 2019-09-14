@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpMqtt\Client\Contracts;
 
 use DateTime;
+use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
 use PhpMqtt\Client\PublishedMessage;
 use PhpMqtt\Client\TopicSubscription;
 use PhpMqtt\Client\UnsubscribeRequest;
@@ -136,4 +137,42 @@ interface Repository
      * @return bool
      */
     public function removePendingUnsubscribeRequest(int $messageId): bool;
+
+    /**
+     * Adds a pending publish confirmation to the repository.
+     *
+     * @param PublishedMessage $message
+     * @return void
+     * @throws PendingPublishConfirmationAlreadyExistsException
+     */
+    public function addPendingPublishConfirmation(PublishedMessage $message): void;
+
+    /**
+     * Adds a new pending publish confirmation with the given settings to the repository.
+     *
+     * @param int    $messageId
+     * @param string $topic
+     * @param string $message
+     * @return PublishedMessage
+     * @throws PendingPublishConfirmationAlreadyExistsException
+     */
+    public function addNewPendingPublishConfirmation(int $messageId, string $topic, string $message): PublishedMessage;
+
+    /**
+     * Gets a pending publish confirmation with the given message identifier, if found.
+     *
+     * @param int $messageId
+     * @return PublishedMessage|null
+     */
+    public function getPendingPublishConfirmationWithMessageId(int $messageId): ?PublishedMessage;
+
+    /**
+     * Removes the pending publish confirmation with the given message identifier
+     * from the repository. This is normally done as soon as a transaction has been
+     * successfully finished by the publisher.
+     *
+     * @param int $messageId
+     * @return bool
+     */
+    public function removePendingPublishConfirmation(int $messageId): bool;
 }

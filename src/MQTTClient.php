@@ -9,6 +9,7 @@ use DateTime;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
+use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 use Psr\Log\LoggerInterface;
@@ -26,6 +27,7 @@ class MQTTClient
     const EXCEPTION_ACK_CONNECT                    = 0201;
     const EXCEPTION_ACK_PUBLISH                    = 0202;
     const EXCEPTION_ACK_SUBSCRIBE                  = 0203;
+    const EXCEPTION_ACK_RELEASE                    = 0204;
 
     const QOS_AT_LEAST_ONCE = 0;
     const QOS_AT_MOST_ONCE  = 1;
@@ -542,8 +544,8 @@ class MQTTClient
     {
         $this->logger->debug('Starting MQTT client loop.');
 
-        $lastRepublishedAt    = microtime(true);
-        $lastReunsubscribedAt = microtime(true);
+        $lastRepublishedAt        = microtime(true);
+        $lastResendUnsubscribedAt = microtime(true);
 
         while (true) {
             $buffer = null;
@@ -554,9 +556,10 @@ class MQTTClient
                     usleep(100000); // 100ms
                 }
             } else {
-                $cmd        = (int)(ord($byte) / 16);
-                $multiplier = 1;
-                $value      = 0;
+                $cmd              = (int)(ord($byte) / 16);
+                $qualityOfService = ($byte & 0x06) >> 1;
+                $multiplier       = 1;
+                $value            = 0;
 
                 do {
                     $digit       = ord($this->readFromSocket(1));
@@ -574,10 +577,13 @@ class MQTTClient
                         case 2:
                             throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
                         case 3:
-                            $this->handlePublishedMessage($buffer);
+                            $this->handlePublishedMessage($buffer, $qualityOfService);
                             break;
                         case 4:
                             $this->handlePublishAcknowledgement($buffer);
+                            break;
+                        case 6:
+                            $this->handlePublishRelease($buffer);
                             break;
                         case 9:
                             $this->handleSubscribeAcknowledgement($buffer);
@@ -606,9 +612,9 @@ class MQTTClient
                 $lastRepublishedAt = microtime(true);
             }
 
-            if (1 < (microtime(true) - $lastReunsubscribedAt)) {
+            if (1 < (microtime(true) - $lastResendUnsubscribedAt)) {
                 $this->republishPendingUnsubscribeRequests();
-                $lastReunsubscribedAt = microtime(true);
+                $lastResendUnsubscribedAt = microtime(true);
             }
         }
     }
@@ -620,26 +626,48 @@ class MQTTClient
      *   [topic-length:topic:message]+
      *
      * @param string $buffer
+     * @param int    $qualityOfServiceLevel
      * @return void
+     * @throws DataTransferException
      */
-    protected function handlePublishedMessage(string $buffer): void
+    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel): void
     {
         $topicLength = (ord($buffer[0]) << 8) + ord($buffer[1]);
         $topic       = substr($buffer, 2, $topicLength);
         $message     = substr($buffer, ($topicLength + 2));
 
-        $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
+        if ($qualityOfServiceLevel > 0) {
+            if (strlen($message) < 2) {
+                $this->logger->error(sprintf(
+                    'Received a published message with QoS level [%s] from an MQTT broker, but without a message identifier.',
+                    $qualityOfServiceLevel
+                ));
 
-        $this->logger->debug('Handling published message received from an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
-            'topic' => $topic,
-            'message' => $message,
-            'subscribers' => count($subscribers),
-        ]);
+                // This message seems to be incomplete or damaged. We ignore it and wait for a retransmission,
+                // which will occur at some point due to QoS level > 0.
+                return;
+            }
 
-        foreach ($subscribers as $subscriber) {
-            call_user_func($subscriber->getCallback(), $topic, $message);
+            $messageId = $this->stringToNumber($this->shift($message, 2));
+
+            if ($qualityOfServiceLevel === 1) {
+                $this->sendPublishAcknowledgement($messageId);
+            }
+
+            if ($qualityOfServiceLevel === 2) {
+                try {
+                    $this->sendPublishReceived($messageId);
+                    $this->repository->addNewPendingPublishConfirmation($messageId, $topic, $message);
+                } catch (PendingPublishConfirmationAlreadyExistsException $e) {
+                    // We already received and processed this message, therefore we do not respond
+                    // with a receipt a second time and wait for the release instead.
+                }
+                // We only deliver this published message as soon as we receive a publish complete.
+                return;
+            }
         }
+
+        $this->deliverPublishedMessage($topic, $message, $qualityOfServiceLevel);
     }
 
     /**
@@ -680,6 +708,52 @@ class MQTTClient
                 'The MQTT broker acknowledged a publish that has not been pending anymore.'
             );
         }
+    }
+
+    /**
+     * Handles a received publish release message. The buffer contains the whole
+     * message except command and length. The message structure is:
+     *
+     *   [message-identifier]
+     *
+     * @param string $buffer
+     * @return void
+     * @throws DataTransferException
+     * @throws UnexpectedAcknowledgementException
+     */
+    protected function handlePublishRelease(string $buffer): void
+    {
+        $this->logger->debug('Handling publish release received from an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
+        if (strlen($buffer) !== 2) {
+            $this->logger->notice('Received invalid publish release from an MQTT broker.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_RELEASE,
+                'The MQTT broker responded with an invalid publish release message.'
+            );
+        }
+
+        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+
+        $message = $this->repository->getPendingPublishConfirmationWithMessageId($messageId);
+
+        $result = $this->repository->removePendingPublishConfirmation($messageId);
+        if ($message === null || $result === false) {
+            $this->logger->notice('Received publish release from an MQTT broker for already released message.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_RELEASE,
+                'The MQTT broker released a publish that has not been pending anymore.'
+            );
+        }
+
+        $this->deliverPublishedMessage($message->getTopic(), $message->getMessage(), $message->getQualityOfServiceLevel());
+        $this->sendPublishComplete($messageId);
     }
 
     /**
@@ -801,6 +875,91 @@ class MQTTClient
         $this->logger->debug('Received ping acknowledgement from an MQTT broker.', ['broker' => sprintf('%s:%s', $this->host, $this->port)]);
 
         $this->lastPingAt = new DateTime();
+    }
+
+    /**
+     * Delivers a published message to subscribed callbacks.
+     *
+     * @param string $topic
+     * @param string $message
+     * @param int    $qualityOfServiceLevel
+     * @return void
+     */
+    protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel): void
+    {
+        $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
+
+        $this->logger->debug('Delivering published message received from an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'topic' => $topic,
+            'message' => $message,
+            'subscribers' => count($subscribers),
+        ]);
+
+        foreach ($subscribers as $subscriber) {
+            if ($subscriber->getQualityOfServiceLevel() > $qualityOfServiceLevel) {
+                // At this point we need to assume that this subscriber does not want to receive
+                // the message, but maybe there are other subscribers waiting for the message.
+                continue;
+            }
+
+            try {
+                call_user_func($subscriber->getCallback(), $topic, $message);
+            } catch (\Throwable $e) {
+                // We ignore errors produced by custom callbacks.
+            }
+        }
+    }
+
+    /**
+     * Sends a publish acknowledgement for the given message identifier.
+     *
+     * @param int $messageId
+     * @return void
+     * @throws DataTransferException
+     */
+    protected function sendPublishAcknowledgement(int $messageId): void
+    {
+        $this->logger->debug('Sending publish acknowledgement to an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'message_id' => $messageId,
+        ]);
+
+        $this->writeToSocket(chr(0x40) . chr(0x02) . $this->encodeMessageId($messageId));
+    }
+
+    /**
+     * Sends a publish received message for the given message identifier.
+     *
+     * @param int $messageId
+     * @return void
+     * @throws DataTransferException
+     */
+    protected function sendPublishReceived(int $messageId): void
+    {
+        $this->logger->debug('Sending publish received message to an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'message_id' => $messageId,
+        ]);
+
+        $this->writeToSocket(chr(0x50) . chr(0x02) . $this->encodeMessageId($messageId));
+    }
+
+    /**
+     * Sends a publish complete message for the given message identifier.
+     *
+     * @param int $messageId
+     * @return void
+     * @throws DataTransferException
+     */
+    protected function sendPublishComplete(int $messageId): void
+    {
+        $this->logger->debug('Sending publish received message to an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'message_id' => $messageId,
+        ]);
+
+        $this->writeToSocket(chr(0x70) . chr(0x02) . $this->encodeMessageId($messageId));
     }
 
     /**
@@ -1083,6 +1242,23 @@ class MQTTClient
 
         $result = substr($buffer, 0, $limit);
         $buffer = substr($buffer, $limit);
+
+        return $result;
+    }
+
+    /**
+     * Shifts the last $limit bytes from the given buffer and returns them.
+     *
+     * @param string $buffer
+     * @param int    $limit
+     * @return string
+     */
+    protected function shift(string &$buffer, int $limit): string
+    {
+        $limit = min(strlen($buffer), $limit);
+
+        $result = substr($buffer, $limit * (-1));
+        $buffer = substr($buffer, 0 ,$limit * (-1));
 
         return $result;
     }
