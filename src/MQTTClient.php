@@ -17,12 +17,15 @@ use Psr\Log\LoggerInterface;
 
 class MQTTClient
 {
-    const EXCEPTION_CONNECTION_FAILED = 0001;
-    const EXCEPTION_TX_DATA           = 0101;
-    const EXCEPTION_RX_DATA           = 0102;
-    const EXCEPTION_ACK_CONNECT       = 0201;
-    const EXCEPTION_ACK_PUBLISH       = 0202;
-    const EXCEPTION_ACK_SUBSCRIBE     = 0203;
+    const EXCEPTION_CONNECTION_FAILED              = 0001;
+    const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
+    const EXCEPTION_CONNECTION_IDENTIFIER_REJECTED = 0003;
+    const EXCEPTION_CONNECTION_BROKER_UNAVAILABLE  = 0004;
+    const EXCEPTION_TX_DATA                        = 0101;
+    const EXCEPTION_RX_DATA                        = 0102;
+    const EXCEPTION_ACK_CONNECT                    = 0201;
+    const EXCEPTION_ACK_PUBLISH                    = 0202;
+    const EXCEPTION_ACK_SUBSCRIBE                  = 0203;
 
     const QOS_AT_LEAST_ONCE = 0;
     const QOS_AT_MOST_ONCE  = 1;
@@ -221,10 +224,42 @@ class MQTTClient
 
             // read and process the acknowledgement
             $acknowledgement = $this->readFromSocket(4);
-            // TODO: improve response handling for better error handling (connection refused, etc.)
-            if (ord($acknowledgement[0]) >> 4 === 2 && $acknowledgement[3] === chr(0)) {
-                $this->logger->info(sprintf('Connection with MQTT broker at [%s:%s] established successfully.', $this->host, $this->port));
-                $this->lastPingAt = microtime(true);
+            if (ord($acknowledgement[0]) >> 4 === 2) {
+                switch ($acknowledgement[3]) {
+                    case chr(0):
+                        $this->logger->info(sprintf('Connection with MQTT broker at [%s:%s] established successfully.', $this->host, $this->port));
+                        $this->lastPingAt = microtime(true);
+                        break;
+                    case chr(1):
+                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] does not support MQTT v3.', $this->host, $this->port));
+                        throw new ConnectingToBrokerFailedException(
+                            self::EXCEPTION_CONNECTION_PROTOCOL_VERSION,
+                            'The selected MQTT broker does not support MQTT v3.'
+                        );
+                    case chr(2):
+                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] rejected the sent identifier.', $this->host, $this->port));
+                        throw new ConnectingToBrokerFailedException(
+                            self::EXCEPTION_CONNECTION_IDENTIFIER_REJECTED,
+                            'The selected MQTT broker rejected the sent identifier.'
+                        );
+                    case chr(3):
+                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] is currently unavailable.', $this->host, $this->port));
+                        throw new ConnectingToBrokerFailedException(
+                            self::EXCEPTION_CONNECTION_BROKER_UNAVAILABLE,
+                            'The selected MQTT broker is currently unavailable.'
+                        );
+                    default:
+                        $this->logger->error(sprintf(
+                            'The MQTT broker at [%s:%s] responded with an invalid error code [%s].',
+                            $this->host,
+                            $this->port,
+                            $acknowledgement[3]
+                        ));
+                        throw new ConnectingToBrokerFailedException(
+                            self::EXCEPTION_CONNECTION_FAILED,
+                            'The selected MQTT broker responded with an invalid error code. A connection could not be established.'
+                        );
+                }
             } else {
                 $this->logger->error(sprintf('The MQTT broker at [%s:%s] refused the connection.', $this->host, $this->port));
                 throw new ConnectingToBrokerFailedException(self::EXCEPTION_CONNECTION_FAILED, 'A connection could not be established.');
