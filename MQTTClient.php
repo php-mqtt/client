@@ -6,12 +6,23 @@ namespace Namoshek\MQTT;
 
 // TODO: add logging using a PSR logging interface
 
+use DateInterval;
+use DateTime;
+use Namoshek\MQTT\Contracts\Repository;
+use Namoshek\MQTT\Repositories\MemoryRepository;
+
 class MQTTClient
 {
     const EXCEPTION_CONNECTION_FAILED = 0001;
     const EXCEPTION_TX_DATA           = 0101;
     const EXCEPTION_RX_DATA           = 0102;
-    const EXCEPTION_ACK_SUBSCRIBE     = 0201;
+    const EXCEPTION_ACK_CONNECT       = 0201;
+    const EXCEPTION_ACK_PUBLISH       = 0202;
+    const EXCEPTION_ACK_SUBSCRIBE     = 0203;
+
+    const QOS_AT_LEAST_ONCE = 0;
+    const QOS_AT_MOST_ONCE  = 1;
+    const QOS_EXACTLY_ONCE  = 2;
 
     /** @var string */
     private $host;
@@ -37,23 +48,29 @@ class MQTTClient
     /** @var int */
     private $messageId = 1;
 
-    /** @var MQTTTopicSubscription[] */
-    private $subscribedTopics = [];
+    /** @var Repository */
+    private $repository;
 
     /**
      * Constructs a new MQTT client which subsequently supports publishing and subscribing.
      *
-     * @param string      $host
-     * @param int         $port
-     * @param string|null $clientId
-     * @param string|null $caFile
+     * @param string          $host
+     * @param int             $port
+     * @param string|null     $clientId
+     * @param string|null     $caFile
+     * @param Repository|null $repository
      */
-    public function __construct(string $host, int $port = 1883, string $clientId = null, string $caFile = null)
+    public function __construct(string $host, int $port = 1883, string $clientId = null, string $caFile = null, Repository $repository = null)
     {
-        $this->host     = $host;
-        $this->port     = $port;
-        $this->clientId = $clientId ?? $this->generateRandomClientId();
-        $this->caFile   = $caFile;
+        if ($repository === null) {
+            $repository = new MemoryRepository();
+        }
+
+        $this->host       = $host;
+        $this->port       = $port;
+        $this->clientId   = $clientId ?? $this->generateRandomClientId();
+        $this->caFile     = $caFile;
+        $this->repository = $repository;
     }
 
     /**
@@ -244,11 +261,15 @@ class MQTTClient
      * Sends a disconnect and closes the socket.
      *
      * @return void
+     * @throws DataTransferException
      */
     public function close(): void
     {
         $this->disconnect();
-        stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
+
+        if ($this->socket !== null && is_resource($this->socket)) {
+            stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
+        }
     }
 
     /**
@@ -274,6 +295,30 @@ class MQTTClient
      */
     public function publish(string $topic, string $message, int $qualityOfService = 0, bool $retain = false): void
     {
+        $messageId = null;
+
+        if ($qualityOfService > 0) {
+            $messageId = $this->nextMessageId();
+            $this->repository->addNewPendingPublishedMessage($messageId, $topic, $message, $qualityOfService, $retain);
+        }
+
+        $this->publishMessage($messageId, $topic, $message, $qualityOfService, $retain);
+    }
+
+    /**
+     * Builds and publishes a message.
+     * 
+     * @param int|null $messageId
+     * @param string   $topic
+     * @param string   $message
+     * @param int      $qualityOfService
+     * @param bool     $retain
+     * @param bool     $isDuplicate
+     * @return void
+     * @throws DataTransferException
+     */
+    protected function publishMessage(int $messageId = null, string $topic, string $message, int $qualityOfService, bool $retain, bool $isDuplicate = false): void
+    {
         $i      = 0;
         $buffer = '';
 
@@ -281,9 +326,8 @@ class MQTTClient
         $buffer   .= $topicPart;
         $i        += strlen($topicPart);
 
-        if ($qualityOfService > 0)
+        if ($messageId !== null)
         {
-            $messageId = $this->nextMessageId();
             $buffer   .= chr($messageId >> 8); $i++;
             $buffer   .= chr($messageId % 256); $i++;
         }
@@ -297,6 +341,9 @@ class MQTTClient
         }
         if ($qualityOfService > 0) {
             $cmd += $qualityOfService << 1;
+        }
+        if ($isDuplicate) {
+            $cmd += 1 << 3;
         }
 
         $header = chr($cmd) . $this->encodeMessageLength($i);
@@ -326,7 +373,7 @@ class MQTTClient
         $i        += strlen($topicPart);
         $buffer   .= chr($qualityOfService); $i++;
 
-        $this->addTopicSubscription($topic, $callback, $messageId, $qualityOfService);
+        $this->repository->addNewTopicSubscription($topic, $callback, $messageId, $qualityOfService);
 
         $cmd    = 0x80 | ($qualityOfService << 1);
         $header = chr($cmd) . chr($i);
@@ -335,31 +382,21 @@ class MQTTClient
     }
 
     /**
-     * Adds a topic subscription.
-     *
-     * @param string   $topic
-     * @param callable $callback
-     * @param int      $messageId
-     * @param int      $qualityOfService
-     * @return void
-     */
-    protected function addTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): void
-    {
-        $this->subscribedTopics[] = new MQTTTopicSubscription($topic, $callback, $messageId, $qualityOfService);
-    }
-
-    /**
      * Runs an event loop that handles messages from the server and calls the registered
      * callbacks for published messages.
      *
      * @param bool $allowSleep
      * @return void
+     * @throws UnexpectedAcknowledgementException
      */
     public function loop(bool $allowSleep = true): void
     {
+        $lastRepublishedAt = microtime(true);
+
         while (true) {
-            $cmd  = 0;
-            $byte = $this->readFromSocket(1, true);
+            $cmd    = 0;
+            $buffer = null;
+            $byte   = $this->readFromSocket(1, true);
 
             if (strlen($byte) === 0) {
                 if($allowSleep){
@@ -383,11 +420,25 @@ class MQTTClient
                 if ($cmd) {
                     switch($cmd){
                         // TODO: implement remaining commands
+                        case 2:
+                            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
                         case 3:
                             $this->handlePublishedMessage($buffer);
                             break;
+                        case 4:
+                            $this->handlePublishAcknowledgement($buffer);
+                            break;
                         case 9:
-                            $this->handleSubscriptionAcknowledgement($buffer);
+                            $this->handleSubscribeAcknowledgement($buffer);
+                            break;
+                        case 11:
+                            $this->handleUnsubscribeAcknowledgement($buffer);
+                            break;
+                        case 12:
+                            $this->handlePingRequest();
+                            break;
+                        case 13;
+                            $this->handlePingAcknowledgement();
                             break;
                     }
 
@@ -397,6 +448,11 @@ class MQTTClient
 
             if ($this->lastPingAt < (microtime(true) - $this->settings->getKeepAlive())) {
                 $this->ping();
+            }
+
+            if (1 < (microtime(true) - $lastRepublishedAt)) {
+                $this->republishPendingMessages();
+                $lastRepublishedAt = microtime(true);
             }
         }
     }
@@ -416,13 +472,32 @@ class MQTTClient
         $topic       = substr($buffer, 2, $topicLength);
         $message     = substr($buffer, ($topicLength + 2));
 
-        foreach ($this->subscribedTopics as $subscribedTopic) {
-            if (preg_match($subscribedTopic->getRegexifiedTopic(), $topic)) {
-                $callback = $subscribedTopic->getCallback();
-                if (is_callable($callback)) {
-                    call_user_func($callback, $topic, $message);
-                }
-            }
+        foreach ($this->repository->getTopicSubscriptionsMatchingTopic($topic) as $subscription) {
+            call_user_func($subscription->getCallback(), $topic, $message);
+        }
+    }
+
+    /**
+     * Handles a received publish acknowledgement. The buffer contains the whole
+     * message except command and length. The message structure is:
+     * 
+     *   [message-identifier]
+     * 
+     * @param string $buffer
+     * @return void
+     * @throws UnexpectedAcknowledgementException
+     */
+    protected function handlePublishAcknowledgement(string $buffer): void
+    {
+        if (strlen($buffer) !== 2) {
+            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_PUBLISH, 'The MQTT broker responded with an invalid publish acknowledgement.');
+        }
+
+        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+
+        $result = $this->repository->removePendingPublishedMessage($messageId);
+        if ($result === false) {
+            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_PUBLISH, 'The MQTT broker acknowledged a publish that has not been pending anymore.');
         }
     }
 
@@ -438,14 +513,14 @@ class MQTTClient
      * @return void
      * @throws UnexpectedAcknowledgementException
      */
-    protected function handleSubscriptionAcknowledgement(string $buffer): void
+    protected function handleSubscribeAcknowledgement(string $buffer): void
     {
         if (strlen($buffer) < 3) {
-            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_SUBSCRIBE, 'The MQTT broker responded with an invalid acknowledgement.');
+            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_SUBSCRIBE, 'The MQTT broker responded with an invalid subscribe acknowledgement.');
         }
 
         $messageId        = $this->stringToNumber($this->pop($buffer, 2));
-        $subscriptions    = $this->getTopicSubscriptionsWithMessageId($messageId);
+        $subscriptions    = $this->repository->getTopicSubscriptionsWithMessageId($messageId);
         $acknowledgements = str_split($buffer);
 
         if (count($acknowledgements) !== count($subscriptions)) {
@@ -466,16 +541,62 @@ class MQTTClient
     }
 
     /**
-     * Returns all topic subscriptions with the given message identifier.
-     *
-     * @param int $messageId
-     * @return MQTTTopicSubscription[]
+     * Handles a received unsubscribe acknowledgement. The buffer contains the whole
+     * message except command and length. The message structure is:
+     * 
+     *   []
+     * 
+     * @param string $buffer
+     * @return void
+     * @throws UnexpectedAcknowledgementException
      */
-    protected function getTopicSubscriptionsWithMessageId(int $messageId): array
+    protected function handleUnsubscribeAcknowledgement(string $buffer): void
     {
-        return array_values(array_filter($this->subscribedTopics, function (MQTTTopicSubscription $subscription) use ($messageId) {
-            return $subscription->getMessageId() === $messageId;
-        }));
+        // TODO: document message structure
+        // TODO: implement
+    }
+
+    /**
+     * Handles a received ping request. Simply sends an acknowledgement.
+     * 
+     * @return void
+     */
+    protected function handlePingRequest(): void
+    {
+        $this->writeToSocket(chr(0xd0) . chr(0x00));
+    }
+
+    /**
+     * Handles a received ping acknowledgement.
+     * 
+     * @return void
+     * @throws UnexpectedAcknowledgementException
+     */
+    protected function handlePingAcknowledgement(): void
+    {
+        $this->lastPingAt = new DateTime();
+    }
+
+    /**
+     * Republishes pending messages.
+     * 
+     * @return void
+     */
+    protected function republishPendingMessages(): void
+    {
+        $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getRepublishInterval() . 'S'));
+        $messages = $this->repository->getPendingPublishedMessagesLastSentBefore($dateTime);
+
+        foreach ($messages as $message) {
+            $this->publishMessage(
+                $message->getMessageId(),
+                $message->getTopic(),
+                $message->getMessage(),
+                $message->getQualityOfServiceLevel(),
+                $message->wantsToBeRetained(),
+                true
+            );
+        }
     }
 
     /**

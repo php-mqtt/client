@@ -21,6 +21,9 @@ class MQTTConnectionSettings
     /** @var int */
     private $keepAlive;
 
+    /** @var int */
+    private $republishInterval;
+
     /** @var string */
     private $lastWillTopic;
 
@@ -30,11 +33,14 @@ class MQTTConnectionSettings
     /**
      * Constructs a new settings object.
      * 
-     * @param int  $qualityOfService
-     * @param bool $retain
-     * @param bool $blockSocket
-     * @param int  $socketTimeout
-     * @param int  $keepAlive
+     * @param int    $qualityOfService
+     * @param bool   $retain
+     * @param bool   $blockSocket
+     * @param int    $socketTimeout
+     * @param int    $keepAlive
+     * @param int    $republishInterval
+     * @param string $lastWillTopic
+     * @param string $lastWillMessage
      */
     public function __construct(
         int $qualityOfService = 0,
@@ -42,44 +48,88 @@ class MQTTConnectionSettings
         bool $blockSocket = false,
         int $socketTimeout = 5,
         int $keepAlive = 10,
+        int $republishInterval = 10,
         string $lastWillTopic = null,
         string $lastWillMessage = null
     )
     {
-        $this->qualityOfService = $qualityOfService;
-        $this->retain           = $retain;
-        $this->blockSocket      = $blockSocket;
-        $this->socketTimeout    = $socketTimeout;
-        $this->keepAlive        = $keepAlive;
-        $this->lastWillTopic    = $lastWillTopic;
-        $this->lastWillMessage  = $lastWillMessage;
+        $this->qualityOfService  = $qualityOfService;
+        $this->retain            = $retain;
+        $this->blockSocket       = $blockSocket;
+        $this->socketTimeout     = $socketTimeout;
+        $this->keepAlive         = $keepAlive;
+        $this->republishInterval = $republishInterval;
+        $this->lastWillTopic     = $lastWillTopic;
+        $this->lastWillMessage   = $lastWillMessage;
     }
 
+    /**
+     * Returns the desired quality of service level of the client.
+     * 
+     * @return int
+     */
     public function getQualityOfServiceLevel(): int
     {
         return $this->qualityOfService;
     }
 
+    /**
+     * Determines whether the client is supposed to block the socket.
+     * 
+     * @return bool
+     */
     public function wantsToBlockSocket(): bool
     {
         return $this->blockSocket;
     }
 
+    /**
+     * Returns the socket timeout of the client in seconds.
+     * 
+     * @return int
+     */
     public function getSocketTimeout(): int
     {
         return $this->socketTimeout;
     }
 
+    /**
+     * Returns the keep alive interval used by the client in seconds.
+     * 
+     * @return int
+     */
     public function getKeepAlive(): int
     {
         return $this->keepAlive;
     }
 
+    /**
+     * Returns the republish interval used by the client in seconds.
+     * 
+     * @return int
+     */
+    public function getRepublishInterval(): int
+    {
+        return $this->republishInterval;
+    }
+
+    /**
+     * Returns the last will topic of the client. When the client loses connection
+     * to the broker, this topic will be used to publish the last will message.
+     * 
+     * @return string|null
+     */
     public function getLastWillTopic(): ?string
     {
         return $this->lastWillTopic;
     }
 
+    /**
+     * Returns the last will message of the client. When the client loses connection
+     * to the broker, this message will be published.
+     * 
+     * @return string|null
+     */
     public function getLastWillMessage(): ?string
     {
         return $this->lastWillMessage;
