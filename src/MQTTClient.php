@@ -391,8 +391,7 @@ class MQTTClient
 
         if ($messageId !== null)
         {
-            $buffer   .= chr($messageId >> 8); $i++;
-            $buffer   .= chr($messageId % 256); $i++;
+            $buffer .= $this->encodeMessageId($messageId); $i += 2;
         }
 
         $buffer .= $message;
@@ -415,7 +414,7 @@ class MQTTClient
     }
 
     /**
-     * Subscribe to the given topics with the given quality of service.
+     * Subscribe to the given topic with the given quality of service.
      *
      * @param string   $topic
      * @param callable $callback
@@ -434,8 +433,7 @@ class MQTTClient
         $i         = 0;
         $buffer    = '';
         $messageId = $this->nextMessageId();
-        $buffer   .= chr($messageId >> 8); $i++;
-        $buffer   .= chr($messageId % 256); $i++;
+        $buffer   .= $this->encodeMessageId($messageId); $i += 2;
 
         $topicPart = $this->buildLengthPrefixedString($topic);
         $buffer   .= $topicPart;
@@ -445,6 +443,52 @@ class MQTTClient
         $this->repository->addNewTopicSubscription($topic, $callback, $messageId, $qualityOfService);
 
         $cmd    = 0x80 | ($qualityOfService << 1);
+        $header = chr($cmd) . chr($i);
+
+        $this->writeToSocket($header . $buffer);
+    }
+
+    /**
+     * Unsubscribe from the given topic.
+     *
+     * @param string $topic
+     * @return void
+     * @throws DataTransferException
+     */
+    public function unsubscribe(string $topic): void
+    {
+        $messageId = $this->nextMessageId();
+
+        $this->repository->addNewPendingUnsubscribeRequest($messageId, $topic);
+
+        $this->sendUnsubscribeRequest($messageId, $topic);
+    }
+
+    /**
+     * Sends an unsubscribe request to the broker.
+     *
+     * @param int    $messageId
+     * @param string $topic
+     * @param bool   $isDuplicate
+     * @throws DataTransferException
+     */
+    protected function sendUnsubscribeRequest(int $messageId, string $topic, bool $isDuplicate = false): void
+    {
+        $this->logger->debug('Unsubscribing from an MQTT topic.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'message_id' => $messageId,
+            'topic' => $topic,
+            'is_duplicate' => $isDuplicate,
+        ]);
+
+        $i      = 0;
+        $buffer = $this->encodeMessageId($messageId); $i += 2;
+
+        $topicPart = $this->buildLengthPrefixedString($topic);
+        $buffer   .= $topicPart;
+        $i        += strlen($topicPart);
+
+        $cmd    = 0xa2 | ($isDuplicate ? 1 << 3 : 0);
         $header = chr($cmd) . chr($i);
 
         $this->writeToSocket($header . $buffer);
@@ -463,7 +507,8 @@ class MQTTClient
     {
         $this->logger->debug('Starting MQTT client loop.');
 
-        $lastRepublishedAt = microtime(true);
+        $lastRepublishedAt    = microtime(true);
+        $lastReunsubscribedAt = microtime(true);
 
         while (true) {
             $buffer = null;
@@ -524,6 +569,11 @@ class MQTTClient
             if (1 < (microtime(true) - $lastRepublishedAt)) {
                 $this->republishPendingMessages();
                 $lastRepublishedAt = microtime(true);
+            }
+
+            if (1 < (microtime(true) - $lastReunsubscribedAt)) {
+                $this->republishPendingUnsubscribeRequests();
+                $lastReunsubscribedAt = microtime(true);
             }
         }
     }
@@ -655,7 +705,7 @@ class MQTTClient
      * Handles a received unsubscribe acknowledgement. The buffer contains the whole
      * message except command and length. The message structure is:
      * 
-     *   []
+     *   [message-identifier]
      * 
      * @param string $buffer
      * @return void
@@ -663,8 +713,32 @@ class MQTTClient
      */
     protected function handleUnsubscribeAcknowledgement(string $buffer): void
     {
-        // TODO: document message structure
-        // TODO: implement
+        $this->logger->debug('Handling unsubscribe acknowledgement received from an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
+        if (strlen($buffer) !== 2) {
+            $this->logger->notice('Received invalid unsubscribe acknowledgement from an MQTT broker.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_PUBLISH,
+                'The MQTT broker responded with an invalid unsubscribe acknowledgement.'
+            );
+        }
+
+        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+
+        $result = $this->repository->removePendingUnsubscribeRequest($messageId);
+        if ($result === false) {
+            $this->logger->notice('Received unsubscribe acknowledgement from an MQTT broker for already acknowledged unsubscribe request.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_PUBLISH,
+                'The MQTT broker acknowledged an unsubscribe request that has not been pending anymore.'
+            );
+        }
     }
 
     /**
@@ -707,7 +781,7 @@ class MQTTClient
         ]);
 
         /** @noinspection PhpUnhandledExceptionInspection */
-        $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getRepublishInterval() . 'S'));
+        $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
         $messages = $this->repository->getPendingPublishedMessagesLastSentBefore($dateTime);
 
         foreach ($messages as $message) {
@@ -728,6 +802,32 @@ class MQTTClient
     }
 
     /**
+     * Re-sends pending unsubscribe requests.
+     *
+     * @return void
+     * @throws DataTransferException
+     */
+    protected function republishPendingUnsubscribeRequests(): void
+    {
+        $this->logger->debug('Re-sending pending unsubscribe requests to MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
+        /** @noinspection PhpUnhandledExceptionInspection */
+        $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
+        $requests = $this->repository->getPendingUnsubscribeRequestsLastSentBefore($dateTime);
+
+        foreach ($requests as $request) {
+            $this->logger->debug('Re-sending pending unsubscribe request to MQTT broker.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'message_id' => $request->getMessageId(),
+            ]);
+
+            $this->sendUnsubscribeRequest($request->getMessageId(), $request->getTopic(), true);
+        }
+    }
+
+    /**
      * Converts the given string to a number, assuming it is an MSB encoded
      * number. This means preceding characters have higher value.
      *
@@ -744,6 +844,17 @@ class MQTTClient
         }
 
         return $result;
+    }
+
+    /**
+     * Encodes the given message identifier as string.
+     *
+     * @param int $messageId
+     * @return string
+     */
+    protected function encodeMessageId(int $messageId): string
+    {
+        return chr($messageId >> 8) . chr($messageId % 256);
     }
 
     /**

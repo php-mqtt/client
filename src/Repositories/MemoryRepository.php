@@ -5,16 +5,21 @@ declare(strict_types=1);
 namespace PhpMqtt\Client\Repositories;
 
 use Datetime;
+use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\PublishedMessage;
 use PhpMqtt\Client\TopicSubscription;
+use PhpMqtt\Client\UnsubscribeRequest;
 
-class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
+class MemoryRepository implements Repository
 {
     /** @var TopicSubscription[] */
     private $topicSubscriptions = [];
 
     /** @var PublishedMessage[] */
     private $pendingPublishedMessages = [];
+
+    /** @var UnsubscribeRequest[] */
+    private $pendingUnsubscribeRequests = [];
 
     /**
      * Adds a topic subscription to the repository.
@@ -113,14 +118,10 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
     public function getPendingPublishedMessageWithMessageId(int $messageId): ?PublishedMessage
     {
         $messages = array_filter($this->pendingPublishedMessages, function (PublishedMessage $message) use ($messageId) {
-            return $messageId->getMessageId() === $messageId;
+            return $message->getMessageId() === $messageId;
         });
 
-        if (empty($messages)) {
-            return null;
-        }
-
-        return $messages[0];
+        return empty($messages) ? null : $messages[0];
     }
 
     /**
@@ -154,6 +155,83 @@ class MemoryRepository implements \PhpMqtt\Client\Contracts\Repository
 
         $this->pendingPublishedMessages = array_diff($this->pendingPublishedMessages, [$message]);
         
+        return true;
+    }
+
+    /**
+     * Adds a pending unsubscribe request to the repository.
+     *
+     * @param UnsubscribeRequest $request
+     * @return void
+     */
+    public function addPendingUnsubscribeRequest(UnsubscribeRequest $request): void
+    {
+        $this->pendingUnsubscribeRequests[] = $request;
+    }
+
+    /**
+     * Adds a new pending unsubscribe request with the given settings to the repository.
+     *
+     * @param int           $messageId
+     * @param string        $topic
+     * @param DateTime|null $sentAt
+     * @return UnsubscribeRequest
+     */
+    public function addNewPendingUnsubscribeRequest(int $messageId, string $topic, DateTime $sentAt = null): UnsubscribeRequest
+    {
+        $request = new UnsubscribeRequest($messageId, $topic, $sentAt);
+
+        $this->addPendingUnsubscribeRequest($request);
+
+        return $request;
+    }
+
+    /**
+     * Gets a pending unsubscribe request with the given message identifier, if found.
+     *
+     * @param int $messageId
+     * @return UnsubscribeRequest|null
+     */
+    public function getPendingUnsubscribeRequestWithMessageId(int $messageId): ?UnsubscribeRequest
+    {
+        $requests = array_filter($this->pendingUnsubscribeRequests, function (UnsubscribeRequest $request) use ($messageId) {
+            return $request->getMessageId() === $messageId;
+        });
+
+        return empty($requests) ? null : $requests[0];
+    }
+
+    /**
+     * Gets a list of pending unsubscribe requests last sent before the given date time.
+     *
+     * @param DateTime $dateTime
+     * @return UnsubscribeRequest[]
+     */
+    public function getPendingUnsubscribeRequestsLastSentBefore(DateTime $dateTime): array
+    {
+        return array_values(array_filter($this->pendingUnsubscribeRequests, function (UnsubscribeRequest $request) use ($dateTime) {
+            return $request->getLastSentAt() < $dateTime;
+        }));
+    }
+
+    /**
+     * Removes a pending unsubscribe requests from the repository. If a pending request
+     * with the given identifier is found and successfully removed from the repository,
+     * `true` is returned. Otherwise `false` will be returned.
+     *
+     * @param int $messageId
+     * @return bool
+     */
+    public function removePendingUnsubscribeRequest(int $messageId): bool
+    {
+        $request = $this->getPendingUnsubscribeRequestWithMessageId($messageId);
+
+        if ($request === null) {
+            return false;
+        }
+
+        $this->pendingUnsubscribeRequests = array_diff($this->pendingUnsubscribeRequests, [$request]);
+
         return true;
     }
 }

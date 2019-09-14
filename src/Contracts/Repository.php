@@ -7,6 +7,7 @@ namespace PhpMqtt\Client\Contracts;
 use DateTime;
 use PhpMqtt\Client\PublishedMessage;
 use PhpMqtt\Client\TopicSubscription;
+use PhpMqtt\Client\UnsubscribeRequest;
 
 interface Repository
 {
@@ -91,4 +92,48 @@ interface Repository
      * @return bool
      */
     public function removePendingPublishedMessage(int $messageId): bool;
+
+    /**
+     * Adds a pending unsubscribe request to the repository.
+     *
+     * @param UnsubscribeRequest $request
+     * @return void
+     */
+    public function addPendingUnsubscribeRequest(UnsubscribeRequest $request): void;
+
+    /**
+     * Adds a new pending unsubscribe request with the given settings to the repository.
+     *
+     * @param int           $messageId
+     * @param string        $topic
+     * @param DateTime|null $sentAt
+     * @return UnsubscribeRequest
+     */
+    public function addNewPendingUnsubscribeRequest(int $messageId, string $topic, DateTime $sentAt = null): UnsubscribeRequest;
+
+    /**
+     * Gets a pending unsubscribe request with the given message identifier, if found.
+     *
+     * @param int $messageId
+     * @return UnsubscribeRequest|null
+     */
+    public function getPendingUnsubscribeRequestWithMessageId(int $messageId): ?UnsubscribeRequest;
+
+    /**
+     * Gets a list of pending unsubscribe requests last sent before the given date time.
+     *
+     * @param DateTime $dateTime
+     * @return UnsubscribeRequest[]
+     */
+    public function getPendingUnsubscribeRequestsLastSentBefore(DateTime $dateTime): array;
+
+    /**
+     * Removes a pending unsubscribe requests from the repository. If a pending request
+     * with the given identifier is found and successfully removed from the repository,
+     * `true` is returned. Otherwise `false` will be returned.
+     *
+     * @param int $messageId
+     * @return bool
+     */
+    public function removePendingUnsubscribeRequest(int $messageId): bool;
 }

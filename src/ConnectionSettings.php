@@ -22,7 +22,7 @@ class ConnectionSettings
     private $keepAlive;
 
     /** @var int */
-    private $republishInterval;
+    private $resendTimeout;
 
     /** @var string */
     private $lastWillTopic;
@@ -38,7 +38,7 @@ class ConnectionSettings
      * @param bool   $blockSocket
      * @param int    $socketTimeout
      * @param int    $keepAlive
-     * @param int    $republishInterval
+     * @param int    $resendTimeout
      * @param string $lastWillTopic
      * @param string $lastWillMessage
      */
@@ -48,19 +48,19 @@ class ConnectionSettings
         bool $blockSocket = false,
         int $socketTimeout = 5,
         int $keepAlive = 10,
-        int $republishInterval = 10,
+        int $resendTimeout = 10,
         string $lastWillTopic = null,
         string $lastWillMessage = null
     )
     {
-        $this->qualityOfService  = $qualityOfService;
-        $this->retain            = $retain;
-        $this->blockSocket       = $blockSocket;
-        $this->socketTimeout     = $socketTimeout;
-        $this->keepAlive         = $keepAlive;
-        $this->republishInterval = $republishInterval;
-        $this->lastWillTopic     = $lastWillTopic;
-        $this->lastWillMessage   = $lastWillMessage;
+        $this->qualityOfService = $qualityOfService;
+        $this->retain           = $retain;
+        $this->blockSocket      = $blockSocket;
+        $this->socketTimeout    = $socketTimeout;
+        $this->keepAlive        = $keepAlive;
+        $this->resendTimeout    = $resendTimeout;
+        $this->lastWillTopic    = $lastWillTopic;
+        $this->lastWillMessage  = $lastWillMessage;
     }
 
     /**
@@ -104,13 +104,13 @@ class ConnectionSettings
     }
 
     /**
-     * Returns the republish interval used by the client in seconds.
+     * Returns the resend timeout used by the client in seconds.
      * 
      * @return int
      */
-    public function getRepublishInterval(): int
+    public function getResendTimeout(): int
     {
-        return $this->republishInterval;
+        return $this->resendTimeout;
     }
 
     /**
