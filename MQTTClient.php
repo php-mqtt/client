@@ -42,7 +42,7 @@ class MQTTClient
 
     /**
      * Constructs a new MQTT client which subsequently supports publishing and subscribing.
-     * 
+     *
      * @param string      $host
      * @param int         $port
      * @param string|null $clientId
@@ -58,7 +58,7 @@ class MQTTClient
 
     /**
      * Connect to the MQTT broker using the given credentials and settings.
-     * 
+     *
      * @param string|null            $username
      * @param string|null            $password
      * @param MQTTConnectionSettings $settings
@@ -76,7 +76,7 @@ class MQTTClient
 
     /**
      * Opens a socket that connects to the host and port set on the object.
-     * 
+     *
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
@@ -98,7 +98,7 @@ class MQTTClient
             $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
             $this->socket     = stream_socket_client($connectionString, $errorCode, $errorMessage, 60, STREAM_CLIENT_CONNECT);
         }
-        
+
         if ($this->socket === false) {
             throw new ConnectingToBrokerFailedException($errorCode, $errorMessage);
         }
@@ -110,7 +110,7 @@ class MQTTClient
     /**
      * Sends a connection message over the socket and processes the response.
      * If the socket connection is not established, an exception is thrown.
-     * 
+     *
      * @param string|null $username
      * @param string|null $password
      * @param bool        $sendCleanSessionFlag
@@ -193,7 +193,7 @@ class MQTTClient
 
     /**
      * Builds the connection flags from the inputs and settings.
-     * 
+     *
      * @param string|null $username
      * @param string|null $password
      * @param bool        $sendCleanSessionFlag
@@ -209,11 +209,11 @@ class MQTTClient
 
         if ($this->settings->hasLastWill()) {
             $flags += 1 << 2; // set the `will` flag
-        
+
             if ($this->settings->requiresQualityOfService()) {
                 $flags += $this->settings->getQualityOfServiceLevel() << 3; // set the `qos` bits
             }
-                
+
             if ($this->settings->requiresMessageRetention()) {
                 $flags += 1 << 5; // set the `retain` flag
             }
@@ -232,7 +232,7 @@ class MQTTClient
 
     /**
      * Sends a ping to the MQTT broker.
-     * 
+     *
      * @return void
      */
     public function ping(): void
@@ -242,7 +242,7 @@ class MQTTClient
 
     /**
      * Sends a disconnect and closes the socket.
-     * 
+     *
      * @return void
      */
     public function close(): void
@@ -253,7 +253,7 @@ class MQTTClient
 
     /**
      * Sends a disconnect message to the MQTT broker.
-     * 
+     *
      * @return void
      */
     protected function disconnect(): void
@@ -264,7 +264,7 @@ class MQTTClient
     /**
      * Publishes the given message on the given topic. If the additional quality of service
      * and retention flags are set, the message will be published using these settings.
-     * 
+     *
      * @param string $topic
      * @param string $message
      * @param int    $qualityOfService
@@ -306,7 +306,7 @@ class MQTTClient
 
     /**
      * Subscribe to the given topics with the given quality of service.
-     * 
+     *
      * @param string   $topic
      * @param callable $callback
      * @param int      $qualityOfService
@@ -336,7 +336,7 @@ class MQTTClient
 
     /**
      * Adds a topic subscription.
-     * 
+     *
      * @param string   $topic
      * @param callable $callback
      * @param int      $messageId
@@ -351,7 +351,7 @@ class MQTTClient
     /**
      * Runs an event loop that handles messages from the server and calls the registered
      * callbacks for published messages.
-     * 
+     *
      * @param bool $allowSleep
      * @return void
      */
@@ -360,7 +360,7 @@ class MQTTClient
         while (true) {
             $cmd  = 0;
             $byte = $this->readFromSocket(1, true);
-            
+
             if (strlen($byte) === 0) {
                 if($allowSleep){
                     usleep(100000); // 100ms
@@ -379,7 +379,7 @@ class MQTTClient
                 if ($value) {
                     $buffer = $this->readFromSocket($value);
                 }
-                
+
                 if ($cmd) {
                     switch($cmd){
                         // TODO: implement remaining commands
@@ -404,9 +404,9 @@ class MQTTClient
     /**
      * Handles a received message. The buffer contains the whole message except
      * command and length. The message structure is:
-     * 
+     *
      *   [topic-length:topic:message]+
-     * 
+     *
      * @param string $buffer
      * @return void
      */
@@ -429,11 +429,11 @@ class MQTTClient
     /**
      * Handles a received subscription acknowledgement. The buffer contains the whole
      * message except command and length. The message structure is:
-     * 
+     *
      *   [message-identifier:[qos-level]+]
-     * 
+     *
      * The order of the received QoS levels matches the order of the sent subscriptions.
-     * 
+     *
      * @param string $buffer
      * @return void
      * @throws UnexpectedAcknowledgementException
@@ -450,7 +450,7 @@ class MQTTClient
 
         if (count($acknowledgements) !== count($subscriptions)) {
             throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_SUBSCRIBE, 
+                self::EXCEPTION_ACK_SUBSCRIBE,
                 sprintf(
                     'The MQTT broker responded with a different amount of QoS acknowledgements as we have subscriptions.'
                         . ' Subscriptions: %s, QoS Acknowledgements: %s',
@@ -467,7 +467,7 @@ class MQTTClient
 
     /**
      * Returns all topic subscriptions with the given message identifier.
-     * 
+     *
      * @param int $messageId
      * @return MQTTTopicSubscription[]
      */
@@ -481,7 +481,7 @@ class MQTTClient
     /**
      * Converts the given string to a number, assuming it is an MSB encoded
      * number. This means preceding characters have higher value.
-     * 
+     *
      * @param string $buffer
      * @return int
      */
@@ -500,18 +500,18 @@ class MQTTClient
     /**
      * Encodes the length of a message as string, so it can be transmitted
      * over the wire.
-     * 
+     *
      * @param int $length
      * @return string
      */
     protected function encodeMessageLength(int $length): string
     {
         $result = '';
-        
+
         do {
           $digit  = $length % 128;
           $length = $length >> 7;
-          
+
           // if there are more digits to encode, set the top bit of this digit
           if ($length > 0) {
               $digit = ($digit | 0x80);
@@ -519,13 +519,13 @@ class MQTTClient
 
           $result .= chr($digit);
         } while ($length > 0);
-        
+
         return $result;
     }
 
     /**
      * Gets the current message id.
-     * 
+     *
      * @return int
      */
     protected function currentMessageId(): int
@@ -535,7 +535,7 @@ class MQTTClient
 
     /**
      * Gets the next message id to be used.
-     * 
+     *
      * @return int
      */
     protected function nextMessageId(): int
@@ -546,7 +546,7 @@ class MQTTClient
     /**
      * Writes some data to the socket. If a $length is given and it is shorter
      * than the data, only $length amount of bytes will be sent.
-     * 
+     *
      * @param string   $data
      * @param int|null $length
      * @return void
@@ -571,7 +571,7 @@ class MQTTClient
      * Reads data from the socket. If the second parameter $withoutBlocking is set to true,
      * a maximum of $limit bytes will be read and returned. If $withoutBlocking is set to false,
      * the method will wait until $limit bytes have been received.
-     * 
+     *
      * @param int  $limit
      * @param bool $withoutBlocking
      * @return string
@@ -604,7 +604,7 @@ class MQTTClient
 
     /**
      * Returns the host used by the client to connect to.
-     * 
+     *
      * @return string
      */
     public function getHost(): string
@@ -614,7 +614,7 @@ class MQTTClient
 
     /**
      * Returns the port used by the client to connect to.
-     * 
+     *
      * @return int
      */
     public function getPort(): int
@@ -624,7 +624,7 @@ class MQTTClient
 
     /**
      * Returns the identifier used by the client.
-     * 
+     *
      * @return string
      */
     public function getClientId(): string
@@ -634,7 +634,7 @@ class MQTTClient
 
     /**
      * Returns the certificate authority file, if available.
-     * 
+     *
      * @return string|null
      */
     public function getCertificateAuthorityFile(): ?string
@@ -644,7 +644,7 @@ class MQTTClient
 
     /**
      * Determines whether a certificate authority file is available.
-     * 
+     *
      * @return bool
      */
     public function hasCertificateAuthorityFile(): bool
@@ -657,7 +657,7 @@ class MQTTClient
      * This means a string like 'hello world' will become
      *   \x00\x0bhello world
      * where \x00\0x0b is the hex representation of 00000000 00001011 = 11
-     * 
+     *
      * @param string $data
      * @return string
      */
@@ -666,13 +666,13 @@ class MQTTClient
         $length = strlen($data);
         $msb    = $length >> 8;
         $lsb    = $length % 256;
-        
+
         return chr($msb) . chr($lsb) . $data;
     }
 
     /**
      * Pops the first $limit bytes from the given buffer and returns them.
-     * 
+     *
      * @param string $buffer
      * @param int    $limit
      * @return string
@@ -689,7 +689,7 @@ class MQTTClient
 
     /**
      * Generates a random client id in the form of an md5 hash.
-     * 
+     *
      * @return string
      */
     protected function generateRandomClientId(): string
