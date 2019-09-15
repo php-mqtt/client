@@ -553,7 +553,7 @@ class MQTTClient
 
         while (true) {
             if ($this->interrupted) {
-                $this->setInterrupted(false);
+                $this->interrupted = false;
                 break;
             }
 
@@ -1370,12 +1370,11 @@ class MQTTClient
     /**
      * Sets the interrupted signal.
      *
-     * @param bool $value
      * @return void
      */
-    public function setInterrupted(bool $value): void
+    public function interrupt(): void
     {
-        $this->interrupted = $value;
+        $this->interrupted = true;
     }
 
     /**
