@@ -28,9 +28,11 @@ class MQTTClient
     const EXCEPTION_ACK_PUBLISH                    = 0202;
     const EXCEPTION_ACK_SUBSCRIBE                  = 0203;
     const EXCEPTION_ACK_RELEASE                    = 0204;
+    const EXCEPTION_ACK_RECEIVE                    = 0205;
+    const EXCEPTION_ACK_COMPLETE                   = 0206;
 
-    const QOS_AT_LEAST_ONCE = 0;
-    const QOS_AT_MOST_ONCE  = 1;
+    const QOS_AT_MOST_ONCE  = 0;
+    const QOS_AT_LEAST_ONCE = 1;
     const QOS_EXACTLY_ONCE  = 2;
 
     /** @var string */
@@ -51,7 +53,7 @@ class MQTTClient
     /** @var resource|null */
     private $socket;
 
-    /** @var DateTime|null */
+    /** @var float */
     private $lastPingAt;
 
     /** @var int */
@@ -434,18 +436,18 @@ class MQTTClient
         $buffer .= $message;
         $i      += strlen($message);
 
-        $cmd = 0x30;
+        $command = 0x30;
         if ($retain) {
-            $cmd += 1 << 0;
+            $command += 1 << 0;
         }
         if ($qualityOfService > 0) {
-            $cmd += $qualityOfService << 1;
+            $command += $qualityOfService << 1;
         }
         if ($isDuplicate) {
-            $cmd += 1 << 3;
+            $command += 1 << 3;
         }
 
-        $header = chr($cmd) . $this->encodeMessageLength($i);
+        $header = chr($command) . $this->encodeMessageLength($i);
 
         $this->writeToSocket($header . $buffer);
     }
@@ -479,8 +481,7 @@ class MQTTClient
 
         $this->repository->addNewTopicSubscription($topic, $callback, $messageId, $qualityOfService);
 
-        $cmd    = 0x80 | ($qualityOfService << 1);
-        $header = chr($cmd) . chr($i);
+        $header  = chr(0x82) . chr($i);
 
         $this->writeToSocket($header . $buffer);
     }
@@ -525,8 +526,8 @@ class MQTTClient
         $buffer   .= $topicPart;
         $i        += strlen($topicPart);
 
-        $cmd    = 0xa2 | ($isDuplicate ? 1 << 3 : 0);
-        $header = chr($cmd) . chr($i);
+        $command = 0xa2 | ($isDuplicate ? 1 << 3 : 0);
+        $header  = chr($command) . chr($i);
 
         $this->writeToSocket($header . $buffer);
     }
@@ -556,23 +557,29 @@ class MQTTClient
                     usleep(100000); // 100ms
                 }
             } else {
-                $cmd              = (int)(ord($byte) / 16);
-                $qualityOfService = ($byte & 0x06) >> 1;
-                $multiplier       = 1;
-                $value            = 0;
+                // Read the first byte of a message (command and flags).
+                $command          = (int)(ord($byte) / 16);
+                $qualityOfService = (ord($byte) & 0x06) >> 1;
 
+                // Read the second byte of a message (remaining length)
+                // If the continuation bit (8) is set on the length byte,
+                // another byte will be read as length.
+                $length     = 0;
+                $multiplier = 1;
                 do {
                     $digit       = ord($this->readFromSocket(1));
-                    $value      += ($digit & 127) * $multiplier;
+                    $length     += ($digit & 127) * $multiplier;
                     $multiplier *= 128;
                 } while (($digit & 128) !== 0);
 
-                if ($value) {
-                    $buffer = $this->readFromSocket($value);
+                // Read the remaining message according to the length information.
+                if ($length) {
+                    $buffer = $this->readFromSocket($length);
                 }
 
-                if ($cmd) {
-                    switch($cmd){
+                // Handle the received command according to the $command identifier.
+                if ($command > 0 && $command < 15) {
+                    switch($command){
                         // TODO: implement remaining commands
                         case 2:
                             throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
@@ -582,8 +589,14 @@ class MQTTClient
                         case 4:
                             $this->handlePublishAcknowledgement($buffer);
                             break;
+                        case 5:
+                            $this->handlePublishReceipt($buffer);
+                            break;
                         case 6:
                             $this->handlePublishRelease($buffer);
+                            break;
+                        case 7:
+                            $this->handlePublishCompletion($buffer);
                             break;
                         case 9:
                             $this->handleSubscribeAcknowledgement($buffer);
@@ -597,21 +610,40 @@ class MQTTClient
                         case 13;
                             $this->handlePingAcknowledgement();
                             break;
+                        default:
+                            $this->logger->debug(sprintf('Received message with unsupported command [%s]. Skipping.', $command));
+                            break;
                     }
 
                     $this->lastPingAt = microtime(true);
+                } else {
+                    $this->logger->error('A reserved command has been received from an MQTT broker. Supported are commands (including) 1-14.', [
+                        'broker' => sprintf('%s:%s', $this->host, $this->port),
+                        'command' => $command,
+                    ]);
                 }
             }
 
+            // If the last message of the broker has been received more seconds ago
+            // than specified by the keep alive time, we will send a ping to ensure
+            // the connection is kept alive.
             if ($this->lastPingAt < (microtime(true) - $this->settings->getKeepAlive())) {
                 $this->ping();
             }
 
+            // Once a second we try to republish messages without confirmation.
+            // This will only trigger the republishing though. If a message really
+            // gets republished depends on the resend timeout and the last time
+            // we sent the message.
             if (1 < (microtime(true) - $lastRepublishedAt)) {
                 $this->republishPendingMessages();
                 $lastRepublishedAt = microtime(true);
             }
 
+            // Once a second we try to resend unconfirmed unsubscribe requests.
+            // This will also only trigger the resending process. If an unsubscribe
+            // request really gets resend depends on the resend timeout and the last
+            // time we sent the unsubscribe request.
             if (1 < (microtime(true) - $lastResendUnsubscribedAt)) {
                 $this->republishPendingUnsubscribeRequests();
                 $lastResendUnsubscribedAt = microtime(true);
@@ -648,7 +680,7 @@ class MQTTClient
                 return;
             }
 
-            $messageId = $this->stringToNumber($this->shift($message, 2));
+            $messageId = $this->stringToNumber($this->pop($message, 2));
 
             if ($qualityOfServiceLevel === 1) {
                 $this->sendPublishAcknowledgement($messageId);
@@ -711,6 +743,46 @@ class MQTTClient
     }
 
     /**
+     * Handles a received publish receipt. The buffer contains the whole
+     * message except command and length. The message structure is:
+     *
+     *   [message-identifier]
+     *
+     * @param string $buffer
+     * @return void
+     * @throws UnexpectedAcknowledgementException
+     */
+    protected function handlePublishReceipt(string $buffer): void
+    {
+        $this->logger->debug('Handling publish receipt from an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
+        if (strlen($buffer) !== 2) {
+            $this->logger->notice('Received invalid publish receipt from an MQTT broker.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_RECEIVE,
+                'The MQTT broker responded with an invalid publish receipt.'
+            );
+        }
+
+        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+
+        $result = $this->repository->markPendingPublishedMessageAsReceived($messageId);
+        if ($result === false) {
+            $this->logger->notice('Received publish receipt from an MQTT broker for already acknowledged message.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_RECEIVE,
+                'The MQTT broker sent a receipt for a publish that has not been pending anymore.'
+            );
+        }
+    }
+
+    /**
      * Handles a received publish release message. The buffer contains the whole
      * message except command and length. The message structure is:
      *
@@ -754,6 +826,46 @@ class MQTTClient
 
         $this->deliverPublishedMessage($message->getTopic(), $message->getMessage(), $message->getQualityOfServiceLevel());
         $this->sendPublishComplete($messageId);
+    }
+
+    /**
+     * Handles a received publish confirmation message. The buffer contains the whole
+     * message except command and length. The message structure is:
+     *
+     *   [message-identifier]
+     *
+     * @param string $buffer
+     * @return void
+     * @throws UnexpectedAcknowledgementException
+     */
+    protected function handlePublishCompletion(string $buffer): void
+    {
+        $this->logger->debug('Handling publish completion from an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        ]);
+
+        if (strlen($buffer) !== 2) {
+            $this->logger->notice('Received invalid publish completion from an MQTT broker.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_COMPLETE,
+                'The MQTT broker responded with an invalid publish completion.'
+            );
+        }
+
+        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+
+        $result = $this->repository->removePendingPublishedMessage($messageId);
+        if ($result === false) {
+            $this->logger->notice('Received publish completion from an MQTT broker for already acknowledged message.', [
+                'broker' => sprintf('%s:%s', $this->host, $this->port),
+            ]);
+            throw new UnexpectedAcknowledgementException(
+                self::EXCEPTION_ACK_COMPLETE,
+                'The MQTT broker sent a completion for a publish that has not been pending anymore.'
+            );
+        }
     }
 
     /**
@@ -873,8 +985,6 @@ class MQTTClient
     protected function handlePingAcknowledgement(): void
     {
         $this->logger->debug('Received ping acknowledgement from an MQTT broker.', ['broker' => sprintf('%s:%s', $this->host, $this->port)]);
-
-        $this->lastPingAt = new DateTime();
     }
 
     /**

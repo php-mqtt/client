@@ -30,13 +30,14 @@ TODO: examples
   - [ ] Clean Session (can be set and sent, but the client has no persistence for QoS 2 messages)
 - Publish
   - [x] QoS Level 0
-  - [x] QoS Level 1
-  - [ ] QoS Level 2
+  - [x] QoS Level 1 (limitation: no persisted state across sessions)
+  - [x] QoS Level 2 (limitation: no persisted state across sessions)
 - Subscribe
   - [x] QoS Level 0
   - [x] QoS Level 1
   - [x] QoS Level 2 (limitation: no persisted state across sessions)
-- Logging possible (client can use `Psr\Log\LoggerInterface`)
+- Supported Message Length: unlimited _(no limits enforced, although the MQTT protocol supports only up to 256MB which one shouldn't use even remotely anyway)_
+- Logging possible (`Psr\Log\LoggerInterface` can be passed to the client)
 - Persistence Drivers
   - [x] In-Memory Driver
   - [ ] Redis Driver

@@ -85,6 +85,16 @@ interface Repository
     public function getPendingPublishedMessagesLastSentBefore(DateTime $dateTime): array;
 
     /**
+     * Marks the pending published message with the given message identifier as received.
+     * If the message has no QoS level of 2, is not found or has already been received,
+     * false is returned. Otherwise the result will be true.
+     *
+     * @param int $messageId
+     * @return bool
+     */
+    public function markPendingPublishedMessageAsReceived(int $messageId): bool;
+
+    /**
      * Removes a pending published message from the repository. If a pending message
      * with the given identifier is found and successfully removed from the repository,
      * `true` is returned. Otherwise `false` will be returned.

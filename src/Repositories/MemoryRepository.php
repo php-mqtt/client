@@ -10,20 +10,32 @@ use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
 use PhpMqtt\Client\PublishedMessage;
 use PhpMqtt\Client\TopicSubscription;
 use PhpMqtt\Client\UnsubscribeRequest;
+use SplObjectStorage;
 
 class MemoryRepository implements Repository
 {
-    /** @var TopicSubscription[] */
-    private $topicSubscriptions = [];
+    /** @var SplObjectStorage|TopicSubscription[] */
+    private $topicSubscriptions;
 
-    /** @var PublishedMessage[] */
-    private $pendingPublishedMessages = [];
+    /** @var SplObjectStorage|PublishedMessage[] */
+    private $pendingPublishedMessages;
 
-    /** @var UnsubscribeRequest[] */
-    private $pendingUnsubscribeRequests = [];
+    /** @var SplObjectStorage|UnsubscribeRequest[] */
+    private $pendingUnsubscribeRequests;
 
-    /** @var string[] */
-    private $pendingPublishConfirmations = [];
+    /** @var SplObjectStorage|PublishedMessage[] */
+    private $pendingPublishConfirmations;
+
+    /**
+     * MemoryRepository constructor.
+     */
+    public function __construct()
+    {
+        $this->topicSubscriptions          = new SplObjectStorage();
+        $this->pendingPublishedMessages    = new SplObjectStorage();
+        $this->pendingUnsubscribeRequests  = new SplObjectStorage();
+        $this->pendingPublishConfirmations = new SplObjectStorage();
+    }
 
     /**
      * Adds a topic subscription to the repository.
@@ -33,7 +45,7 @@ class MemoryRepository implements Repository
      */
     public function addTopicSubscription(TopicSubscription $subscription): void
     {
-        $this->topicSubscriptions[] = $subscription;
+        $this->topicSubscriptions->attach($subscription);
     }
 
     /**
@@ -62,9 +74,15 @@ class MemoryRepository implements Repository
      */
     public function getTopicSubscriptionsWithMessageId(int $messageId): array
     {
-        return array_values(array_filter($this->topicSubscriptions, function (TopicSubscription $subscription) use ($messageId) {
-            return $subscription->getMessageId() === $messageId;
-        }));
+        $result = [];
+
+        foreach ($this->topicSubscriptions as $subscription) {
+            if ($subscription->getMessageId() === $messageId) {
+                $result[] = $subscription;
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -75,9 +93,15 @@ class MemoryRepository implements Repository
      */
     public function getTopicSubscriptionsMatchingTopic(string $topic): array
     {
-        return array_values(array_filter($this->topicSubscriptions, function (TopicSubscription $subscription) use ($topic) {
-            return preg_match($subscription->getRegexifiedTopic(), $topic);
-        }));
+        $result = [];
+
+        foreach ($this->topicSubscriptions as $subscription) {
+            if (preg_match($subscription->getRegexifiedTopic(), $topic)) {
+                $result[] = $subscription;
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -88,7 +112,9 @@ class MemoryRepository implements Repository
      */
     public function addPendingPublishedMessage(PublishedMessage $message): void
     {
-        $this->pendingPublishedMessages[] = $message;
+        // TODO: add message id already pending exception
+
+        $this->pendingPublishedMessages->attach($message);
     }
 
     /**
@@ -109,8 +135,6 @@ class MemoryRepository implements Repository
         $this->addPendingPublishedMessage($message);
 
         return $message;
-
-        // TODO: add message id already pending exception
     }
 
     /**
@@ -121,11 +145,13 @@ class MemoryRepository implements Repository
      */
     public function getPendingPublishedMessageWithMessageId(int $messageId): ?PublishedMessage
     {
-        $messages = array_filter($this->pendingPublishedMessages, function (PublishedMessage $message) use ($messageId) {
-            return $message->getMessageId() === $messageId;
-        });
+        foreach ($this->pendingPublishedMessages as $message) {
+            if ($message->getMessageId() === $messageId) {
+                return $message;
+            }
+        }
 
-        return empty($messages) ? null : $messages[0];
+        return null;
     }
 
     /**
@@ -136,9 +162,36 @@ class MemoryRepository implements Repository
      */
     public function getPendingPublishedMessagesLastSentBefore(DateTime $dateTime): array
     {
-        return array_values(array_filter($this->pendingPublishedMessages, function (PublishedMessage $message) use ($dateTime) {
-            return $message->getLastSentAt() < $dateTime;
-        }));
+        $result = [];
+
+        foreach ($this->pendingPublishedMessages as $message) {
+            if ($message->hasBeenReceived() === false && $message->getLastSentAt() < $dateTime) {
+                $result[] = $message;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Marks the pending published message with the given message identifier as received.
+     * If the message has no QoS level of 2, is not found or has already been received,
+     * false is returned. Otherwise the result will be true.
+     *
+     * @param int $messageId
+     * @return bool
+     */
+    public function markPendingPublishedMessageAsReceived(int $messageId): bool
+    {
+        $message = $this->getPendingPublishedMessageWithMessageId($messageId);
+
+        if ($message === null || $message->getQualityOfServiceLevel() < 2 || $message->hasBeenReceived()) {
+            return false;
+        }
+
+        $message->setReceived(true);
+
+        return true;
     }
 
     /**
@@ -157,7 +210,7 @@ class MemoryRepository implements Repository
             return false;
         }
 
-        $this->pendingPublishedMessages = array_diff($this->pendingPublishedMessages, [$message]);
+        $this->pendingPublishedMessages->detach($message);
         
         return true;
     }
@@ -170,7 +223,7 @@ class MemoryRepository implements Repository
      */
     public function addPendingUnsubscribeRequest(UnsubscribeRequest $request): void
     {
-        $this->pendingUnsubscribeRequests[] = $request;
+        $this->pendingUnsubscribeRequests->attach($request);
     }
 
     /**
@@ -198,11 +251,13 @@ class MemoryRepository implements Repository
      */
     public function getPendingUnsubscribeRequestWithMessageId(int $messageId): ?UnsubscribeRequest
     {
-        $requests = array_filter($this->pendingUnsubscribeRequests, function (UnsubscribeRequest $request) use ($messageId) {
-            return $request->getMessageId() === $messageId;
-        });
+        foreach ($this->pendingUnsubscribeRequests as $request) {
+            if ($request->getMessageId() === $messageId) {
+                return $request;
+            }
+        }
 
-        return empty($requests) ? null : $requests[0];
+        return null;
     }
 
     /**
@@ -213,9 +268,15 @@ class MemoryRepository implements Repository
      */
     public function getPendingUnsubscribeRequestsLastSentBefore(DateTime $dateTime): array
     {
-        return array_values(array_filter($this->pendingUnsubscribeRequests, function (UnsubscribeRequest $request) use ($dateTime) {
-            return $request->getLastSentAt() < $dateTime;
-        }));
+        $result = [];
+
+        foreach ($this->pendingUnsubscribeRequests as $request) {
+            if ($request->getLastSentAt() < $dateTime) {
+                $result[] = $request;
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -234,7 +295,7 @@ class MemoryRepository implements Repository
             return false;
         }
 
-        $this->pendingUnsubscribeRequests = array_diff($this->pendingUnsubscribeRequests, [$request]);
+        $this->pendingUnsubscribeRequests->detach($request);
 
         return true;
     }
@@ -252,7 +313,7 @@ class MemoryRepository implements Repository
             throw new PendingPublishConfirmationAlreadyExistsException($message->getMessageId());
         }
 
-        $this->pendingPublishConfirmations[] = $message;
+        $this->pendingPublishConfirmations->attach($message);
     }
 
     /**
@@ -281,11 +342,13 @@ class MemoryRepository implements Repository
      */
     public function getPendingPublishConfirmationWithMessageId(int $messageId): ?PublishedMessage
     {
-        $messages = array_filter($this->pendingPublishConfirmations, function (PublishedMessage $message) use ($messageId) {
-            return $message->getMessageId() === $messageId;
-        });
+        foreach ($this->pendingPublishConfirmations as $confirmation) {
+            if ($confirmation->getMessageId() === $messageId) {
+                return $confirmation;
+            }
+        }
 
-        return empty($messages) ? null : $messages[0];
+        return null;
     }
 
     /**
@@ -297,11 +360,13 @@ class MemoryRepository implements Repository
      */
     public function removePendingPublishConfirmation(int $messageId): bool
     {
-        if (!in_array($messageId, $this->pendingPublishConfirmations)) {
+        $confirmation = $this->getPendingPublishConfirmationWithMessageId($messageId);
+
+        if ($confirmation === null) {
             return false;
         }
 
-        $this->pendingPublishConfirmations = array_diff($this->pendingPublishConfirmations, [$messageId]);
+        $this->pendingPublishConfirmations->detach($confirmation);
 
         return true;
     }

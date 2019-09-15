@@ -29,6 +29,9 @@ class PublishedMessage
     /** @var int */
     private $sendingAttempts = 1;
 
+    /** @var bool */
+    private $received = false;
+
     /**
      * Creates a new published message object.
      * 
@@ -124,6 +127,16 @@ class PublishedMessage
     }
 
     /**
+     * Determines whether the message has been confirmed as received.
+     *
+     * @return bool
+     */
+    public function hasBeenReceived(): bool
+    {
+        return $this->received;
+    }
+
+    /**
      * Sets the date time when the message was last attempted to be sent.
      * 
      * @param DateTime $value
@@ -142,5 +155,16 @@ class PublishedMessage
     public function incrementSendingAttempts(): void
     {
         $this->sendingAttempts++;
+    }
+
+    /**
+     * Sets the received state.
+     *
+     * @param bool $value
+     * @return void
+     */
+    public function setReceived(bool $value): void
+    {
+        $this->received = $value;
     }
 }
