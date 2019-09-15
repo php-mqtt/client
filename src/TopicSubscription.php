@@ -106,10 +106,12 @@ class TopicSubscription
      * Sets the acknowledged quality of service level.
      * 
      * @param int $value
-     * @return void
+     * @return static
      */
-    public function setAcknowledgedQualityOfServiceLevel(int $value): void
+    public function setAcknowledgedQualityOfServiceLevel(int $value): self
     {
         $this->acknowledgedQualityOfService = $value;
+
+        return $this;
     }
 }

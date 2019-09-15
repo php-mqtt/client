@@ -85,20 +85,24 @@ class UnsubscribeRequest
      * Sets the date time when the message was last attempted to be sent.
      *
      * @param DateTime $value
-     * @return void
+     * @return static
      */
-    public function setLastSentAt(DateTime $value): void
+    public function setLastSentAt(DateTime $value): self
     {
         $this->lastSentAt = $value;
+
+        return $this;
     }
 
     /**
      * Increments the sending attempts by one.
      *
-     * @return void
+     * @return static
      */
-    public function incrementSendingAttempts(): void
+    public function incrementSendingAttempts(): self
     {
         $this->sendingAttempts++;
+
+        return $this;
     }
 }

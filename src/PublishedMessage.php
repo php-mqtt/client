@@ -140,31 +140,37 @@ class PublishedMessage
      * Sets the date time when the message was last attempted to be sent.
      * 
      * @param DateTime $value
-     * @return void
+     * @return static
      */
-    public function setLastSentAt(DateTime $value): void
+    public function setLastSentAt(DateTime $value): self
     {
         $this->lastSentAt = $value;
+
+        return $this;
     }
 
     /**
      * Increments the sending attempts by one.
      * 
-     * @return void
+     * @return static
      */
-    public function incrementSendingAttempts(): void
+    public function incrementSendingAttempts(): self
     {
         $this->sendingAttempts++;
+
+        return $this;
     }
 
     /**
      * Sets the received state.
      *
      * @param bool $value
-     * @return void
+     * @return static
      */
-    public function setReceived(bool $value): void
+    public function setReceived(bool $value): self
     {
         $this->received = $value;
+
+        return $this;
     }
 }
