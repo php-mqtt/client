@@ -1384,6 +1384,6 @@ class MQTTClient
      */
     protected function generateRandomClientId(): string
     {
-        return md5(uniqid(mt_rand(), true));
+        return substr(md5(uniqid(mt_rand(), true)), 0, 20);
     }
 }
