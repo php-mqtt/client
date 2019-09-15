@@ -1200,6 +1200,10 @@ class MQTTClient
      */
     protected function nextMessageId(): int
     {
+        if ($this->messageId === 65535) {
+            $this->messageId = 0;
+        }
+
         return $this->messageId++;
     }
 
