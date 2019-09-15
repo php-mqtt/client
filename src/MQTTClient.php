@@ -65,6 +65,9 @@ class MQTTClient
     /** @var LoggerInterface */
     private $logger;
 
+    /** @var bool */
+    private $interrupted = false;
+
     /**
      * Constructs a new MQTT client which subsequently supports publishing and subscribing.
      *
@@ -549,6 +552,11 @@ class MQTTClient
         $lastResendUnsubscribedAt = microtime(true);
 
         while (true) {
+            if ($this->interrupted) {
+                $this->setInterrupted(false);
+                break;
+            }
+
             $buffer = null;
             $byte   = $this->readFromSocket(1, true);
 
@@ -580,7 +588,6 @@ class MQTTClient
                 // Handle the received command according to the $command identifier.
                 if ($command > 0 && $command < 15) {
                     switch($command){
-                        // TODO: implement remaining commands
                         case 2:
                             throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
                         case 3:
@@ -1358,6 +1365,17 @@ class MQTTClient
         $buffer = substr($buffer, $limit);
 
         return $result;
+    }
+
+    /**
+     * Sets the interrupted signal.
+     *
+     * @param bool $value
+     * @return void
+     */
+    public function setInterrupted(bool $value): void
+    {
+        $this->interrupted = $value;
     }
 
     /**
