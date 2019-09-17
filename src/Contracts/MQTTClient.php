@@ -126,4 +126,21 @@ interface MQTTClient
      * @return string
      */
     public function getClientId(): string;
+
+    /**
+     * Registers a loop event handler which is called each iteration of the loop.
+     * This event handler can be used for example to interrupt the loop under
+     * certain conditions.
+     *
+     * The loop event handler is passed the MQTT client instance as first and
+     * the elapsed time which the loop is already running for as second
+     * parameter. The elapsed time is a float containing seconds.
+     *
+     * If no callback is passed, any already registered loop event handler
+     * will be unregistered.
+     *
+     * @param callable|null $callback
+     * @return
+     */
+    public function registerLoopEventHandler(callable $callback = null): void;
 }

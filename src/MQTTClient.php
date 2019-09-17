@@ -72,6 +72,9 @@ class MQTTClient implements ClientContract
     /** @var bool */
     private $interrupted = false;
 
+    /** @var callable|null */
+    private $loopEventHandler;
+
     /**
      * Constructs a new MQTT client which subsequently supports publishing and subscribing.
      *
@@ -572,6 +575,12 @@ class MQTTClient implements ClientContract
             if ($this->interrupted) {
                 $this->interrupted = false;
                 break;
+            }
+
+            $elapsedTime = microtime(true) - $loopStartedAt;
+
+            if ($this->loopEventHandler) {
+                call_user_func($this->loopEventHandler, $this, $elapsedTime);
             }
 
             $buffer = null;
@@ -1380,6 +1389,26 @@ class MQTTClient implements ClientContract
     public function hasCertificateAuthorityFile(): bool
     {
         return $this->getCertificateAuthorityFile() !== null;
+    }
+
+    /**
+     * Registers a loop event handler which is called each iteration of the loop.
+     * This event handler can be used for example to interrupt the loop under
+     * certain conditions.
+     *
+     * The loop event handler is passed the MQTT client instance as first and
+     * the elapsed time which the loop is already running for as second
+     * parameter. The elapsed time is a float containing seconds.
+     *
+     * If no callback is passed, any already registered loop event handler
+     * will be unregistered.
+     *
+     * @param callable|null $callback
+     * @return
+     */
+    public function registerLoopEventHandler(callable $callback = null): void
+    {
+        $this->loopEventHandler = $callback;
     }
 
     /**
