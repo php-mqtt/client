@@ -116,6 +116,29 @@ class MemoryRepository implements Repository
     }
 
     /**
+     * Removes the topic subscription with the given topic from the repository.
+     * Returns true if a topic subscription existed and has been removed.
+     * Otherwise, false is returned.
+     *
+     * @param string $topic
+     * @return bool
+     */
+    public function removeTopicSubscription(string $topic): bool
+    {
+        $result = false;
+
+        foreach ($this->topicSubscriptions as $subscription) {
+            if ($subscription->getTopic() === $topic) {
+                $this->topicSubscriptions->detach($subscription);
+                $result = true;
+                break;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Returns the number of pending publish messages.
      *
      * @return int

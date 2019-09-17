@@ -56,6 +56,16 @@ interface Repository
     public function getTopicSubscriptionsMatchingTopic(string $topic): array;
 
     /**
+     * Removes the topic subscription with the given topic from the repository.
+     * Returns true if a topic subscription existed and has been removed.
+     * Otherwise, false is returned.
+     *
+     * @param string $topic
+     * @return bool
+     */
+    public function removeTopicSubscription(string $topic): bool;
+
+    /**
      * Returns the number of pending publish messages.
      *
      * @return int

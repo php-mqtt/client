@@ -998,7 +998,8 @@ class MQTTClient
 
         $messageId = $this->stringToNumber($this->pop($buffer, 2));
 
-        $result = $this->repository->removePendingUnsubscribeRequest($messageId);
+        $unsubscribeRequest = $this->repository->getPendingUnsubscribeRequestWithMessageId($messageId);
+        $result             = $this->repository->removePendingUnsubscribeRequest($messageId);
         if ($result === false) {
             $this->logger->notice('Received unsubscribe acknowledgement from an MQTT broker for already acknowledged unsubscribe request.', [
                 'broker' => sprintf('%s:%s', $this->host, $this->port),
@@ -1007,6 +1008,10 @@ class MQTTClient
                 self::EXCEPTION_ACK_PUBLISH,
                 'The MQTT broker acknowledged an unsubscribe request that has not been pending anymore.'
             );
+        }
+
+        if ($unsubscribeRequest !== null) {
+            $this->repository->removeTopicSubscription($unsubscribeRequest->getTopic());
         }
     }
 
