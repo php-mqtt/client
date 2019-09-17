@@ -6,6 +6,7 @@ namespace PhpMqtt\Client;
 
 use DateInterval;
 use DateTime;
+use PhpMqtt\Client\Contracts\MQTTClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
@@ -14,9 +15,12 @@ use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 use Psr\Log\LoggerInterface;
 
-/** @noinspection PhpDocMissingThrowsInspection */
-
-class MQTTClient
+/**
+ * An MQTT client implementing protocol version 3.1.
+ *
+ * @package PhpMqtt\Client
+ */
+class MQTTClient implements ClientContract
 {
     const EXCEPTION_CONNECTION_FAILED              = 0001;
     const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
@@ -331,7 +335,7 @@ class MQTTClient
      * @return void
      * @throws DataTransferException
      */
-    public function ping(): void
+    protected function ping(): void
     {
         $this->logger->debug('Sending ping to the MQTT broker to keep the connection alive.', [
             'broker' => sprintf('%s:%s', $this->host, $this->port),
