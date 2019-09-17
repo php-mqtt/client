@@ -539,15 +539,28 @@ class MQTTClient
      * Runs an event loop that handles messages from the server and calls the registered
      * callbacks for published messages.
      *
-     * @param bool $allowSleep
+     * If the second parameter is provided, the loop will exit as soon as all
+     * queues are empty. This means there may be no open subscriptions,
+     * no pending messages as well as acknowledgments and no pending unsubscribe requests.
+     *
+     * The third parameter will, if set, lead to a forceful exit after the specified
+     * amount of seconds, but only if the second parameter is set to true. This basically
+     * means that if we wait for all pending messages to be acknowledged, we only wait
+     * a maximum of $queueWaitLimit seconds until we give up. We do not exit after the
+     * given amount of time if there are open topic subscriptions though.
+     *
+     * @param bool     $allowSleep
+     * @param bool     $exitWhenQueuesEmpty
+     * @param int|null $queueWaitLimit
      * @return void
-     * @throws UnexpectedAcknowledgementException
      * @throws DataTransferException
+     * @throws UnexpectedAcknowledgementException
      */
-    public function loop(bool $allowSleep = true): void
+    public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void
     {
         $this->logger->debug('Starting MQTT client loop.');
 
+        $loopStartedAt            = microtime(true);
         $lastRepublishedAt        = microtime(true);
         $lastResendUnsubscribedAt = microtime(true);
 
@@ -655,7 +668,35 @@ class MQTTClient
                 $this->republishPendingUnsubscribeRequests();
                 $lastResendUnsubscribedAt = microtime(true);
             }
+
+            // This check will ensure, that, if we want to exit as soon as all queues
+            // are empty and they really are empty, we quit.
+            if ($exitWhenQueuesEmpty) {
+                if ($this->allQueuesAreEmpty() && $this->repository->countTopicSubscriptions() === 0) {
+                    break;
+                }
+
+                // We also exit the loop if there are no open topic subscriptions
+                // and we reached the time limit.
+                if ($queueWaitLimit !== null &&
+                    (microtime(true) - $loopStartedAt) > $queueWaitLimit &&
+                    $this->repository->countTopicSubscriptions() === 0) {
+                    break;
+                }
+            }
         }
+    }
+
+    /**
+     * Determines if all queues are empty.
+     *
+     * @return bool
+     */
+    protected function allQueuesAreEmpty(): bool
+    {
+        return $this->repository->countPendingPublishMessages() === 0 &&
+               $this->repository->countPendingUnsubscribeRequests() === 0 &&
+               $this->repository->countPendingPublishConfirmations() === 0;
     }
 
     /**

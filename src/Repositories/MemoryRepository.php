@@ -38,6 +38,17 @@ class MemoryRepository implements Repository
     }
 
     /**
+     * Returns the number of registered topic subscriptions. The method does
+     * not differentiate between pending and acknowledged subscriptions.
+     *
+     * @return int
+     */
+    public function countTopicSubscriptions(): int
+    {
+        return $this->topicSubscriptions->count();
+    }
+
+    /**
      * Adds a topic subscription to the repository.
      * 
      * @param TopicSubscription $subscription
@@ -102,6 +113,16 @@ class MemoryRepository implements Repository
         }
 
         return $result;
+    }
+
+    /**
+     * Returns the number of pending publish messages.
+     *
+     * @return int
+     */
+    public function countPendingPublishMessages(): int
+    {
+        return $this->pendingPublishedMessages->count();
     }
 
     /**
@@ -216,6 +237,16 @@ class MemoryRepository implements Repository
     }
 
     /**
+     * Returns the number of pending unsubscribe requests.
+     *
+     * @return int
+     */
+    public function countPendingUnsubscribeRequests(): int
+    {
+        return $this->pendingUnsubscribeRequests->count();
+    }
+
+    /**
      * Adds a pending unsubscribe request to the repository.
      *
      * @param UnsubscribeRequest $request
@@ -298,6 +329,16 @@ class MemoryRepository implements Repository
         $this->pendingUnsubscribeRequests->detach($request);
 
         return true;
+    }
+
+    /**
+     * Returns the number of pending publish confirmations.
+     *
+     * @return int
+     */
+    public function countPendingPublishConfirmations(): int
+    {
+        return $this->pendingPublishConfirmations->count();
     }
 
     /**

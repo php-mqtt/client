@@ -13,6 +13,14 @@ use PhpMqtt\Client\UnsubscribeRequest;
 interface Repository
 {
     /**
+     * Returns the number of registered topic subscriptions. The method does
+     * not differentiate between pending and acknowledged subscriptions.
+     *
+     * @return int
+     */
+    public function countTopicSubscriptions(): int;
+
+    /**
      * Adds a topic subscription to the repository.
      * 
      * @param TopicSubscription $subscription
@@ -46,6 +54,13 @@ interface Repository
      * @return TopicSubscription[]
      */
     public function getTopicSubscriptionsMatchingTopic(string $topic): array;
+
+    /**
+     * Returns the number of pending publish messages.
+     *
+     * @return int
+     */
+    public function countPendingPublishMessages(): int;
 
     /**
      * Adds a pending published message to the repository.
@@ -105,6 +120,13 @@ interface Repository
     public function removePendingPublishedMessage(int $messageId): bool;
 
     /**
+     * Returns the number of pending unsubscribe requests.
+     *
+     * @return int
+     */
+    public function countPendingUnsubscribeRequests(): int;
+
+    /**
      * Adds a pending unsubscribe request to the repository.
      *
      * @param UnsubscribeRequest $request
@@ -147,6 +169,13 @@ interface Repository
      * @return bool
      */
     public function removePendingUnsubscribeRequest(int $messageId): bool;
+
+    /**
+     * Returns the number of pending publish confirmations.
+     *
+     * @return int
+     */
+    public function countPendingPublishConfirmations(): int;
 
     /**
      * Adds a pending publish confirmation to the repository.
