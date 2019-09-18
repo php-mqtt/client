@@ -6,6 +6,7 @@ namespace PhpMqtt\Client;
 
 use DateInterval;
 use DateTime;
+use PhpMqtt\Client\Concerns\OffersHooks;
 use PhpMqtt\Client\Contracts\MQTTClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
@@ -22,6 +23,8 @@ use Psr\Log\LoggerInterface;
  */
 class MQTTClient implements ClientContract
 {
+    use OffersHooks;
+
     const EXCEPTION_CONNECTION_FAILED              = 0001;
     const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
     const EXCEPTION_CONNECTION_IDENTIFIER_REJECTED = 0003;
@@ -72,9 +75,6 @@ class MQTTClient implements ClientContract
     /** @var bool */
     private $interrupted = false;
 
-    /** @var callable|null */
-    private $loopEventHandler;
-
     /**
      * Constructs a new MQTT client which subsequently supports publishing and subscribing.
      *
@@ -104,6 +104,8 @@ class MQTTClient implements ClientContract
         $this->caFile     = $caFile;
         $this->repository = $repository;
         $this->logger     = new Logger($logger);
+
+        $this->initializeEventHandlers();
     }
 
     /**
@@ -431,6 +433,10 @@ class MQTTClient implements ClientContract
             'is_duplicate' => $isDuplicate,
         ]);
 
+        foreach ($this->publishEventHandlers as $handler) {
+            call_user_func($handler, $this, $topic, $message, $messageId, $qualityOfService, $retain);
+        }
+
         $i      = 0;
         $buffer = '';
 
@@ -579,8 +585,8 @@ class MQTTClient implements ClientContract
 
             $elapsedTime = microtime(true) - $loopStartedAt;
 
-            if ($this->loopEventHandler) {
-                call_user_func($this->loopEventHandler, $this, $elapsedTime);
+            foreach ($this->loopEventHandlers as $handler) {
+                call_user_func($handler, $this, $elapsedTime);
             }
 
             $buffer = null;
@@ -1392,29 +1398,11 @@ class MQTTClient implements ClientContract
     }
 
     /**
-     * Registers a loop event handler which is called each iteration of the loop.
-     * This event handler can be used for example to interrupt the loop under
-     * certain conditions.
-     *
-     * The loop event handler is passed the MQTT client instance as first and
-     * the elapsed time which the loop is already running for as second
-     * parameter. The elapsed time is a float containing seconds.
-     *
-     * If no callback is passed, any already registered loop event handler
-     * will be unregistered.
-     *
-     * @param callable|null $callback
-     * @return
-     */
-    public function registerLoopEventHandler(callable $callback = null): void
-    {
-        $this->loopEventHandler = $callback;
-    }
-
-    /**
      * Creates a string which is prefixed with its own length as bytes.
      * This means a string like 'hello world' will become
+     *
      *   \x00\x0bhello world
+     *
      * where \x00\0x0b is the hex representation of 00000000 00001011 = 11
      *
      * @param string $data

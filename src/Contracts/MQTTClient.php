@@ -136,11 +136,49 @@ interface MQTTClient
      * the elapsed time which the loop is already running for as second
      * parameter. The elapsed time is a float containing seconds.
      *
-     * If no callback is passed, any already registered loop event handler
-     * will be unregistered.
+     * Multiple event handlers can be registered at the same time.
      *
-     * @param callable|null $callback
-     * @return
+     * @param \Closure $callback
+     * @return MQTTClient
      */
-    public function registerLoopEventHandler(callable $callback = null): void;
+    public function registerLoopEventHandler(\Closure $callback): MQTTClient;
+
+    /**
+     * Unregisters a loop event handler which prevents it from being called
+     * in the future.
+     *
+     * This does not affect other registered event handlers. It is possible
+     * to unregister all registered event handlers by passing null as callback.
+     *
+     * @param \Closure|null $callback
+     * @return MQTTClient
+     */
+    public function unregisterLoopEventHandler(\Closure $callback = null): MQTTClient;
+
+    /**
+     * Registers a loop event handler which is called when a message is published.
+     *
+     * The loop event handler is passed the MQTT client as first, the topic as
+     * second and the message as third parameter. As fourth parameter, the
+     * message identifier will be passed. The QoS level as well as the retained
+     * flag will also be passed as fifth and sixth parameters.
+     *
+     * Multiple event handlers can be registered at the same time.
+     *
+     * @param \Closure $callback
+     * @return MQTTClient
+     */
+    public function registerPublishEventHandler(\Closure $callback): MQTTClient;
+
+    /**
+     * Unregisters a publish event handler which prevents it from being called
+     * in the future.
+     *
+     * This does not affect other registered event handlers. It is possible
+     * to unregister all registered event handlers by passing null as callback.
+     *
+     * @param \Closure|null $callback
+     * @return MQTTClient
+     */
+    public function unregisterPublishEventHandler(\Closure $callback = null): MQTTClient;
 }
