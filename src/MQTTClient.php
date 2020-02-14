@@ -1468,6 +1468,6 @@ class MQTTClient implements ClientContract
      */
     protected function generateRandomClientId(): string
     {
-        return substr(md5(uniqid(mt_rand(), true)), 0, 20);
+        return substr(md5(uniqid((string) mt_rand(), true)), 0, 20);
     }
 }
