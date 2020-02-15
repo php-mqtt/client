@@ -1296,7 +1296,7 @@ class MQTTClient implements ClientContract
 
         $length = min($length, strlen($data));
 
-        $result = fwrite($this->socket, $data, $length);
+        $result = @fwrite($this->socket, $data, $length);
 
         if ($result === false || $result !== $length) {
             $this->logger->error('Sending data over the socket to an MQTT broker failed.', [
