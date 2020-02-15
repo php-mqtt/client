@@ -1322,7 +1322,7 @@ class MQTTClient implements ClientContract
         $remaining   = $limit;
 
         if ($withoutBlocking) {
-            $receivedData = @fread($this->socket, $remaining);
+            $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
                 $this->logger->error('Reading data from the socket from an MQTT broker failed.', [
                     'broker' => sprintf('%s:%s', $this->host, $this->port),
@@ -1333,7 +1333,7 @@ class MQTTClient implements ClientContract
         }
 
         while (feof($this->socket) === false && $remaining > 0) {
-            $receivedData = @fread($this->socket, $remaining);
+            $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
                 $this->logger->error('Reading data from the socket from an MQTT broker failed.', [
                     'broker' => sprintf('%s:%s', $this->host, $this->port),
