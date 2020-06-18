@@ -347,6 +347,7 @@ class MQTTClient implements ClientContract
         ]);
 
         $this->writeToSocket(chr(0xc0) . chr(0x00));
+        $this->lastPingAt = microtime(true);
     }
 
     /**
@@ -653,8 +654,6 @@ class MQTTClient implements ClientContract
                             $this->logger->debug(sprintf('Received message with unsupported command [%s]. Skipping.', $command));
                             break;
                     }
-
-                    $this->lastPingAt = microtime(true);
                 } else {
                     $this->logger->error('A reserved command has been received from an MQTT broker. Supported are commands (including) 1-14.', [
                         'broker' => sprintf('%s:%s', $this->host, $this->port),
