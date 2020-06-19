@@ -1,6 +1,6 @@
 # php-mqtt/client
 
-`php-mqtt/client` was created by, and is maintained by [Namoshek](https://github.com/namoshek).
+[`php-mqtt/client`](https://packagist.org/packages/php-mqtt/client) was created by, and is maintained by [Namoshek](https://github.com/namoshek).
 It allows you to connect to an MQTT broker where you can publish messages and subscribe to topics.
 The implementation supports all QoS levels ([with limitations](#limitations)).
 
