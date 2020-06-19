@@ -244,7 +244,6 @@ class MQTTClient implements ClientContract
                 switch ($acknowledgement[3]) {
                     case chr(0):
                         $this->logger->info(sprintf('Connection with MQTT broker at [%s:%s] established successfully.', $this->host, $this->port));
-                        $this->lastPingAt = microtime(true);
                         break;
                     case chr(1):
                         $this->logger->error(sprintf('The MQTT broker at [%s:%s] does not support MQTT v3.', $this->host, $this->port));
@@ -653,8 +652,6 @@ class MQTTClient implements ClientContract
                             $this->logger->debug(sprintf('Received message with unsupported command [%s]. Skipping.', $command));
                             break;
                     }
-
-                    $this->lastPingAt = microtime(true);
                 } else {
                     $this->logger->error('A reserved command has been received from an MQTT broker. Supported are commands (including) 1-14.', [
                         'broker' => sprintf('%s:%s', $this->host, $this->port),
@@ -1304,6 +1301,10 @@ class MQTTClient implements ClientContract
             ]);
             throw new DataTransferException(self::EXCEPTION_TX_DATA, 'Sending data over the socket failed. Has it been closed?');
         }
+        
+        // After writing successfully to the socket, the broker should have received a new message from us.
+        // Because we only need to send a ping if no other messages are delivered, we can safely reset the ping timer.
+        $this->lastPingAt = microtime(true);
     }
 
     /**
