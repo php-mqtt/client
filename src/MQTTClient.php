@@ -223,12 +223,12 @@ class MQTTClient implements ClientContract
             if ($username !== null) {
                 $usernamePart = $this->buildLengthPrefixedString($username);
                 $buffer      .= $usernamePart;
-                $i           .= strlen($usernamePart);
+                $i           += strlen($usernamePart);
             }
             if ($password !== null) {
                 $passwordPart = $this->buildLengthPrefixedString($password);
                 $buffer      .= $passwordPart;
-                $i           .= strlen($passwordPart);
+                $i           += strlen($passwordPart);
             }
 
             // message type and message length
