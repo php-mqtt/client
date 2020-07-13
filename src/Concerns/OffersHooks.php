@@ -39,6 +39,16 @@ trait OffersHooks
      * the elapsed time which the loop is already running for as second
      * parameter. The elapsed time is a float containing seconds.
      *
+     * Example:
+     * ```php
+     * $mqtt->registerLoopEventHandler(function (
+     *     MQTTClient $mqtt,
+     *     float $elapsedTime
+     * ) use ($logger) {
+     *     $logger->info("Running for [{$elapsedTime}] seconds already.");
+     * });
+     * ```
+     *
      * Multiple event handlers can be registered at the same time.
      *
      * @param \Closure $callback
@@ -81,6 +91,20 @@ trait OffersHooks
      * second and the message as third parameter. As fourth parameter, the
      * message identifier will be passed. The QoS level as well as the retained
      * flag will also be passed as fifth and sixth parameters.
+     *
+     * Example:
+     * ```php
+     * $mqtt->registerPublishEventHandler(function (
+     *     MQTTClient $mqtt,
+     *     string $topic,
+     *     string $message,
+     *     int $messageId,
+     *     int $qualityOfService,
+     *     bool $retain
+     * ) use ($logger) {
+     *     $logger->info("Received message on topic [{$topic}]: {$message}");
+     * });
+     * ```
      *
      * Multiple event handlers can be registered at the same time.
      *

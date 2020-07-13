@@ -76,7 +76,14 @@ class MQTTClient implements ClientContract
     protected $socket;
 
     /**
-     * Constructs a new MQTT client which subsequently supports publishing and subscribing.
+     * Constructs a new MQTT client which subsequently supports publishing and subscribing
+     *
+     * Notes:
+     *   - If no client id is given, a random one is generated, forcing a clean session implicitly.
+     *   - If a CA file is given, it is used to verify the peer server certificate.
+     *   - If no repository is given, an in-memory repository is created for you. Once you terminate
+     *     your script, all stored data (like resend queues) is lost.
+     *   - If no logger is given, log messages are dropped. Any PSR-3 logger will work.
      *
      * @param string               $host
      * @param int                  $port
