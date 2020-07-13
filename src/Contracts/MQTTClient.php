@@ -36,6 +36,19 @@ interface MQTTClient
     ): void;
 
     /**
+     * Returns an indication, whether the client is supposed to be connected already or not.
+     *
+     * Note: the result of this method should be used carefully, since we can only detect a
+     * closed socket once we try to send or receive data. Therefore, this method only gives
+     * an indication whether the client is in a connected state or not.
+     *
+     * This information may be useful in applications where multiple parts use the client.
+     *
+     * @return bool
+     */
+    public function isConnected(): bool;
+
+    /**
      * Publishes the given message on the given topic. If the additional quality of service
      * and retention flags are set, the message will be published using these settings.
      *

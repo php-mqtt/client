@@ -57,6 +57,9 @@ class MQTTClient implements ClientContract
     /** @var string|null */
     private $caFile;
 
+    /** @var bool */
+    private $connected = false;
+
     /** @var float */
     private $lastPingAt;
 
@@ -140,6 +143,8 @@ class MQTTClient implements ClientContract
 
         $this->establishSocketConnection();
         $this->performConnectionHandshake($username, $password, $sendCleanSessionFlag);
+
+        $this->connected = true;
     }
 
     /**
@@ -363,6 +368,21 @@ class MQTTClient implements ClientContract
     }
 
     /**
+     * Returns an indication, whether the client is supposed to be connected already or not.
+     *
+     * Note: the result of this method should be used carefully, since we can only detect a
+     * closed socket once we try to send or receive data. Therefore, this method only gives
+     * an indication whether the client is in a connected state or not.
+     * This information may be useful in applications where multiple parts use the client.
+     *
+     * @return bool
+     */
+    public function isConnected(): bool
+    {
+        return $this->connected;
+    }
+
+    /**
      * Sends a ping to the MQTT broker.
      *
      * @return void
@@ -392,6 +412,8 @@ class MQTTClient implements ClientContract
         if ($this->socket !== null && is_resource($this->socket)) {
             stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
         }
+
+        $this->connected = false;
     }
 
     /**
