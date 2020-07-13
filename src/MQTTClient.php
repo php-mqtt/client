@@ -9,6 +9,7 @@ use DateTime;
 use PhpMqtt\Client\Concerns\OffersHooks;
 use PhpMqtt\Client\Contracts\MQTTClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
+use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
@@ -29,6 +30,7 @@ class MQTTClient implements ClientContract
     const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
     const EXCEPTION_CONNECTION_IDENTIFIER_REJECTED = 0003;
     const EXCEPTION_CONNECTION_BROKER_UNAVAILABLE  = 0004;
+    const EXCEPTION_CONNECTION_NOT_ESTABLISHED     = 0005;
     const EXCEPTION_TX_DATA                        = 0101;
     const EXCEPTION_RX_DATA                        = 0102;
     const EXCEPTION_ACK_CONNECT                    = 0201;
@@ -361,6 +363,23 @@ class MQTTClient implements ClientContract
     }
 
     /**
+     * Ensures the client is connected to a broker (or at least thinks it is).
+     * This method does not account for closed sockets.
+     *
+     * @return void
+     * @throws ClientNotConnectedToBrokerException
+     */
+    protected function ensureConnected(): void
+    {
+        if (!$this->isConnected()) {
+            throw new ClientNotConnectedToBrokerException(
+                static::EXCEPTION_CONNECTION_NOT_ESTABLISHED,
+                'The client is not connected to a broker. The requested operation is impossible at this point.'
+            );
+        }
+    }
+
+    /**
      * Sends a ping to the MQTT broker.
      *
      * @return void
@@ -383,6 +402,8 @@ class MQTTClient implements ClientContract
      */
     public function close(): void
     {
+        $this->ensureConnected();
+
         $this->logger->info(sprintf('Closing the connection to the MQTT broker at [%s:%s].', $this->host, $this->port));
 
         $this->disconnect();
@@ -420,6 +441,8 @@ class MQTTClient implements ClientContract
      */
     public function publish(string $topic, string $message, int $qualityOfService = 0, bool $retain = false): void
     {
+        $this->ensureConnected();
+
         $messageId = null;
 
         if ($qualityOfService > 0) {
@@ -507,6 +530,8 @@ class MQTTClient implements ClientContract
      */
     public function subscribe(string $topic, callable $callback, int $qualityOfService = 0): void
     {
+        $this->ensureConnected();
+
         $this->logger->debug('Subscribing to an MQTT topic.', [
             'broker' => sprintf('%s:%s', $this->host, $this->port),
             'topic' => $topic,
@@ -539,6 +564,8 @@ class MQTTClient implements ClientContract
      */
     public function unsubscribe(string $topic): void
     {
+        $this->ensureConnected();
+
         $messageId = $this->nextMessageId();
 
         $this->repository->addNewPendingUnsubscribeRequest($messageId, $topic);
