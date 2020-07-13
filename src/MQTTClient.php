@@ -445,7 +445,7 @@ class MQTTClient implements ClientContract
 
         $messageId = null;
 
-        if ($qualityOfService > 0) {
+        if ($qualityOfService > self::QOS_AT_MOST_ONCE) {
             $messageId = $this->nextMessageId();
             $this->repository->addNewPendingPublishedMessage($messageId, $topic, $message, $qualityOfService, $retain);
         }
@@ -507,7 +507,7 @@ class MQTTClient implements ClientContract
         if ($retain) {
             $command += 1 << 0;
         }
-        if ($qualityOfService > 0) {
+        if ($qualityOfService > self::QOS_AT_MOST_ONCE) {
             $command += $qualityOfService << 1;
         }
         if ($isDuplicate) {
@@ -528,7 +528,7 @@ class MQTTClient implements ClientContract
      * @return void
      * @throws DataTransferException
      */
-    public function subscribe(string $topic, callable $callback, int $qualityOfService = 0): void
+    public function subscribe(string $topic, callable $callback, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
     {
         $this->ensureConnected();
 
@@ -788,7 +788,7 @@ class MQTTClient implements ClientContract
         $topic       = substr($buffer, 2, $topicLength);
         $message     = substr($buffer, ($topicLength + 2));
 
-        if ($qualityOfServiceLevel > 0) {
+        if ($qualityOfServiceLevel > self::QOS_AT_MOST_ONCE) {
             if (strlen($message) < 2) {
                 $this->logger->error(sprintf(
                     'Received a published message with QoS level [%s] from an MQTT broker, but without a message identifier.',
@@ -802,11 +802,11 @@ class MQTTClient implements ClientContract
 
             $messageId = $this->stringToNumber($this->pop($message, 2));
 
-            if ($qualityOfServiceLevel === 1) {
+            if ($qualityOfServiceLevel === self::QOS_AT_LEAST_ONCE) {
                 $this->sendPublishAcknowledgement($messageId);
             }
 
-            if ($qualityOfServiceLevel === 2) {
+            if ($qualityOfServiceLevel === self::QOS_EXACTLY_ONCE) {
                 try {
                     $this->sendPublishReceived($messageId);
                     $this->repository->addNewPendingPublishConfirmation($messageId, $topic, $message);
