@@ -76,7 +76,14 @@ class MQTTClient implements ClientContract
     private $interrupted = false;
 
     /**
-     * Constructs a new MQTT client which subsequently supports publishing and subscribing.
+     * Constructs a new MQTT client which subsequently supports publishing and subscribing
+     *
+     * Notes:
+     *   - If no client id is given, a random one is generated, forcing a clean session implicitly.
+     *   - If a CA file is given, it is used to verify the peer server certificate.
+     *   - If no repository is given, an in-memory repository is created for you. Once you terminate
+     *     your script, all stored data (like resend queues) is lost.
+     *   - If no logger is given, log messages are dropped. Any PSR-3 logger will work.
      *
      * @param string               $host
      * @param int                  $port
@@ -403,7 +410,7 @@ class MQTTClient implements ClientContract
 
     /**
      * Builds and publishes a message.
-     * 
+     *
      * @param string   $topic
      * @param string   $message
      * @param int      $qualityOfService
@@ -769,9 +776,9 @@ class MQTTClient implements ClientContract
     /**
      * Handles a received publish acknowledgement. The buffer contains the whole
      * message except command and length. The message structure is:
-     * 
+     *
      *   [message-identifier]
-     * 
+     *
      * @param string $buffer
      * @return void
      * @throws UnexpectedAcknowledgementException
@@ -989,9 +996,9 @@ class MQTTClient implements ClientContract
     /**
      * Handles a received unsubscribe acknowledgement. The buffer contains the whole
      * message except command and length. The message structure is:
-     * 
+     *
      *   [message-identifier]
-     * 
+     *
      * @param string $buffer
      * @return void
      * @throws UnexpectedAcknowledgementException
@@ -1301,7 +1308,7 @@ class MQTTClient implements ClientContract
             ]);
             throw new DataTransferException(self::EXCEPTION_TX_DATA, 'Sending data over the socket failed. Has it been closed?');
         }
-        
+
         // After writing successfully to the socket, the broker should have received a new message from us.
         // Because we only need to send a ping if no other messages are delivered, we can safely reset the ping timer.
         $this->lastPingAt = microtime(true);
