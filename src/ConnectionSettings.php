@@ -48,7 +48,7 @@ class ConnectionSettings
      * @param string|null $lastWillMessage
      */
     public function __construct(
-        int $qualityOfService = 0,
+        int $qualityOfService = MQTTClient::QOS_AT_MOST_ONCE,
         bool $retain = false,
         bool $blockSocket = false,
         int $socketTimeout = 5,
