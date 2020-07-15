@@ -39,6 +39,8 @@ class MQTTClient implements ClientContract
     const EXCEPTION_CONNECTION_IDENTIFIER_REJECTED = 0003;
     const EXCEPTION_CONNECTION_BROKER_UNAVAILABLE  = 0004;
     const EXCEPTION_CONNECTION_NOT_ESTABLISHED     = 0005;
+    const EXCEPTION_CONNECTION_INVALID_CREDENTIALS = 0006;
+    const EXCEPTION_CONNECTION_UNAUTHORIZED        = 0007;
     const EXCEPTION_TX_DATA                        = 0101;
     const EXCEPTION_RX_DATA                        = 0102;
     const EXCEPTION_ACK_CONNECT                    = 0201;
@@ -297,10 +299,10 @@ class MQTTClient implements ClientContract
                         $this->logger->info(sprintf('Connection with MQTT broker at [%s:%s] established successfully.', $this->host, $this->port));
                         break;
                     case chr(1):
-                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] does not support MQTT v3.', $this->host, $this->port));
+                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] does not support MQTT v3.1.', $this->host, $this->port));
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_PROTOCOL_VERSION,
-                            'The selected MQTT broker does not support MQTT v3.'
+                            'The selected MQTT broker does not support MQTT v3.1.'
                         );
                     case chr(2):
                         $this->logger->error(sprintf('The MQTT broker at [%s:%s] rejected the sent identifier.', $this->host, $this->port));
@@ -313,6 +315,18 @@ class MQTTClient implements ClientContract
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_BROKER_UNAVAILABLE,
                             'The selected MQTT broker is currently unavailable.'
+                        );
+                    case chr(4):
+                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] reported the credentials as invalid.', $this->host, $this->port));
+                        throw new ConnectingToBrokerFailedException(
+                            self::EXCEPTION_CONNECTION_INVALID_CREDENTIALS,
+                            'The selected MQTT broker reported the credentials as invalid.'
+                        );
+                    case chr(5):
+                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] responded with unauthorized.', $this->host, $this->port));
+                        throw new ConnectingToBrokerFailedException(
+                            self::EXCEPTION_CONNECTION_UNAUTHORIZED,
+                            'The selected MQTT broker responded with unauthorized.'
                         );
                     default:
                         $this->logger->error(sprintf(
