@@ -6,7 +6,10 @@ namespace PhpMqtt\Client;
 
 use DateInterval;
 use DateTime;
+use PhpMqtt\Client\Concerns\GeneratesRandomClientIds;
 use PhpMqtt\Client\Concerns\OffersHooks;
+use PhpMqtt\Client\Concerns\TranscodesData;
+use PhpMqtt\Client\Concerns\WorksWithBuffers;
 use PhpMqtt\Client\Contracts\MQTTClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
@@ -24,7 +27,10 @@ use Psr\Log\LoggerInterface;
  */
 class MQTTClient implements ClientContract
 {
-    use OffersHooks;
+    use GeneratesRandomClientIds,
+        OffersHooks,
+        TranscodesData,
+        WorksWithBuffers;
 
     const EXCEPTION_CONNECTION_FAILED              = 0001;
     const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
@@ -857,7 +863,7 @@ class MQTTClient implements ClientContract
                 return;
             }
 
-            $messageId = $this->stringToNumber($this->pop($message, 2));
+            $messageId = $this->decodeMessageId($this->pop($message, 2));
 
             if ($qualityOfServiceLevel === self::QOS_AT_LEAST_ONCE) {
                 $this->sendPublishAcknowledgement($messageId);
@@ -905,7 +911,7 @@ class MQTTClient implements ClientContract
             );
         }
 
-        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
 
         $result = $this->repository->removePendingPublishedMessage($messageId);
         if ($result === false) {
@@ -945,7 +951,7 @@ class MQTTClient implements ClientContract
             );
         }
 
-        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
 
         $result = $this->repository->markPendingPublishedMessageAsReceived($messageId);
         if ($result === false) {
@@ -986,7 +992,7 @@ class MQTTClient implements ClientContract
             );
         }
 
-        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
 
         $message = $this->repository->getPendingPublishConfirmationWithMessageId($messageId);
 
@@ -1031,7 +1037,7 @@ class MQTTClient implements ClientContract
             );
         }
 
-        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
 
         $result = $this->repository->removePendingPublishedMessage($messageId);
         if ($result === false) {
@@ -1073,7 +1079,7 @@ class MQTTClient implements ClientContract
             );
         }
 
-        $messageId        = $this->stringToNumber($this->pop($buffer, 2));
+        $messageId        = $this->decodeMessageId($this->pop($buffer, 2));
         $subscriptions    = $this->repository->getTopicSubscriptionsWithMessageId($messageId);
         $acknowledgements = str_split($buffer);
 
@@ -1125,7 +1131,7 @@ class MQTTClient implements ClientContract
             );
         }
 
-        $messageId = $this->stringToNumber($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
 
         $unsubscribeRequest = $this->repository->getPendingUnsubscribeRequestWithMessageId($messageId);
         $result             = $this->repository->removePendingUnsubscribeRequest($messageId);
@@ -1321,73 +1327,67 @@ class MQTTClient implements ClientContract
     }
 
     /**
-     * Converts the given string to a number, assuming it is an MSB encoded
-     * number. This means preceding characters have higher value.
+     * Sets the interrupted signal. Doing so instructs the client to exit the loop, if it is
+     * actually looping.
      *
-     * @param string $buffer
-     * @return int
+     * Sending multiple interrupt signals has no effect, unless the client exits the loop,
+     * which resets the signal for another loop.
+     *
+     * @return void
      */
-    protected function stringToNumber(string $buffer): int
+    public function interrupt(): void
     {
-        $length = strlen($buffer);
-        $result = 0;
-
-        foreach (str_split($buffer) as $index => $char) {
-            $result += ord($char) << (($length - 1) * 8 - ($index * 8));
-        }
-
-        return $result;
+        $this->interrupted = true;
     }
 
     /**
-     * Encodes the given message identifier as string.
+     * Returns the host used by the client to connect to.
      *
-     * @param int $messageId
      * @return string
      */
-    protected function encodeMessageId(int $messageId): string
+    public function getHost(): string
     {
-        return chr($messageId >> 8) . chr($messageId % 256);
+        return $this->host;
     }
 
     /**
-     * Encodes the length of a message as string, so it can be transmitted
-     * over the wire.
-     *
-     * @param int $length
-     * @return string
-     */
-    protected function encodeMessageLength(int $length): string
-    {
-        $result = '';
-
-        do {
-            $digit  = $length % 128;
-            $length = $length >> 7;
-
-            // if there are more digits to encode, set the top bit of this digit
-            if ($length > 0) {
-                $digit = ($digit | 0x80);
-            }
-
-            $result .= chr($digit);
-        } while ($length > 0);
-
-        return $result;
-    }
-
-    /**
-     * Gets the next message id to be used.
+     * Returns the port used by the client to connect to.
      *
      * @return int
      */
-    protected function nextMessageId(): int
+    public function getPort(): int
     {
-        if ($this->messageId === 65535) {
-            $this->messageId = 0;
-        }
+        return $this->port;
+    }
 
-        return $this->messageId++;
+    /**
+     * Returns the identifier used by the client.
+     *
+     * @return string
+     */
+    public function getClientId(): string
+    {
+        return $this->clientId;
+    }
+
+    /**
+     * Returns the certificate authority file, if available.
+     *
+     * @return string|null
+     */
+    public function getCertificateAuthorityFile(): ?string
+    {
+        return $this->caFile;
+    }
+
+    /**
+     * Determines whether a certificate authority file is available.
+     *
+     * @return bool
+     */
+    public function hasCertificateAuthorityFile(): bool
+    {
+        return $this->getCertificateAuthorityFile() !== null;
     }
 
     /**
@@ -1460,116 +1460,5 @@ class MQTTClient implements ClientContract
         }
 
         return $result;
-    }
-
-    /**
-     * Returns the host used by the client to connect to.
-     *
-     * @return string
-     */
-    public function getHost(): string
-    {
-        return $this->host;
-    }
-
-    /**
-     * Returns the port used by the client to connect to.
-     *
-     * @return int
-     */
-    public function getPort(): int
-    {
-        return $this->port;
-    }
-
-    /**
-     * Returns the identifier used by the client.
-     *
-     * @return string
-     */
-    public function getClientId(): string
-    {
-        return $this->clientId;
-    }
-
-    /**
-     * Returns the certificate authority file, if available.
-     *
-     * @return string|null
-     */
-    public function getCertificateAuthorityFile(): ?string
-    {
-        return $this->caFile;
-    }
-
-    /**
-     * Determines whether a certificate authority file is available.
-     *
-     * @return bool
-     */
-    public function hasCertificateAuthorityFile(): bool
-    {
-        return $this->getCertificateAuthorityFile() !== null;
-    }
-
-    /**
-     * Creates a string which is prefixed with its own length as bytes.
-     * This means a string like 'hello world' will become
-     *
-     *   \x00\x0bhello world
-     *
-     * where \x00\0x0b is the hex representation of 00000000 00001011 = 11
-     *
-     * @param string $data
-     * @return string
-     */
-    protected function buildLengthPrefixedString(string $data): string
-    {
-        $length = strlen($data);
-        $msb    = $length >> 8;
-        $lsb    = $length % 256;
-
-        return chr($msb) . chr($lsb) . $data;
-    }
-
-    /**
-     * Pops the first $limit bytes from the given buffer and returns them.
-     *
-     * @param string $buffer
-     * @param int    $limit
-     * @return string
-     */
-    protected function pop(string &$buffer, int $limit): string
-    {
-        $limit = min(strlen($buffer), $limit);
-
-        $result = substr($buffer, 0, $limit);
-        $buffer = substr($buffer, $limit);
-
-        return $result;
-    }
-
-    /**
-     * Sets the interrupted signal. Doing so instructs the client to exit the loop, if it is
-     * actually looping.
-     *
-     * Sending multiple interrupt signals has no effect, unless the client exits the loop,
-     * which resets the signal for another loop.
-     *
-     * @return void
-     */
-    public function interrupt(): void
-    {
-        $this->interrupted = true;
-    }
-
-    /**
-     * Generates a random client id in the form of an md5 hash.
-     *
-     * @return string
-     */
-    protected function generateRandomClientId(): string
-    {
-        return substr(md5(uniqid((string) mt_rand(), true)), 0, 20);
     }
 }
