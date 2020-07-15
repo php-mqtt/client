@@ -1564,23 +1564,6 @@ class MQTTClient implements ClientContract
     }
 
     /**
-     * Shifts the last $limit bytes from the given buffer and returns them.
-     *
-     * @param string $buffer
-     * @param int    $limit
-     * @return string
-     */
-    protected function shift(string &$buffer, int $limit): string
-    {
-        $limit = min(strlen($buffer), $limit);
-
-        $result = substr($buffer, $limit * (-1));
-        $buffer = substr($buffer, 0, $limit * (-1));
-
-        return $result;
-    }
-
-    /**
      * Generates a random client id in the form of an md5 hash.
      *
      * @return string
