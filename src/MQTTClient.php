@@ -222,7 +222,7 @@ class MQTTClient implements ClientContract
             $buffer .= chr(0x73); $i++; // protocol name: s
             $buffer .= chr(0x64); $i++; // protocol name: d
             $buffer .= chr(0x70); $i++; // protocol name: p
-            $buffer .= chr(0x03); $i++; // protocol version (3.1.1)
+            $buffer .= chr(0x03); $i++; // protocol version (3.1)
 
             // connection flags
             $flags   = $this->buildConnectionFlags($username, $password, $sendCleanSessionFlag);
@@ -691,7 +691,10 @@ class MQTTClient implements ClientContract
                 if ($command > 0 && $command < 15) {
                     switch($command){
                         case 2:
-                            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
+                            throw new UnexpectedAcknowledgementException(
+                                self::EXCEPTION_ACK_CONNECT,
+                                'We unexpectedly received a connection acknowledgement.'
+                            );
                         case 3:
                             $this->handlePublishedMessage($buffer, $qualityOfService);
                             break;
