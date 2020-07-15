@@ -10,6 +10,7 @@ use PhpMqtt\Client\Concerns\GeneratesRandomClientIds;
 use PhpMqtt\Client\Concerns\OffersHooks;
 use PhpMqtt\Client\Concerns\TranscodesData;
 use PhpMqtt\Client\Concerns\WorksWithBuffers;
+use PhpMqtt\Client\Contracts\MessageIdManager;
 use PhpMqtt\Client\Contracts\MQTTClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
@@ -17,6 +18,7 @@ use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
+use PhpMqtt\Client\MessageIdManagers\MemoryMessageIdManager;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 use Psr\Log\LoggerInterface;
 
@@ -71,11 +73,11 @@ class MQTTClient implements ClientContract
     /** @var float */
     private $lastPingAt;
 
-    /** @var int */
-    private $messageId = 1;
-
     /** @var Repository */
     private $repository;
+
+    /** @var MessageIdManager */
+    private $messageIdManager;
 
     /** @var LoggerInterface */
     private $logger;
@@ -96,12 +98,13 @@ class MQTTClient implements ClientContract
      *     your script, all stored data (like resend queues) is lost.
      *   - If no logger is given, log messages are dropped. Any PSR-3 logger will work.
      *
-     * @param string               $host
-     * @param int                  $port
-     * @param string|null          $clientId
-     * @param string|null          $caFile
-     * @param Repository|null      $repository
-     * @param LoggerInterface|null $logger
+     * @param string                $host
+     * @param int                   $port
+     * @param string|null           $clientId
+     * @param string|null           $caFile
+     * @param Repository|null       $repository
+     * @param MessageIdManager|null $messageIdManager
+     * @param LoggerInterface|null  $logger
      */
     public function __construct(
         string $host,
@@ -109,6 +112,7 @@ class MQTTClient implements ClientContract
         string $clientId = null,
         string $caFile = null,
         Repository $repository = null,
+        MessageIdManager $messageIdManager = null,
         LoggerInterface $logger = null
     )
     {
@@ -116,12 +120,17 @@ class MQTTClient implements ClientContract
             $repository = new MemoryRepository();
         }
 
-        $this->host       = $host;
-        $this->port       = $port;
-        $this->clientId   = $clientId ?? $this->generateRandomClientId();
-        $this->caFile     = $caFile;
-        $this->repository = $repository;
-        $this->logger     = new Logger($logger);
+        if ($messageIdManager === null) {
+            $messageIdManager = new MemoryMessageIdManager();
+        }
+
+        $this->host             = $host;
+        $this->port             = $port;
+        $this->clientId         = $clientId ?? $this->generateRandomClientId();
+        $this->caFile           = $caFile;
+        $this->repository       = $repository;
+        $this->messageIdManager = $messageIdManager;
+        $this->logger           = new Logger($logger);
 
         $this->initializeEventHandlers();
     }
@@ -474,7 +483,7 @@ class MQTTClient implements ClientContract
         $messageId = null;
 
         if ($qualityOfService > self::QOS_AT_MOST_ONCE) {
-            $messageId = $this->nextMessageId();
+            $messageId = $this->messageIdManager->newMessageId();
             $this->repository->addNewPendingPublishedMessage($messageId, $topic, $message, $qualityOfService, $retain);
         }
 
@@ -586,7 +595,7 @@ class MQTTClient implements ClientContract
 
         $i         = 0;
         $buffer    = '';
-        $messageId = $this->nextMessageId();
+        $messageId = $this->messageIdManager->newMessageId();
         $buffer   .= $this->encodeMessageId($messageId);
         $i        += 2;
 
@@ -614,7 +623,7 @@ class MQTTClient implements ClientContract
     {
         $this->ensureConnected();
 
-        $messageId = $this->nextMessageId();
+        $messageId = $this->messageIdManager->newMessageId();
 
         $this->repository->addNewPendingUnsubscribeRequest($messageId, $topic);
 
@@ -923,6 +932,8 @@ class MQTTClient implements ClientContract
                 'The MQTT broker acknowledged a publish that has not been pending anymore.'
             );
         }
+
+        $this->messageIdManager->releaseMessageId($messageId);
     }
 
     /**
@@ -1049,6 +1060,8 @@ class MQTTClient implements ClientContract
                 'The MQTT broker sent a completion for a publish that has not been pending anymore.'
             );
         }
+
+        $this->messageIdManager->releaseMessageId($messageId);
     }
 
     /**
@@ -1103,6 +1116,8 @@ class MQTTClient implements ClientContract
         foreach ($acknowledgements as $index => $qualityOfServiceLevel) {
             $subscriptions[$index]->setAcknowledgedQualityOfServiceLevel(intval($qualityOfServiceLevel));
         }
+
+        $this->messageIdManager->releaseMessageId($messageId);
     }
 
     /**
@@ -1148,6 +1163,8 @@ class MQTTClient implements ClientContract
         if ($unsubscribeRequest !== null) {
             $this->repository->removeTopicSubscription($unsubscribeRequest->getTopic());
         }
+
+        $this->messageIdManager->releaseMessageId($messageId);
     }
 
     /**
