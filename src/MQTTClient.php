@@ -1550,7 +1550,11 @@ class MQTTClient implements ClientContract
     }
 
     /**
-     * Sets the interrupted signal.
+     * Sets the interrupted signal. Doing so instructs the client to exit the loop, if it is
+     * actually looping.
+     *
+     * Sending multiple interrupt signals has no effect, unless the client exits the loop,
+     * which resets the signal for another loop.
      *
      * @return void
      */
