@@ -12,8 +12,19 @@ use PhpMqtt\Client\TopicSubscription;
 use PhpMqtt\Client\UnsubscribeRequest;
 use SplObjectStorage;
 
+/**
+ * Provides an in-memory implementation which manages message ids, subscriptions and pending messages.
+ *
+ * @package PhpMqtt\Client\Repositories
+ */
 class MemoryRepository implements Repository
 {
+    /** @var int */
+    private $lastMessageId = 0;
+
+    /** @var int[] */
+    private $reservedMessageIds = [];
+
     /** @var SplObjectStorage|TopicSubscription[] */
     private $topicSubscriptions;
 
@@ -38,6 +49,63 @@ class MemoryRepository implements Repository
     }
 
     /**
+     * Returns a new message id. The message id might have been used before,
+     * but it is currently not being used (i.e. in a resend queue).
+     *
+     * @return int
+     */
+    public function newMessageId(): int
+    {
+        do
+        {
+            $this->rotateMessageId();
+
+            $messageId = $this->lastMessageId;
+        } while ($this->isReservedMessageId($messageId));
+
+        $this->reservedMessageIds[] = $messageId;
+
+        return $messageId;
+    }
+
+    /**
+     * Releases the given message id, allowing it to be reused in the future.
+     *
+     * @param int $messageId
+     * @return void
+     */
+    public function releaseMessageId(int $messageId): void
+    {
+        $this->reservedMessageIds = array_diff($this->reservedMessageIds, [$messageId]);
+    }
+
+    /**
+     * This method rotates the message id. This normally means incrementing it,
+     * but when we reach the limit (65535), the message id is reset to zero.
+     *
+     * @return void
+     */
+    protected function rotateMessageId(): void
+    {
+        if ($this->lastMessageId === 65535) {
+            $this->lastMessageId = 0;
+        }
+
+        $this->lastMessageId++;
+    }
+
+    /**
+     * Determines if the given message id is currently reserved.
+     *
+     * @param int $messageId
+     * @return bool
+     */
+    protected function isReservedMessageId(int $messageId): bool
+    {
+        return in_array($messageId, $this->reservedMessageIds);
+    }
+
+    /**
      * Returns the number of registered topic subscriptions. The method does
      * not differentiate between pending and acknowledged subscriptions.
      *
@@ -50,7 +118,7 @@ class MemoryRepository implements Repository
 
     /**
      * Adds a topic subscription to the repository.
-     * 
+     *
      * @param TopicSubscription $subscription
      * @return void
      */
@@ -71,7 +139,7 @@ class MemoryRepository implements Repository
     public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): TopicSubscription
     {
         $subscription = new TopicSubscription($topic, $callback, $messageId, $qualityOfService);
-        
+
         $this->addTopicSubscription($subscription);
 
         return $subscription;
@@ -98,7 +166,7 @@ class MemoryRepository implements Repository
 
     /**
      * Get all topic subscriptions matching the given topic.
-     * 
+     *
      * @param string $topic
      * @return TopicSubscription[]
      */
@@ -150,7 +218,7 @@ class MemoryRepository implements Repository
 
     /**
      * Adds a pending published message to the repository.
-     * 
+     *
      * @param PublishedMessage $message
      * @return void
      */
@@ -172,7 +240,14 @@ class MemoryRepository implements Repository
      * @param DateTime|null $sentAt
      * @return PublishedMessage
      */
-    public function addNewPendingPublishedMessage(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null): PublishedMessage
+    public function addNewPendingPublishedMessage(
+        int $messageId,
+        string $topic,
+        string $message,
+        int $qualityOfService,
+        bool $retain,
+        DateTime $sentAt = null
+    ): PublishedMessage
     {
         $message = new PublishedMessage($messageId, $topic, $message, $qualityOfService, $retain, $sentAt);
 
@@ -183,7 +258,7 @@ class MemoryRepository implements Repository
 
     /**
      * Gets a pending published message with the given message identifier, if found.
-     * 
+     *
      * @param int $messageId
      * @return PublishedMessage|null
      */
@@ -200,7 +275,7 @@ class MemoryRepository implements Repository
 
     /**
      * Gets a list of pending published messages last sent before the given date time.
-     * 
+     *
      * @param DateTime $dateTime
      * @return PublishedMessage[]
      */
@@ -242,7 +317,7 @@ class MemoryRepository implements Repository
      * Removes a pending published message from the repository. If a pending message
      * with the given identifier is found and successfully removed from the repository,
      * `true` is returned. Otherwise `false` will be returned.
-     * 
+     *
      * @param int $messageId
      * @return bool
      */
@@ -255,7 +330,7 @@ class MemoryRepository implements Repository
         }
 
         $this->pendingPublishedMessages->detach($message);
-        
+
         return true;
     }
 

@@ -10,8 +10,38 @@ use PhpMqtt\Client\PublishedMessage;
 use PhpMqtt\Client\TopicSubscription;
 use PhpMqtt\Client\UnsubscribeRequest;
 
+/**
+ * Implementations of this interface provide storage capabilities to an MQTT client.
+ *
+ * Services of this type have three primary goals:
+ *   1. Providing and keeping track of message identifiers, since they must be unique
+ *      within the message flow (i.e. there may not be duplicates of different messages
+ *      at the same time).
+ *   2. Storing and keeping track of subscriptions, which is especially necessary in case
+ *      of persisted sessions.
+ *   3. Storing and keeping track of pending messages (i.e. sent messages, which have not
+ *      been acknowledged yet by the broker).
+ *
+ * @package PhpMqtt\Client\Contracts
+ */
 interface Repository
 {
+    /**
+     * Returns a new message id. The message id might have been used before,
+     * but it is currently not being used (i.e. in a resend queue).
+     *
+     * @return int
+     */
+    public function newMessageId(): int;
+
+    /**
+     * Releases the given message id, allowing it to be reused in the future.
+     *
+     * @param int $messageId
+     * @return void
+     */
+    public function releaseMessageId(int $messageId): void;
+
     /**
      * Returns the number of registered topic subscriptions. The method does
      * not differentiate between pending and acknowledged subscriptions.
@@ -22,7 +52,7 @@ interface Repository
 
     /**
      * Adds a topic subscription to the repository.
-     * 
+     *
      * @param TopicSubscription $subscription
      * @return void
      */
@@ -49,7 +79,7 @@ interface Repository
 
     /**
      * Get all topic subscriptions matching the given topic.
-     * 
+     *
      * @param string $topic
      * @return TopicSubscription[]
      */
@@ -74,7 +104,7 @@ interface Repository
 
     /**
      * Adds a pending published message to the repository.
-     * 
+     *
      * @param PublishedMessage $message
      * @return void
      */
@@ -95,7 +125,7 @@ interface Repository
 
     /**
      * Gets a pending published message with the given message identifier, if found.
-     * 
+     *
      * @param int $messageId
      * @return PublishedMessage|null
      */
@@ -103,7 +133,7 @@ interface Repository
 
     /**
      * Gets a list of pending published messages last sent before the given date time.
-     * 
+     *
      * @param DateTime $dateTime
      * @return PublishedMessage[]
      */
@@ -123,7 +153,7 @@ interface Repository
      * Removes a pending published message from the repository. If a pending message
      * with the given identifier is found and successfully removed from the repository,
      * `true` is returned. Otherwise `false` will be returned.
-     * 
+     *
      * @param int $messageId
      * @return bool
      */
