@@ -137,7 +137,7 @@ class MQTTClient implements ClientContract
         bool $sendCleanSessionFlag = false
     ): void
     {
-        $this->logger->info(sprintf('Connecting to MQTT broker [%s:%s].', $this->host, $this->port));
+        $this->logger->debug('Connecting to MQTT broker [{host}:{port}].', ['host' => $this->host, 'port' => $this->port]);
 
         $this->settings = $settings ?? new ConnectionSettings();
 
@@ -158,43 +158,50 @@ class MQTTClient implements ClientContract
         $socketContext = null;
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
 
-        if ($this->settings->shouldUseTls()) {
-            $this->logger->info('Using TLS for the connection to the broker.');
+        if ($this->settings->useTls) {
+            $this->logger->debug('Using TLS for the connection to the broker.');
 
             $tlsOptions = [
                 'verify_peer' => $this->settings->shouldTlsVerifyPeer(),
                 'verify_peer_name' => $this->settings->shouldTlsVerifyPeerName(),
-                'allow_self_signed' => $this->settings->isTlsSelfSignedAllowed(),
+                'allow_self_signed' => (bool) $this->settings->tlsSelfSignedAllowed,
             ];
 
-            if ($this->settings->getTlsCertificateAuthorityFile() !== null) {
-                $tlsOptions['cafile'] = $this->settings->getTlsCertificateAuthorityFile();
+            if ($this->settings->tlsCertificateAuthorityFile !== null) {
+                $tlsOptions['cafile'] = $this->settings->tlsCertificateAuthorityFile;
             }
 
-            if ($this->settings->getTlsCertificateAuthorityPath() !== null) {
-                $tlsOptions['capath'] = $this->settings->getTlsCertificateAuthorityPath();
+            if ($this->settings->tlsCertificateAuthorityPath !== null) {
+                $tlsOptions['capath'] = $this->settings->tlsCertificateAuthorityPath;
             }
 
             $socketContext = stream_context_create(['ssl' => $tlsOptions]);
             $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
+
+            $this->socket = stream_socket_client(
+                $connectionString,
+                $errorCode,
+                $errorMessage,
+                (int) $this->settings->connectTimeout,
+                STREAM_CLIENT_CONNECT,
+                $socketContext);
+        }
+        else {
+            $this->socket = stream_socket_client(
+                $connectionString,
+                $errorCode,
+                $errorMessage,
+                (int) $this->settings->connectTimeout,
+                STREAM_CLIENT_CONNECT);
         }
 
-        $this->socket = stream_socket_client(
-            $connectionString,
-            $errorCode,
-            $errorMessage,
-            $this->settings->getConnectTimeout(),
-            STREAM_CLIENT_CONNECT,
-            $socketContext
-        );
-
         if ($this->socket === false) {
-            $this->logger->error(sprintf('Establishing a connection with the MQTT broker using connection string [%s] failed.', $connectionString));
+            $this->logger->error('Establishing a connection with the MQTT broker using connection string [{connectionString}] failed.', ['connectionString' => $connectionString]);
             throw new ConnectingToBrokerFailedException($errorCode, $errorMessage);
         }
 
-        stream_set_timeout($this->socket, $this->settings->getSocketTimeout());
-        stream_set_blocking($this->socket, $this->settings->shouldBlockSocket());
+        stream_set_timeout($this->socket, $this->settings->socketTimeout);
+        stream_set_blocking($this->socket, $this->settings->blockSocket);
     }
 
     /**
@@ -229,8 +236,8 @@ class MQTTClient implements ClientContract
             $buffer .= chr($flags); $i++;
 
             // keep alive settings
-            $buffer .= chr($this->settings->getKeepAliveInterval() >> 8); $i++;
-            $buffer .= chr($this->settings->getKeepAliveInterval() & 0xff); $i++;
+            $buffer .= chr(((int) $this->settings->keepAliveInterval) >> 8); $i++;
+            $buffer .= chr($this->settings->keepAliveInterval & 0xff); $i++;
 
             // client id (connection identifier)
             $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
@@ -238,12 +245,12 @@ class MQTTClient implements ClientContract
             $i           += strlen($clientIdPart);
 
             // last will topic and message
-            if ($this->settings->hasLastWill()) {
-                $topicPart = $this->buildLengthPrefixedString($this->settings->getLastWillTopic());
+            if ($this->settings->lastWillTopic !== null && $this->settings->lastWillMessage !== null) {
+                $topicPart = $this->buildLengthPrefixedString($this->settings->lastWillTopic);
                 $buffer   .= $topicPart;
                 $i        += strlen($topicPart);
 
-                $messagePart = $this->buildLengthPrefixedString($this->settings->getLastWillMessage());
+                $messagePart = $this->buildLengthPrefixedString($this->settings->lastWillMessage);
                 $buffer     .= $messagePart;
                 $i          += strlen($messagePart);
             }
@@ -264,64 +271,64 @@ class MQTTClient implements ClientContract
             $header = chr(0x10) . chr($i);
 
             // send the connection message
-            $this->logger->info('Sending connection handshake to MQTT broker.');
+            $this->logger->debug('Sending connection handshake to MQTT broker.');
             $this->writeToSocket($header . $buffer);
 
             // read and process the acknowledgement
             $acknowledgement = $this->readFromSocket(4);
             if (ord($acknowledgement[0]) >> 4 === 2) {
-                switch ($acknowledgement[3]) {
-                    case chr(0):
-                        $this->logger->info(sprintf('Connection with MQTT broker at [%s:%s] established successfully.', $this->host, $this->port));
+                $errorCode = ord($acknowledgement[3]);
+                $ctx = [ 'host' => $this->host, 'port' => $this->port, 'errorCode' => sprintf('0x%02X', $errorCode) ];
+                switch ($errorCode) {
+                    case 0x00:
+                        $this->logger->info('Connection with MQTT broker at [{host}:{port}] established successfully.', $ctx);
                         break;
-                    case chr(1):
-                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] does not support MQTT v3.1.', $this->host, $this->port));
+                    case 0x01:
+                        $this->logger->error('The MQTT broker at [{host}:{port}] does not support MQTT v3.1.', $ctx);
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_PROTOCOL_VERSION,
                             'The selected MQTT broker does not support MQTT v3.1.'
                         );
-                    case chr(2):
-                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] rejected the sent identifier.', $this->host, $this->port));
+                    case 0x02:
+                        $this->logger->error('The MQTT broker at [{host}:{port}] rejected the sent identifier.', $ctx);
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_IDENTIFIER_REJECTED,
                             'The selected MQTT broker rejected the sent identifier.'
                         );
-                    case chr(3):
-                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] is currently unavailable.', $this->host, $this->port));
+                    case 0x03:
+                        $this->logger->error('The MQTT broker at [{host}:{port}] is currently unavailable.', $ctx);
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_BROKER_UNAVAILABLE,
                             'The selected MQTT broker is currently unavailable.'
                         );
-                    case chr(4):
-                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] reported the credentials as invalid.', $this->host, $this->port));
+                    case 0x04:
+                        $this->logger->error('The MQTT broker at [{host}:{port}] reported the credentials as invalid.', $ctx);
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_INVALID_CREDENTIALS,
                             'The selected MQTT broker reported the credentials as invalid.'
                         );
-                    case chr(5):
-                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] responded with unauthorized.', $this->host, $this->port));
+                    case 0x05:
+                        $this->logger->error('The MQTT broker at [{host}:{port}] responded with unauthorized.', $ctx);
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_UNAUTHORIZED,
                             'The selected MQTT broker responded with unauthorized.'
                         );
                     default:
-                        $this->logger->error(sprintf(
-                            'The MQTT broker at [%s:%s] responded with an invalid error code [%s].',
-                            $this->host,
-                            $this->port,
-                            $acknowledgement[3]
-                        ));
+                        $this->logger->error('The MQTT broker at [{host}:{port}] responded with an invalid error code {errorCode}.', $ctx);
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_FAILED,
                             'The selected MQTT broker responded with an invalid error code. A connection could not be established.'
                         );
                 }
             } else {
-                $this->logger->error(sprintf('The MQTT broker at [%s:%s] refused the connection.', $this->host, $this->port));
-                throw new ConnectingToBrokerFailedException(self::EXCEPTION_CONNECTION_FAILED, 'A connection could not be established.');
+                $this->logger->error('The MQTT broker at [{host}:{port}] refused the connection.', [ 'host' => $this->host, 'port' => $this->port ]);
+                throw new ConnectingToBrokerFailedException(
+                    self::EXCEPTION_CONNECTION_FAILED,
+                    'A connection could not be established.'
+                );
             }
         } catch (DataTransferException $e) {
-            $this->logger->error(sprintf('While connecting to the MQTT broker at [%s:%s], a transfer error occurred.', $this->host, $this->port));
+            $this->logger->error('While connecting to the MQTT broker at [{host}:{port}], a transfer error occurred.', [ 'host' => $this->host, 'port' => $this->port ]);
             throw new ConnectingToBrokerFailedException(
                 self::EXCEPTION_CONNECTION_FAILED,
                 'A connection could not be established due to data transfer issues.'
@@ -346,16 +353,16 @@ class MQTTClient implements ClientContract
             $flags += 1 << 1; // set the `clean session` flag
         }
 
-        if ($this->settings->hasLastWill()) {
+        if ($this->settings->lastWillTopic !== null && $this->settings->lastWillMessage !== null) {
             $this->logger->debug('Using the [will] flag for the MQTT connection.');
             $flags += 1 << 2; // set the `will` flag
 
-            if ($this->settings->getQualityOfService() > self::QOS_AT_MOST_ONCE) {
-                $this->logger->debug(sprintf('Using QoS level [%s] for the MQTT connection.', $this->settings->getQualityOfService()));
-                $flags += $this->settings->getQualityOfService() << 3; // set the `qos` bits
+            if ($this->settings->qualityOfService > self::QOS_AT_MOST_ONCE) {
+                $this->logger->debug('Using QoS level [{qos}] for the MQTT connection.', [ 'qos' => (int) $this->settings->qualityOfService ]);
+                $flags += ($this->settings->qualityOfService & 0x03) << 3; // set the `qos` bits
             }
 
-            if ($this->settings->shouldRetain()) {
+            if ($this->settings->retain) {
                 $this->logger->debug('Using the [retain] flag for the MQTT connection.');
                 $flags += 1 << 5; // set the `retain` flag
             }
@@ -414,9 +421,7 @@ class MQTTClient implements ClientContract
      */
     protected function ping(): void
     {
-        $this->logger->debug('Sending ping to the MQTT broker to keep the connection alive.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
-        ]);
+        $this->logger->debug('Sending ping to the MQTT broker to keep the connection alive.');
 
         $this->writeToSocket(chr(0xc0) . chr(0x00));
     }
@@ -431,7 +436,7 @@ class MQTTClient implements ClientContract
     {
         $this->ensureConnected();
 
-        $this->logger->info(sprintf('Closing the connection to the MQTT broker at [%s:%s].', $this->host, $this->port));
+        $this->logger->info('Closing the connection to the MQTT broker at [{host}:{port}].', [ 'host' => $this->host, 'port' => $this->port ]);
 
         $this->disconnect();
 
@@ -450,7 +455,7 @@ class MQTTClient implements ClientContract
      */
     protected function disconnect(): void
     {
-        $this->logger->debug('Sending disconnect package to the MQTT broker.', ['broker' => sprintf('%s:%s', $this->host, $this->port)]);
+        $this->logger->debug('Sending disconnect package to the MQTT broker.');
 
         $this->writeToSocket(chr(0xe0) . chr(0x00));
     }
@@ -501,8 +506,7 @@ class MQTTClient implements ClientContract
         bool $isDuplicate = false
     ): void
     {
-        $this->logger->debug('Publishing an MQTT message.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        $this->logger->debug('Publishing MQTT message on topic [{topic}].', [
             'topic' => $topic,
             'message' => $message,
             'qos' => $qualityOfService,
@@ -559,8 +563,7 @@ class MQTTClient implements ClientContract
     {
         $this->ensureConnected();
 
-        $this->logger->debug('Subscribing to an MQTT topic.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+        $this->logger->debug('Subscribing to MQTT topic [{topic}].', [
             'topic' => $topic,
             'qos' => $qualityOfService,
         ]);
@@ -749,7 +752,7 @@ class MQTTClient implements ClientContract
             // If the last message of the broker has been received more seconds ago
             // than specified by the keep alive time, we will send a ping to ensure
             // the connection is kept alive.
-            if ($this->lastPingAt < (microtime(true) - $this->settings->getKeepAliveInterval())) {
+            if ($this->lastPingAt < (microtime(true) - $this->settings->keepAliveInterval)) {
                 $this->ping();
             }
 
@@ -1248,7 +1251,7 @@ class MQTTClient implements ClientContract
         ]);
 
         /** @noinspection PhpUnhandledExceptionInspection */
-        $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
+        $dateTime = (new DateTime())->sub(new DateInterval('PT' . (int) $this->settings->resendTimeout . 'S'));
         $messages = $this->repository->getPendingPublishedMessagesLastSentBefore($dateTime);
 
         foreach ($messages as $message) {
@@ -1284,7 +1287,7 @@ class MQTTClient implements ClientContract
         ]);
 
         /** @noinspection PhpUnhandledExceptionInspection */
-        $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
+        $dateTime = (new DateTime())->sub(new DateInterval('PT' . (int) $this->settings->resendTimeout . 'S'));
         $requests = $this->repository->getPendingUnsubscribeRequestsLastSentBefore($dateTime);
 
         foreach ($requests as $request) {
