@@ -64,9 +64,6 @@ class MQTTClient implements ClientContract
     /** @var ConnectionSettings|null */
     private $settings;
 
-    /** @var string|null */
-    private $caFile;
-
     /** @var resource|null */
     private $socket;
 
@@ -90,7 +87,6 @@ class MQTTClient implements ClientContract
      *
      * Notes:
      *   - If no client id is given, a random one is generated, forcing a clean session implicitly.
-     *   - If a CA file is given, it is used to verify the peer server certificate.
      *   - If no repository is given, an in-memory repository is created for you. Once you terminate
      *     your script, all stored data (like resend queues) is lost.
      *   - If no logger is given, log messages are dropped. Any PSR-3 logger will work.
@@ -98,7 +94,6 @@ class MQTTClient implements ClientContract
      * @param string               $host
      * @param int                  $port
      * @param string|null          $clientId
-     * @param string|null          $caFile
      * @param Repository|null      $repository
      * @param LoggerInterface|null $logger
      */
@@ -106,7 +101,6 @@ class MQTTClient implements ClientContract
         string $host,
         int $port = 1883,
         string $clientId = null,
-        string $caFile = null,
         Repository $repository = null,
         LoggerInterface $logger = null
     )
@@ -118,7 +112,6 @@ class MQTTClient implements ClientContract
         $this->host       = $host;
         $this->port       = $port;
         $this->clientId   = $clientId ?? $this->generateRandomClientId();
-        $this->caFile     = $caFile;
         $this->repository = $repository;
         $this->logger     = new Logger($logger);
 
@@ -162,21 +155,32 @@ class MQTTClient implements ClientContract
      */
     protected function establishSocketConnection(): void
     {
-        if ($this->hasCertificateAuthorityFile()) {
-            $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->caFile));
+        $socketContext = null;
+        $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
 
-            $socketContext = stream_context_create([
-                'ssl' => [
-                'verify_peer_name' => true,
-                    'cafile' => $this->getCertificateAuthorityFile(),
-                ],
-            ]);
+        if ($this->settings->shouldUseTls()) {
+            $this->logger->info('Using TLS for the connection to the broker.');
+
+            $tlsOptions = [
+                'verify_peer' => $this->settings->shouldTlsVerifyPeer(),
+                'verify_peer_name' => $this->settings->shouldTlsVerifyPeerName(),
+                'allow_self_signed' => $this->settings->isTlsSelfSignedAllowed(),
+                'cafile' => $this->settings->getTlsCertificateAuthorityFile(),
+                'capath' => $this->settings->getTlsCertificateAuthorityPath(),
+            ];
+
+            $socketContext = stream_context_create(['ssl' => $tlsOptions]);
             $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
-            $this->socket     = stream_socket_client($connectionString, $errorCode, $errorMessage, 60, STREAM_CLIENT_CONNECT, $socketContext);
-        } else {
-            $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
-            $this->socket     = stream_socket_client($connectionString, $errorCode, $errorMessage, 60, STREAM_CLIENT_CONNECT);
         }
+
+        $this->socket = stream_socket_client(
+            $connectionString,
+            $errorCode,
+            $errorMessage,
+            $this->settings->getConnectTimeout(),
+            STREAM_CLIENT_CONNECT,
+            $socketContext
+        );
 
         if ($this->socket === false) {
             $this->logger->error(sprintf('Establishing a connection with the MQTT broker using connection string [%s] failed.', $connectionString));
@@ -184,7 +188,7 @@ class MQTTClient implements ClientContract
         }
 
         stream_set_timeout($this->socket, $this->settings->getSocketTimeout());
-        stream_set_blocking($this->socket, $this->settings->wantsToBlockSocket());
+        stream_set_blocking($this->socket, $this->settings->shouldBlockSocket());
     }
 
     /**
@@ -219,8 +223,8 @@ class MQTTClient implements ClientContract
             $buffer .= chr($flags); $i++;
 
             // keep alive settings
-            $buffer .= chr($this->settings->getKeepAlive() >> 8); $i++;
-            $buffer .= chr($this->settings->getKeepAlive() & 0xff); $i++;
+            $buffer .= chr($this->settings->getKeepAliveInterval() >> 8); $i++;
+            $buffer .= chr($this->settings->getKeepAliveInterval() & 0xff); $i++;
 
             // client id (connection identifier)
             $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
@@ -340,12 +344,12 @@ class MQTTClient implements ClientContract
             $this->logger->debug('Using the [will] flag for the MQTT connection.');
             $flags += 1 << 2; // set the `will` flag
 
-            if ($this->settings->requiresQualityOfService()) {
-                $this->logger->debug(sprintf('Using QoS level [%s] for the MQTT connection.', $this->settings->getQualityOfServiceLevel()));
-                $flags += $this->settings->getQualityOfServiceLevel() << 3; // set the `qos` bits
+            if ($this->settings->getQualityOfService() > self::QOS_AT_MOST_ONCE) {
+                $this->logger->debug(sprintf('Using QoS level [%s] for the MQTT connection.', $this->settings->getQualityOfService()));
+                $flags += $this->settings->getQualityOfService() << 3; // set the `qos` bits
             }
 
-            if ($this->settings->requiresMessageRetention()) {
+            if ($this->settings->shouldRetain()) {
                 $this->logger->debug('Using the [retain] flag for the MQTT connection.');
                 $flags += 1 << 5; // set the `retain` flag
             }
@@ -739,7 +743,7 @@ class MQTTClient implements ClientContract
             // If the last message of the broker has been received more seconds ago
             // than specified by the keep alive time, we will send a ping to ensure
             // the connection is kept alive.
-            if ($this->lastPingAt < (microtime(true) - $this->settings->getKeepAlive())) {
+            if ($this->lastPingAt < (microtime(true) - $this->settings->getKeepAliveInterval())) {
                 $this->ping();
             }
 
@@ -1332,26 +1336,6 @@ class MQTTClient implements ClientContract
     public function getClientId(): string
     {
         return $this->clientId;
-    }
-
-    /**
-     * Returns the certificate authority file, if available.
-     *
-     * @return string|null
-     */
-    public function getCertificateAuthorityFile(): ?string
-    {
-        return $this->caFile;
-    }
-
-    /**
-     * Determines whether a certificate authority file is available.
-     *
-     * @return bool
-     */
-    public function hasCertificateAuthorityFile(): bool
-    {
-        return $this->getCertificateAuthorityFile() !== null;
     }
 
     /**

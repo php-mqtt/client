@@ -7,85 +7,138 @@ namespace PhpMqtt\Client;
 class ConnectionSettings
 {
     /** @var int */
-    private $qualityOfService;
+    private $qualityOfService = 0;
 
     /** @var bool */
-    private $retain;
+    private $retain = false;
 
     /** @var bool */
-    private $blockSocket;
+    private $blockSocket = false;
 
     /** @var int */
-    private $socketTimeout;
+    private $connectTimeout = 60;
 
     /** @var int */
-    private $keepAlive;
+    private $socketTimeout = 5;
 
     /** @var int */
-    private $resendTimeout;
+    private $keepAliveInterval = 10;
 
-    /** @var string */
-    private $lastWillTopic;
+    /** @var int */
+    private $resendTimeout = 10;
 
-    /** @var string */
-    private $lastWillMessage;
+    /** @var string|null */
+    private $lastWillTopic = null;
+
+    /** @var string|null */
+    private $lastWillMessage = null;
+
+    /** @var bool */
+    private $useTls = false;
+
+    /** @var bool */
+    private $tlsVerifyPeer = true;
+
+    /** @var bool */
+    private $tlsVerifyPeerName = true;
+
+    /** @var bool */
+    private $tlsSelfSignedAllowed = false;
+
+    /** @var string|null */
+    private $tlsCertificateAuthorityFile = null;
+
+    /** @var string|null */
+    private $tlsCertificateAuthorityPath = null;
 
     /**
-     * Constructs a new settings object.
-     *
-     * @param int    $qualityOfService
-     * @param bool   $retain
-     * @param bool   $blockSocket
-     * @param int    $socketTimeout
-     * @param int    $keepAlive
-     * @param int    $resendTimeout
-     * @param string $lastWillTopic
-     * @param string $lastWillMessage
+     * @param int $qualityOfService
+     * @return ConnectionSettings
      */
-    public function __construct(
-        int $qualityOfService = MQTTClient::QOS_AT_MOST_ONCE,
-        bool $retain = false,
-        bool $blockSocket = false,
-        int $socketTimeout = 5,
-        int $keepAlive = 10,
-        int $resendTimeout = 10,
-        string $lastWillTopic = null,
-        string $lastWillMessage = null
-    )
+    public function setQualityOfService(int $qualityOfService): ConnectionSettings
     {
         $this->qualityOfService = $qualityOfService;
-        $this->retain           = $retain;
-        $this->blockSocket      = $blockSocket;
-        $this->socketTimeout    = $socketTimeout;
-        $this->keepAlive        = $keepAlive;
-        $this->resendTimeout    = $resendTimeout;
-        $this->lastWillTopic    = $lastWillTopic;
-        $this->lastWillMessage  = $lastWillMessage;
+
+        return $this;
     }
 
     /**
-     * Returns the desired quality of service level of the client.
-     *
      * @return int
      */
-    public function getQualityOfServiceLevel(): int
+    public function getQualityOfService(): int
     {
         return $this->qualityOfService;
     }
 
     /**
-     * Determines whether the client is supposed to block the socket.
-     *
+     * @param bool $retain
+     * @return ConnectionSettings
+     */
+    public function setRetain(bool $retain): ConnectionSettings
+    {
+        $this->retain = $retain;
+
+        return $this;
+    }
+
+    /**
      * @return bool
      */
-    public function wantsToBlockSocket(): bool
+    public function shouldRetain(): bool
+    {
+        return $this->retain;
+    }
+
+    /**
+     * @param bool $blockSocket
+     * @return ConnectionSettings
+     */
+    public function setBlockSocket(bool $blockSocket): ConnectionSettings
+    {
+        $this->blockSocket = $blockSocket;
+
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldBlockSocket(): bool
     {
         return $this->blockSocket;
     }
 
     /**
-     * Returns the socket timeout of the client in seconds.
-     *
+     * @param int $connectTimeout
+     * @return ConnectionSettings
+     */
+    public function setConnectTimeout(int $connectTimeout): ConnectionSettings
+    {
+        $this->connectTimeout = $connectTimeout;
+
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getConnectTimeout(): int
+    {
+        return $this->connectTimeout;
+    }
+
+    /**
+     * @param int $socketTimeout
+     * @return ConnectionSettings
+     */
+    public function setSocketTimeout(int $socketTimeout): ConnectionSettings
+    {
+        $this->socketTimeout = $socketTimeout;
+
+        return $this;
+    }
+
+    /**
      * @return int
      */
     public function getSocketTimeout(): int
@@ -94,18 +147,36 @@ class ConnectionSettings
     }
 
     /**
-     * Returns the keep alive interval used by the client in seconds.
-     *
-     * @return int
+     * @param int $keepAliveInterval
+     * @return ConnectionSettings
      */
-    public function getKeepAlive(): int
+    public function setKeepAliveInterval(int $keepAliveInterval): ConnectionSettings
     {
-        return $this->keepAlive;
+        $this->keepAliveInterval = $keepAliveInterval;
+
+        return $this;
     }
 
     /**
-     * Returns the resend timeout used by the client in seconds.
-     *
+     * @return int
+     */
+    public function getKeepAliveInterval(): int
+    {
+        return $this->keepAliveInterval;
+    }
+
+    /**
+     * @param int $resendTimeout
+     * @return ConnectionSettings
+     */
+    public function setResendTimeout(int $resendTimeout): ConnectionSettings
+    {
+        $this->resendTimeout = $resendTimeout;
+
+        return $this;
+    }
+
+    /**
      * @return int
      */
     public function getResendTimeout(): int
@@ -114,9 +185,17 @@ class ConnectionSettings
     }
 
     /**
-     * Returns the last will topic of the client. When the client loses connection
-     * to the broker, this topic will be used to publish the last will message.
-     *
+     * @param string|null $lastWillTopic
+     * @return ConnectionSettings
+     */
+    public function setLastWillTopic(?string $lastWillTopic): ConnectionSettings
+    {
+        $this->lastWillTopic = $lastWillTopic;
+
+        return $this;
+    }
+
+    /**
      * @return string|null
      */
     public function getLastWillTopic(): ?string
@@ -125,34 +204,22 @@ class ConnectionSettings
     }
 
     /**
-     * Returns the last will message of the client. When the client loses connection
-     * to the broker, this message will be published.
-     *
+     * @param string|null $lastWillMessage
+     * @return ConnectionSettings
+     */
+    public function setLastWillMessage(?string $lastWillMessage): ConnectionSettings
+    {
+        $this->lastWillMessage = $lastWillMessage;
+
+        return $this;
+    }
+
+    /**
      * @return string|null
      */
     public function getLastWillMessage(): ?string
     {
         return $this->lastWillMessage;
-    }
-
-    /**
-     * Determines whether quality of service is required.
-     *
-     * @return bool
-     */
-    public function requiresQualityOfService(): bool
-    {
-        return $this->qualityOfService > 0;
-    }
-
-    /**
-     * Determines whether message retention is required.
-     *
-     * @return bool
-     */
-    public function requiresMessageRetention(): bool
-    {
-        return $this->retain;
     }
 
     /**
@@ -163,5 +230,119 @@ class ConnectionSettings
     public function hasLastWill(): bool
     {
         return $this->lastWillTopic !== null && $this->lastWillMessage !== null;
+    }
+
+    /**
+     * @param bool $useTls
+     * @return ConnectionSettings
+     */
+    public function setUseTls(bool $useTls): ConnectionSettings
+    {
+        $this->useTls = $useTls;
+
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldUseTls(): bool
+    {
+        return $this->useTls;
+    }
+
+    /**
+     * @param bool $tlsVerifyPeer
+     * @return ConnectionSettings
+     */
+    public function setTlsVerifyPeer(bool $tlsVerifyPeer): ConnectionSettings
+    {
+        $this->tlsVerifyPeer = $tlsVerifyPeer;
+
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldTlsVerifyPeer(): bool
+    {
+        return $this->tlsVerifyPeer;
+    }
+
+    /**
+     * @param bool $tlsVerifyPeerName
+     * @return ConnectionSettings
+     */
+    public function setTlsVerifyPeerName(bool $tlsVerifyPeerName): ConnectionSettings
+    {
+        $this->tlsVerifyPeerName = $tlsVerifyPeerName;
+
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldTlsVerifyPeerName(): bool
+    {
+        return $this->tlsVerifyPeerName;
+    }
+
+    /**
+     * @param bool $tlsSelfSignedAllowed
+     * @return ConnectionSettings
+     */
+    public function setTlsSelfSignedAllowed(bool $tlsSelfSignedAllowed): ConnectionSettings
+    {
+        $this->tlsSelfSignedAllowed = $tlsSelfSignedAllowed;
+
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isTlsSelfSignedAllowed(): bool
+    {
+        return $this->tlsSelfSignedAllowed;
+    }
+
+    /**
+     * @param string|null $tlsCertificateAuthorityFile
+     * @return ConnectionSettings
+     */
+    public function setTlsCertificateAuthorityFile(?string $tlsCertificateAuthorityFile): ConnectionSettings
+    {
+        $this->tlsCertificateAuthorityFile = $tlsCertificateAuthorityFile;
+
+        return $this;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsCertificateAuthorityFile(): ?string
+    {
+        return $this->tlsCertificateAuthorityFile;
+    }
+
+    /**
+     * @param string|null $tlsCertificateAuthorityPath
+     * @return ConnectionSettings
+     */
+    public function setTlsCertificateAuthorityPath(?string $tlsCertificateAuthorityPath): ConnectionSettings
+    {
+        $this->tlsCertificateAuthorityPath = $tlsCertificateAuthorityPath;
+
+        return $this;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsCertificateAuthorityPath(): ?string
+    {
+        return $this->tlsCertificateAuthorityPath;
     }
 }
