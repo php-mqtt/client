@@ -165,9 +165,15 @@ class MQTTClient implements ClientContract
                 'verify_peer' => $this->settings->shouldTlsVerifyPeer(),
                 'verify_peer_name' => $this->settings->shouldTlsVerifyPeerName(),
                 'allow_self_signed' => $this->settings->isTlsSelfSignedAllowed(),
-                'cafile' => $this->settings->getTlsCertificateAuthorityFile(),
-                'capath' => $this->settings->getTlsCertificateAuthorityPath(),
             ];
+
+            if ($this->settings->getTlsCertificateAuthorityFile() !== null) {
+                $tlsOptions['cafile'] = $this->settings->getTlsCertificateAuthorityFile();
+            }
+
+            if ($this->settings->getTlsCertificateAuthorityPath() !== null) {
+                $tlsOptions['capath'] = $this->settings->getTlsCertificateAuthorityPath();
+            }
 
             $socketContext = stream_context_create(['ssl' => $tlsOptions]);
             $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
