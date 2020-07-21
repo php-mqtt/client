@@ -11,13 +11,37 @@ use PhpMqtt\Client\TopicSubscription;
 use PhpMqtt\Client\UnsubscribeRequest;
 
 /**
- * A repository is a storage backend for the MQTT client where topic subscriptions
- * and published messages are stored until they are used or delivered.
+ * Implementations of this interface provide storage capabilities to an MQTT client.
+ *
+ * Services of this type have three primary goals:
+ *   1. Providing and keeping track of message identifiers, since they must be unique
+ *      within the message flow (i.e. there may not be duplicates of different messages
+ *      at the same time).
+ *   2. Storing and keeping track of subscriptions, which is especially necessary in case
+ *      of persisted sessions.
+ *   3. Storing and keeping track of pending messages (i.e. sent messages, which have not
+ *      been acknowledged yet by the broker).
  *
  * @package PhpMqtt\Client\Contracts
  */
 interface Repository
 {
+    /**
+     * Returns a new message id. The message id might have been used before,
+     * but it is currently not being used (i.e. in a resend queue).
+     *
+     * @return int
+     */
+    public function newMessageId(): int;
+
+    /**
+     * Releases the given message id, allowing it to be reused in the future.
+     *
+     * @param int $messageId
+     * @return void
+     */
+    public function releaseMessageId(int $messageId): void;
+
     /**
      * Returns the number of registered topic subscriptions. The method does
      * not differentiate between pending and acknowledged subscriptions.

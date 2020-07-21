@@ -13,14 +13,19 @@ use PhpMqtt\Client\UnsubscribeRequest;
 use SplObjectStorage;
 
 /**
- * An in-memory implementation of the repository which loses all its data when
- * being deleted or when a script ends. Using this implementation is fine for
- * simple uses cases and testing though.
+ * Provides an in-memory implementation which manages message ids, subscriptions and pending messages.
+ * Instances of this type do not persist any data and are only meant for simple uses cases and testing.
  *
  * @package PhpMqtt\Client\Repositories
  */
 class MemoryRepository implements Repository
 {
+    /** @var int */
+    private $lastMessageId = 0;
+
+    /** @var int[] */
+    private $reservedMessageIds = [];
+
     /** @var SplObjectStorage|TopicSubscription[] */
     private $topicSubscriptions;
 
@@ -42,6 +47,63 @@ class MemoryRepository implements Repository
         $this->pendingPublishedMessages    = new SplObjectStorage();
         $this->pendingUnsubscribeRequests  = new SplObjectStorage();
         $this->pendingPublishConfirmations = new SplObjectStorage();
+    }
+
+    /**
+     * Returns a new message id. The message id might have been used before,
+     * but it is currently not being used (i.e. in a resend queue).
+     *
+     * @return int
+     */
+    public function newMessageId(): int
+    {
+        do
+        {
+            $this->rotateMessageId();
+
+            $messageId = $this->lastMessageId;
+        } while ($this->isReservedMessageId($messageId));
+
+        $this->reservedMessageIds[] = $messageId;
+
+        return $messageId;
+    }
+
+    /**
+     * Releases the given message id, allowing it to be reused in the future.
+     *
+     * @param int $messageId
+     * @return void
+     */
+    public function releaseMessageId(int $messageId): void
+    {
+        $this->reservedMessageIds = array_diff($this->reservedMessageIds, [$messageId]);
+    }
+
+    /**
+     * This method rotates the message id. This normally means incrementing it,
+     * but when we reach the limit (65535), the message id is reset to zero.
+     *
+     * @return void
+     */
+    protected function rotateMessageId(): void
+    {
+        if ($this->lastMessageId === 65535) {
+            $this->lastMessageId = 0;
+        }
+
+        $this->lastMessageId++;
+    }
+
+    /**
+     * Determines if the given message id is currently reserved.
+     *
+     * @param int $messageId
+     * @return bool
+     */
+    protected function isReservedMessageId(int $messageId): bool
+    {
+        return in_array($messageId, $this->reservedMessageIds);
     }
 
     /**
