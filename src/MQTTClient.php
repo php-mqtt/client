@@ -518,7 +518,14 @@ class MQTTClient implements ClientContract
         ]);
 
         foreach ($this->publishEventHandlers as $handler) {
-            call_user_func($handler, $this, $topic, $message, $messageId, $qualityOfService, $retain);
+            try {
+                call_user_func($handler, $this, $topic, $message, $messageId, $qualityOfService, $retain);
+            } catch (\Throwable $e) {
+                $this->logError('Publish hook callback threw exception for published message on topic [{topic}].', [
+                    'topic' => $topic,
+                    'exception' => $e,
+                ]);
+            }
         }
 
         $i      = 0;
@@ -702,7 +709,11 @@ class MQTTClient implements ClientContract
             $elapsedTime = microtime(true) - $loopStartedAt;
 
             foreach ($this->loopEventHandlers as $handler) {
-                call_user_func($handler, $this, $elapsedTime);
+                try {
+                    call_user_func($handler, $this, $elapsedTime);
+                } catch (\Throwable $e) {
+                    $this->logError('Loop hook callback threw exception.', ['exception' => $e]);
+                }
             }
 
             $buffer = null;
@@ -1176,7 +1187,11 @@ class MQTTClient implements ClientContract
             try {
                 call_user_func($subscriber->getCallback(), $topic, $message, $retained);
             } catch (\Throwable $e) {
-                // We ignore errors produced by custom callbacks.
+                $this->logError('Subscriber callback threw exception for published message on topic [{topic}].', [
+                    'topic' => $topic,
+                    'message' => $message,
+                    'exception' => $e,
+                ]);
             }
         }
     }
