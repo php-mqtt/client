@@ -14,7 +14,7 @@ use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
  *
  * @package PhpMqtt\Client\Contracts
  */
-interface MQTTClient
+interface MqttClient
 {
     /**
      * Connect to the MQTT broker using the given credentials and settings.
@@ -166,9 +166,9 @@ interface MQTTClient
      * Multiple event handlers can be registered at the same time.
      *
      * @param \Closure $callback
-     * @return MQTTClient
+     * @return MqttClient
      */
-    public function registerLoopEventHandler(\Closure $callback): MQTTClient;
+    public function registerLoopEventHandler(\Closure $callback): MqttClient;
 
     /**
      * Unregisters a loop event handler which prevents it from being called
@@ -178,9 +178,9 @@ interface MQTTClient
      * to unregister all registered event handlers by passing null as callback.
      *
      * @param \Closure|null $callback
-     * @return MQTTClient
+     * @return MqttClient
      */
-    public function unregisterLoopEventHandler(\Closure $callback = null): MQTTClient;
+    public function unregisterLoopEventHandler(\Closure $callback = null): MqttClient;
 
     /**
      * Registers a loop event handler which is called when a message is published.
@@ -207,9 +207,9 @@ interface MQTTClient
      * Multiple event handlers can be registered at the same time.
      *
      * @param \Closure $callback
-     * @return MQTTClient
+     * @return MqttClient
      */
-    public function registerPublishEventHandler(\Closure $callback): MQTTClient;
+    public function registerPublishEventHandler(\Closure $callback): MqttClient;
 
     /**
      * Unregisters a publish event handler which prevents it from being called
@@ -219,7 +219,7 @@ interface MQTTClient
      * to unregister all registered event handlers by passing null as callback.
      *
      * @param \Closure|null $callback
-     * @return MQTTClient
+     * @return MqttClient
      */
-    public function unregisterPublishEventHandler(\Closure $callback = null): MQTTClient;
+    public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient;
 }
