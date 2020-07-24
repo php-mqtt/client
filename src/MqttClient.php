@@ -11,7 +11,7 @@ use PhpMqtt\Client\Concerns\LogsMessages;
 use PhpMqtt\Client\Concerns\OffersHooks;
 use PhpMqtt\Client\Concerns\TranscodesData;
 use PhpMqtt\Client\Concerns\WorksWithBuffers;
-use PhpMqtt\Client\Contracts\MQTTClient as ClientContract;
+use PhpMqtt\Client\Contracts\MqttClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
@@ -26,7 +26,7 @@ use Psr\Log\LoggerInterface;
  *
  * @package PhpMqtt\Client
  */
-class MQTTClient implements ClientContract
+class MqttClient implements ClientContract
 {
     use GeneratesRandomClientIds,
         LogsMessages,
