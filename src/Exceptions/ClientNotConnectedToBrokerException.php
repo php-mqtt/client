@@ -10,4 +10,10 @@ namespace PhpMqtt\Client\Exceptions;
  */
 class ClientNotConnectedToBrokerException extends DataTransferException
 {
+    const EXCEPTION_CONNECTION_LOST = 0300;
+
+    public function __construct(string $error)
+    {
+        parent::__construct(self::EXCEPTION_CONNECTION_LOST, $error);
+    }
 }

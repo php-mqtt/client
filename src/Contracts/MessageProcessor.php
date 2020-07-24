@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client\Contracts;
 
+use PhpMqtt\Client\ConnectionSettings;
+use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
 
 /**
@@ -15,26 +17,123 @@ use PhpMqtt\Client\Exceptions\MqttClientException;
 interface MessageProcessor
 {
     /**
-     * Parses and handles messages found in the given buffer.
+     * Try to parse a message from the incoming buffer. If a message could be parsed successfully,
+     * the given message parameter is set to the parsed message and the result is true.
+     * If no message could be parsed, the result is false and the required bytes parameter indicates
+     * how many bytes are missing for the message to be complete. If this parameter is set to -1,
+     * it means we have no (or not yet) knowledge about the required bytes.
      *
-     * A return value of zero indicates that the processor has not consumed anything of the
-     * buffer, or that the buffer has been empty (i.e. length was zero). It is also possible
-     * that the processor was not able to determine the remaining length of a message, in case
-     * only one or few bytes were given.
+     * @param string      $buffer
+     * @param int         $bufferLength
+     * @param string|null $message
+     * @param int         $requiredBytes
+     * @return bool
+     */
+    public function tryParseMessage(string $buffer, int $bufferLength, string &$message = null, int &$requiredBytes = -1): bool;
+
+    /**
+     * Handles the given message based on its message type and contents.
      *
-     * A positive return value indicates that the buffer contains the beginning of a message
-     * but that the returned amount of bytes are missing for the message to be complete.
-     * The buffer has not been consumed in this case. Ideally, the method is only invoked
-     * when the remaining bytes have been received as well.
-     *
-     * A negative return value indicates that the returned amount of bytes of the buffer
-     * have been processed and should be removed by the caller.
-     *
-     * @param string     $buffer
-     * @param string     $bufferLength
-     * @param MqttClient $client
-     * @return int
+     * @param string $message
      * @throws MqttClientException
      */
-    public function parseAndHandleMessages(string $buffer, int $bufferLength, MqttClient $client): int;
+    public function handleMessage(string $message): void;
+
+    /**
+     * Builds a connect message from the given connection settings, taking the protocol
+     * specifics into account.
+     *
+     * @param ConnectionSettings $connectionSettings
+     * @param bool               $useCleanSession
+     * @return string
+     */
+    public function buildConnectMessage(ConnectionSettings $connectionSettings, bool $useCleanSession = false): string;
+
+    /**
+     * Builds a ping message.
+     *
+     * @return string
+     */
+    public function buildPingMessage(): string;
+
+    /**
+     * Builds a disconnect message.
+     *
+     * @return string
+     */
+    public function buildDisconnectMessage(): string;
+
+    /**
+     * Builds a subscribe message from the given parameters.
+     *
+     * @param int    $messageId
+     * @param string $topic
+     * @param int    $qualityOfService
+     * @return string
+     */
+    public function buildSubscribeMessage(int $messageId, string $topic, int $qualityOfService): string;
+
+    /**
+     * Builds an unsubscribe message from the given parameters.
+     *
+     * @param int    $messageId
+     * @param string $topic
+     * @param bool   $isDuplicate
+     * @return string
+     */
+    public function buildUnsubscribeMessage(int $messageId, string $topic, bool $isDuplicate = false): string;
+
+    /**
+     * Builds a publish message based on the given parameters.
+     *
+     * @param string   $topic
+     * @param string   $message
+     * @param int      $qualityOfService
+     * @param bool     $retain
+     * @param int|null $messageId
+     * @param bool     $isDuplicate
+     * @return string
+     */
+    public function buildPublishMessage(
+        string $topic,
+        string $message,
+        int $qualityOfService,
+        bool $retain,
+        int $messageId = null,
+        bool $isDuplicate = false
+    ): string;
+
+    /**
+     * Builds a publish acknowledgement for the given message identifier.
+     *
+     * @param int $messageId
+     * @return string
+     */
+    public function buildPublishAcknowledgementMessage(int $messageId): string;
+
+    /**
+     * Builds a publish received message for the given message identifier.
+     *
+     * @param int $messageId
+     * @return string
+     */
+    public function buildPublishReceivedMessage(int $messageId): string;
+
+    /**
+     * Builds a publish complete message for the given message identifier.
+     *
+     * @param int $messageId
+     * @return string
+     */
+    public function buildPublishCompleteMessage(int $messageId): string;
+
+    /**
+     * Handles the connect acknowledgement received from the broker. Exits normally if the
+     * connection could be established successfully according to the response. Throws an
+     * exception if the broker responded with an error.
+     *
+     * @param string $message
+     * @throws ConnectingToBrokerFailedException
+     */
+    public function handleConnectAcknowledgement(string $message): void;
 }

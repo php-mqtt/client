@@ -17,20 +17,16 @@ use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 interface MqttClient
 {
     /**
-     * Connect to the MQTT broker using the given credentials and settings.
+     * Connect to the MQTT broker using the given settings.
      * If no custom settings are passed, the client will use the default settings.
      * See {@see ConnectionSettings} for more details about the defaults.
      *
-     * @param string|null        $username
-     * @param string|null        $password
      * @param ConnectionSettings $settings
      * @param bool               $sendCleanSessionFlag
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
     public function connect(
-        string $username = null,
-        string $password = null,
         ConnectionSettings $settings = null,
         bool $sendCleanSessionFlag = false
     ): void;

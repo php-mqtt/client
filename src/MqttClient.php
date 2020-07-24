@@ -7,17 +7,16 @@ namespace PhpMqtt\Client;
 use DateInterval;
 use DateTime;
 use PhpMqtt\Client\Concerns\GeneratesRandomClientIds;
-use PhpMqtt\Client\Concerns\LogsMessages;
 use PhpMqtt\Client\Concerns\OffersHooks;
-use PhpMqtt\Client\Concerns\TranscodesData;
-use PhpMqtt\Client\Concerns\WorksWithBuffers;
+use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Contracts\MqttClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
-use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
+use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
+use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 use Psr\Log\LoggerInterface;
 
@@ -29,26 +28,9 @@ use Psr\Log\LoggerInterface;
 class MqttClient implements ClientContract
 {
     use GeneratesRandomClientIds,
-        LogsMessages,
-        OffersHooks,
-        TranscodesData,
-        WorksWithBuffers;
+        OffersHooks;
 
-    const EXCEPTION_CONNECTION_FAILED              = 0001;
-    const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
-    const EXCEPTION_CONNECTION_IDENTIFIER_REJECTED = 0003;
-    const EXCEPTION_CONNECTION_BROKER_UNAVAILABLE  = 0004;
-    const EXCEPTION_CONNECTION_NOT_ESTABLISHED     = 0005;
-    const EXCEPTION_CONNECTION_INVALID_CREDENTIALS = 0006;
-    const EXCEPTION_CONNECTION_UNAUTHORIZED        = 0007;
-    const EXCEPTION_TX_DATA                        = 0101;
-    const EXCEPTION_RX_DATA                        = 0102;
-    const EXCEPTION_ACK_CONNECT                    = 0201;
-    const EXCEPTION_ACK_PUBLISH                    = 0202;
-    const EXCEPTION_ACK_SUBSCRIBE                  = 0203;
-    const EXCEPTION_ACK_RELEASE                    = 0204;
-    const EXCEPTION_ACK_RECEIVE                    = 0205;
-    const EXCEPTION_ACK_COMPLETE                   = 0206;
+    const MQTT_3_1 = 3;
 
     const QOS_AT_MOST_ONCE  = 0;
     const QOS_AT_LEAST_ONCE = 1;
@@ -69,11 +51,17 @@ class MqttClient implements ClientContract
     /** @var resource|null */
     private $socket;
 
+    /** @var string */
+    private $buffer;
+
     /** @var bool */
     private $connected = false;
 
     /** @var float */
     private $lastPingAt;
+
+    /** @var MessageProcessor */
+    private $messageProcessor;
 
     /** @var Repository */
     private $repository;
@@ -89,6 +77,7 @@ class MqttClient implements ClientContract
      *
      * Notes:
      *   - If no client id is given, a random one is generated, forcing a clean session implicitly.
+     *   - If no protocol is given, MQTT v3 is used by default.
      *   - If no repository is given, an in-memory repository is created for you. Once you terminate
      *     your script, all stored data (like resend queues) is lost.
      *   - If no logger is given, log messages are dropped. Any PSR-3 logger will work.
@@ -96,17 +85,24 @@ class MqttClient implements ClientContract
      * @param string               $host
      * @param int                  $port
      * @param string|null          $clientId
+     * @param int                  $protocol
      * @param Repository|null      $repository
      * @param LoggerInterface|null $logger
+     * @throws ProtocolNotSupportedException
      */
     public function __construct(
         string $host,
         int $port = 1883,
         string $clientId = null,
+        int $protocol = self::MQTT_3_1,
         Repository $repository = null,
         LoggerInterface $logger = null
     )
     {
+        if (!in_array($protocol, [self::MQTT_3_1])) {
+            throw new ProtocolNotSupportedException($protocol);
+        }
+
         if ($repository === null) {
             $repository = new MemoryRepository();
         }
@@ -115,7 +111,13 @@ class MqttClient implements ClientContract
         $this->port       = $port;
         $this->clientId   = $clientId ?? $this->generateRandomClientId();
         $this->repository = $repository;
-        $this->logger     = new Logger($logger);
+        $this->logger     = new Logger($this->host, $this->port, $this->clientId, $logger);
+
+        switch ($protocol) {
+            case self::MQTT_3_1:
+            default:
+                $this->messageProcessor = new Mqtt31MessageProcessor($this, $this->logger);
+        }
 
         $this->initializeEventHandlers();
     }
@@ -125,26 +127,30 @@ class MqttClient implements ClientContract
      * If no custom settings are passed, the client will use the default settings.
      * See {@see ConnectionSettings} for more details about the defaults.
      *
-     * @param string|null             $username
-     * @param string|null             $password
      * @param ConnectionSettings|null $settings
      * @param bool                    $sendCleanSessionFlag
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
     public function connect(
-        string $username = null,
-        string $password = null,
         ConnectionSettings $settings = null,
         bool $sendCleanSessionFlag = false
     ): void
     {
-        $this->logDebug('Connecting to broker.');
+        $this->logger->debug('Connecting to broker.');
 
         $this->settings = $settings ?? new ConnectionSettings();
 
-        $this->establishSocketConnection();
-        $this->performConnectionHandshake($username, $password, $sendCleanSessionFlag);
+        try {
+            $this->establishSocketConnection();
+            $this->performConnectionHandshake($sendCleanSessionFlag);
+        } catch (ConnectingToBrokerFailedException $e) {
+            if ($this->socket !== null && is_resource($this->socket)) {
+                stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
+            }
+
+            throw $e;
+        }
 
         $this->connected = true;
     }
@@ -161,7 +167,7 @@ class MqttClient implements ClientContract
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
 
         if ($this->settings->shouldUseTls()) {
-            $this->logDebug('Using TLS for the connection to the broker.');
+            $this->logger->debug('Using TLS for the connection to the broker.');
 
             $tlsOptions = [
                 'verify_peer' => $this->settings->shouldTlsVerifyPeer(),
@@ -191,7 +197,7 @@ class MqttClient implements ClientContract
         );
 
         if ($this->socket === false) {
-            $this->logError('Establishing a connection with the broker using connection string [{connectionString}] failed.', [
+            $this->logger->error('Establishing a connection with the broker using connection string [{connectionString}] failed.', [
                 'connectionString' => $connectionString,
             ]);
             throw new ConnectingToBrokerFailedException($errorCode, $errorMessage);
@@ -202,178 +208,97 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Sends a connection message over the socket and processes the response.
-     * If the socket connection is not established, an exception is thrown.
+     * Performs the connection handshake with the help of the configured message processor.
+     * The connection handshake is expected to have the same flow all the time:
+     *   - Connect request with variable length
+     *   - Connect acknowledgement with variable length
      *
-     * @param string|null $username
-     * @param string|null $password
-     * @param bool        $sendCleanSessionFlag
-     * @return void
+     * @param bool $useCleanSession
      * @throws ConnectingToBrokerFailedException
      */
-    protected function performConnectionHandshake(string $username = null, string $password = null, bool $sendCleanSessionFlag = false): void
+    protected function performConnectionHandshake(bool $useCleanSession = false): void
     {
         try {
-            $i = 0;
-            $buffer = '';
+            $data = $this->messageProcessor->buildConnectMessage($this->settings, $useCleanSession);
 
-            // protocol header
-            $buffer .= chr(0x00); $i++; // length of protocol name 1
-            $buffer .= chr(0x06); $i++; // length of protocol name 2
-            $buffer .= chr(0x4d); $i++; // protocol name: M
-            $buffer .= chr(0x51); $i++; // protocol name: Q
-            $buffer .= chr(0x49); $i++; // protocol name: I
-            $buffer .= chr(0x73); $i++; // protocol name: s
-            $buffer .= chr(0x64); $i++; // protocol name: d
-            $buffer .= chr(0x70); $i++; // protocol name: p
-            $buffer .= chr(0x03); $i++; // protocol version (3.1)
+            $this->logger->debug('Sending connection handshake to broker.');
 
-            // connection flags
-            $flags   = $this->buildConnectionFlags($username, $password, $sendCleanSessionFlag);
-            $buffer .= chr($flags); $i++;
+            $this->writeToSocket($data);
 
-            // keep alive settings
-            $buffer .= chr($this->settings->getKeepAliveInterval() >> 8); $i++;
-            $buffer .= chr($this->settings->getKeepAliveInterval() & 0xff); $i++;
+            $buffer    = '';
+            while (true) {
+                $buffer .= $this->readFromSocket(8192, true);
 
-            // client id (connection identifier)
-            $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
-            $buffer      .= $clientIdPart;
-            $i           += strlen($clientIdPart);
+                $message       = null;
+                $requiredBytes = -1;
+                $result        = $this->messageProcessor->tryParseMessage($buffer, strlen($buffer), $message, $requiredBytes);
 
-            // last will topic and message
-            if ($this->settings->hasLastWill()) {
-                $topicPart = $this->buildLengthPrefixedString($this->settings->getLastWillTopic());
-                $buffer   .= $topicPart;
-                $i        += strlen($topicPart);
+                if ($result === true) {
+                    /** @var string $message */
 
-                $messagePart = $this->buildLengthPrefixedString($this->settings->getLastWillMessage());
-                $buffer     .= $messagePart;
-                $i          += strlen($messagePart);
-            }
+                    // Remove the parsed data from the buffer.
+                    $buffer = substr($buffer, strlen($message));
 
-            // credentials
-            if ($username !== null) {
-                $usernamePart = $this->buildLengthPrefixedString($username);
-                $buffer      .= $usernamePart;
-                $i           += strlen($usernamePart);
-            }
-            if ($password !== null) {
-                $passwordPart = $this->buildLengthPrefixedString($password);
-                $buffer      .= $passwordPart;
-                $i           += strlen($passwordPart);
-            }
+                    // Process the acknowledgement message.
+                    $this->messageProcessor->handleConnectAcknowledgement($message);
 
-            // message type and message length
-            $header = chr(0x10) . chr($i);
-
-            // send the connection message
-            $this->logDebug('Sending connection handshake to broker.');
-            $this->writeToSocket($header . $buffer);
-
-            // read and process the acknowledgement
-            $acknowledgement = $this->readFromSocket(4);
-            if (ord($acknowledgement[0]) >> 4 === 2) {
-                $errorCode = ord($acknowledgement[3]);
-                $logContext = ['errorCode' => sprintf('0x%02X', $errorCode)];
-
-                switch ($errorCode) {
-                    case 0x00:
-                        $this->logInfo('Connection with broker established successfully.', $logContext);
-                        break;
-                    case 0x01:
-                        $this->logError('The broker does not support MQTT v3.1.', $logContext);
-                        throw new ConnectingToBrokerFailedException(
-                            self::EXCEPTION_CONNECTION_PROTOCOL_VERSION,
-                            'The configured broker does not support MQTT v3.1.'
-                        );
-                    case 0x02:
-                        $this->logError('The broker rejected the sent identifier.', $logContext);
-                        throw new ConnectingToBrokerFailedException(
-                            self::EXCEPTION_CONNECTION_IDENTIFIER_REJECTED,
-                            'The configured broker rejected the sent identifier.'
-                        );
-                    case 0x03:
-                        $this->logError('The broker is currently unavailable.', $logContext);
-                        throw new ConnectingToBrokerFailedException(
-                            self::EXCEPTION_CONNECTION_BROKER_UNAVAILABLE,
-                            'The configured broker is currently unavailable.'
-                        );
-                    case 0x04:
-                        $this->logError('The broker reported the credentials as invalid.', $logContext);
-                        throw new ConnectingToBrokerFailedException(
-                            self::EXCEPTION_CONNECTION_INVALID_CREDENTIALS,
-                            'The configured broker reported the credentials as invalid.'
-                        );
-                    case 0x05:
-                        $this->logError('The broker responded with unauthorized.', $logContext);
-                        throw new ConnectingToBrokerFailedException(
-                            self::EXCEPTION_CONNECTION_UNAUTHORIZED,
-                            'The configured broker responded with unauthorized.'
-                        );
-                    default:
-                        $this->logError('The broker responded with an invalid error code [{errorCode}].', $logContext);
-                        throw new ConnectingToBrokerFailedException(
-                            self::EXCEPTION_CONNECTION_FAILED,
-                            'The configured broker responded with an invalid error code. A connection could not be established.'
-                        );
+                    break;
                 }
-            } else {
-                $this->logError('The broker refused the connection.');
-                throw new ConnectingToBrokerFailedException(self::EXCEPTION_CONNECTION_FAILED, 'A connection could not be established.');
             }
+
+            // We need to set the global buffer to the remaining data we might already have read.
+            $this->buffer = $buffer;
         } catch (DataTransferException $e) {
-            $this->logError('While connecting to the broker, a transfer error occurred.');
+            $this->logger->error('While connecting to the broker, a transfer error occurred.');
             throw new ConnectingToBrokerFailedException(
-                self::EXCEPTION_CONNECTION_FAILED,
+                ConnectingToBrokerFailedException::EXCEPTION_CONNECTION_FAILED,
                 'A connection could not be established due to data transfer issues.'
             );
         }
     }
 
     /**
-     * Builds the connection flags from the inputs and settings.
+     * Sets the interrupted signal. Doing so instructs the client to exit the loop, if it is
+     * actually looping.
      *
-     * @param string|null $username
-     * @param string|null $password
-     * @param bool        $sendCleanSessionFlag
+     * Sending multiple interrupt signals has no effect, unless the client exits the loop,
+     * which resets the signal for another loop.
+     *
+     * @return void
+     */
+    public function interrupt(): void
+    {
+        $this->interrupted = true;
+    }
+
+    /**
+     * Returns the host used by the client to connect to.
+     *
+     * @return string
+     */
+    public function getHost(): string
+    {
+        return $this->host;
+    }
+
+    /**
+     * Returns the port used by the client to connect to.
+     *
      * @return int
      */
-    protected function buildConnectionFlags(string $username = null, string $password = null, bool $sendCleanSessionFlag = false): int
+    public function getPort(): int
     {
-        $flags = 0;
+        return $this->port;
+    }
 
-        if ($sendCleanSessionFlag) {
-            $this->logDebug('Using the [clean session] flag for the connection.');
-            $flags += 1 << 1; // set the `clean session` flag
-        }
-
-        if ($this->settings->hasLastWill()) {
-            $this->logDebug('Using the [will] flag for the connection.');
-            $flags += 1 << 2; // set the `will` flag
-
-            if ($this->settings->getQualityOfService() > self::QOS_AT_MOST_ONCE) {
-                $this->logDebug('Using QoS level [{qos}] for the connection.', ['qos' => $this->settings->getQualityOfService()]);
-                $flags += $this->settings->getQualityOfService() << 3; // set the `qos` bits
-            }
-
-            if ($this->settings->shouldRetain()) {
-                $this->logDebug('Using the [retain] flag for the connection.');
-                $flags += 1 << 5; // set the `retain` flag
-            }
-        }
-
-        if ($password !== null) {
-            $this->logDebug('Using the [password] flag for the connection.');
-            $flags += 1 << 6; // set the `has password` flag
-        }
-
-        if ($username !== null) {
-            $this->logDebug('Using the [username] flag for the connection.');
-            $flags += 1 << 7; // set the `has username` flag
-        }
-
-        return $flags;
+    /**
+     * Returns the identifier used by the client.
+     *
+     * @return string
+     */
+    public function getClientId(): string
+    {
+        return $this->clientId;
     }
 
     /**
@@ -402,23 +327,9 @@ class MqttClient implements ClientContract
     {
         if (!$this->isConnected()) {
             throw new ClientNotConnectedToBrokerException(
-                static::EXCEPTION_CONNECTION_NOT_ESTABLISHED,
                 'The client is not connected to a broker. The requested operation is impossible at this point.'
             );
         }
-    }
-
-    /**
-     * Sends a ping to the MQTT broker.
-     *
-     * @return void
-     * @throws DataTransferException
-     */
-    protected function ping(): void
-    {
-        $this->logDebug('Sending ping to the broker to keep the connection alive.');
-
-        $this->writeToSocket(chr(0xc0) . chr(0x00));
     }
 
     /**
@@ -431,7 +342,7 @@ class MqttClient implements ClientContract
     {
         $this->ensureConnected();
 
-        $this->logDebug('Closing the connection to the broker.');
+        $this->logger->debug('Closing the connection to the broker.');
 
         $this->disconnect();
 
@@ -440,19 +351,6 @@ class MqttClient implements ClientContract
         }
 
         $this->connected = false;
-    }
-
-    /**
-     * Sends a disconnect message to the MQTT broker.
-     *
-     * @return void
-     * @throws DataTransferException
-     */
-    protected function disconnect(): void
-    {
-        $this->logDebug('Sending disconnect package to the broker.');
-
-        $this->writeToSocket(chr(0xe0) . chr(0x00));
     }
 
     /**
@@ -481,7 +379,9 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Builds and publishes a message.
+     * Actually publishes a message after using the configured message processor to build it.
+     * This is an internal method used for both, initial publishing of messages as well as
+     * re-publishing in case of timeouts.
      *
      * @param string   $topic
      * @param string   $message
@@ -489,7 +389,6 @@ class MqttClient implements ClientContract
      * @param bool     $retain
      * @param int|null $messageId
      * @param bool     $isDuplicate
-     * @return void
      * @throws DataTransferException
      */
     protected function publishMessage(
@@ -501,7 +400,7 @@ class MqttClient implements ClientContract
         bool $isDuplicate = false
     ): void
     {
-        $this->logDebug('Publishing a message on topic [{topic}]: {message}', [
+        $this->logger->debug('Publishing a message on topic [{topic}]: {message}', [
             'topic' => $topic,
             'message' => $message,
             'qos' => $qualityOfService,
@@ -514,42 +413,16 @@ class MqttClient implements ClientContract
             try {
                 call_user_func($handler, $this, $topic, $message, $messageId, $qualityOfService, $retain);
             } catch (\Throwable $e) {
-                $this->logError('Publish hook callback threw exception for published message on topic [{topic}].', [
+                $this->logger->error('Publish hook callback threw exception for published message on topic [{topic}].', [
                     'topic' => $topic,
                     'exception' => $e,
                 ]);
             }
         }
 
-        $i      = 0;
-        $buffer = '';
+        $data = $this->messageProcessor->buildPublishMessage($topic, $message, $qualityOfService, $retain, $messageId, $isDuplicate);
 
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer   .= $topicPart;
-        $i        += strlen($topicPart);
-
-        if ($messageId !== null)
-        {
-            $buffer .= $this->encodeMessageId($messageId); $i += 2;
-        }
-
-        $buffer .= $message;
-        $i      += strlen($message);
-
-        $command = 0x30;
-        if ($retain) {
-            $command += 1 << 0;
-        }
-        if ($qualityOfService > self::QOS_AT_MOST_ONCE) {
-            $command += $qualityOfService << 1;
-        }
-        if ($isDuplicate) {
-            $command += 1 << 3;
-        }
-
-        $header = chr($command) . $this->encodeMessageLength($i);
-
-        $this->writeToSocket($header . $buffer);
+        $this->writeToSocket($data);
     }
 
     /**
@@ -565,26 +438,17 @@ class MqttClient implements ClientContract
     {
         $this->ensureConnected();
 
-        $this->logDebug('Subscribing to topic [{topic}] with QoS [{qos}].', [
+        $messageId = $this->repository->newMessageId();
+        $data      = $this->messageProcessor->buildSubscribeMessage($messageId, $topic, $qualityOfService);
+
+        $this->logger->debug('Subscribing to topic [{topic}] with QoS [{qos}].', [
             'topic' => $topic,
             'qos' => $qualityOfService,
         ]);
 
-        $i         = 0;
-        $buffer    = '';
-        $messageId = $this->repository->newMessageId();
-        $buffer   .= $this->encodeMessageId($messageId); $i += 2;
-
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer   .= $topicPart;
-        $i        += strlen($topicPart);
-        $buffer   .= chr($qualityOfService); $i++;
-
         $this->repository->addNewTopicSubscription($topic, $callback, $messageId, $qualityOfService);
 
-        $header  = chr(0x82) . chr($i);
-
-        $this->writeToSocket($header . $buffer);
+        $this->writeToSocket($data);
     }
 
     /**
@@ -598,40 +462,19 @@ class MqttClient implements ClientContract
     {
         $this->ensureConnected();
 
+        // TODO: check if actually subscribed
+
         $messageId = $this->repository->newMessageId();
+        $data      = $this->messageProcessor->buildUnsubscribeMessage($messageId, $topic);
+
+        $this->logger->debug('Unsubscribing from topic [{topic}].', [
+            'messageId' => $messageId,
+            'topic' => $topic,
+        ]);
 
         $this->repository->addNewPendingUnsubscribeRequest($messageId, $topic);
 
-        $this->sendUnsubscribeRequest($messageId, $topic);
-    }
-
-    /**
-     * Sends an unsubscribe request to the broker.
-     *
-     * @param int    $messageId
-     * @param string $topic
-     * @param bool   $isDuplicate
-     * @throws DataTransferException
-     */
-    protected function sendUnsubscribeRequest(int $messageId, string $topic, bool $isDuplicate = false): void
-    {
-        $this->logDebug('Unsubscribing from topic [{topic}].', [
-            'message_id' => $messageId,
-            'topic' => $topic,
-            'is_duplicate' => $isDuplicate,
-        ]);
-
-        $i      = 0;
-        $buffer = $this->encodeMessageId($messageId); $i += 2;
-
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer   .= $topicPart;
-        $i        += strlen($topicPart);
-
-        $command = 0xa2 | ($isDuplicate ? 1 << 3 : 0);
-        $header  = chr($command) . chr($i);
-
-        $this->writeToSocket($header . $buffer);
+        $this->writeToSocket($data);
     }
 
     /**
@@ -657,7 +500,9 @@ class MqttClient implements ClientContract
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void
     {
-        $this->logDebug('Starting client loop to process incoming messages and the resend queue.');
+        $this->logger->debug('Starting client loop to process incoming messages and the resend queue.');
+
+        // TODO: rework loop to buffer data, use parser to extract messages efficiently, and then handle them accordingly
 
         $loopStartedAt            = microtime(true);
         $lastRepublishedAt        = microtime(true);
@@ -675,7 +520,7 @@ class MqttClient implements ClientContract
                 try {
                     call_user_func($handler, $this, $elapsedTime);
                 } catch (\Throwable $e) {
-                    $this->logError('Loop hook callback threw exception.', ['exception' => $e]);
+                    $this->logger->error('Loop hook callback threw exception.', ['exception' => $e]);
                 }
             }
 
@@ -743,11 +588,11 @@ class MqttClient implements ClientContract
                             $this->handlePingAcknowledgement();
                             break;
                         default:
-                            $this->logDebug('Received message with unsupported command [{command}]. Skipping.', ['command' => $command]);
+                            $this->logger->debug('Received message with unsupported command [{command}]. Skipping.', ['command' => $command]);
                             break;
                     }
                 } else {
-                    $this->logError('Reserved command received from the broker. Supported are commands (including) 1-14.', [
+                    $this->logger->error('Reserved command received from the broker. Supported are commands (including) 1-14.', [
                         'command' => $command,
                     ]);
                 }
@@ -809,317 +654,6 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Handles a received message. The buffer contains the whole message except
-     * command and length. The message structure is:
-     *
-     *   [topic-length:topic:message]+
-     *
-     * @param string $buffer
-     * @param int    $qualityOfServiceLevel
-     * @return void
-     * @throws DataTransferException
-     */
-    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel): void
-    {
-        $topicLength = (ord($buffer[0]) << 8) + ord($buffer[1]);
-        $topic       = substr($buffer, 2, $topicLength);
-        $message     = substr($buffer, ($topicLength + 2));
-
-        if ($qualityOfServiceLevel > self::QOS_AT_MOST_ONCE) {
-            if (strlen($message) < 2) {
-                $this->logError('Received a message with QoS level [{qos}] without message identifier.', [
-                    'qos' => $qualityOfServiceLevel,
-                ]);
-
-                // This message seems to be incomplete or damaged. We ignore it and wait for a retransmission,
-                // which will occur at some point due to QoS level > 0.
-                return;
-            }
-
-            $messageId = $this->decodeMessageId($this->pop($message, 2));
-
-            if ($qualityOfServiceLevel === self::QOS_AT_LEAST_ONCE) {
-                $this->sendPublishAcknowledgement($messageId);
-            }
-
-            if ($qualityOfServiceLevel === self::QOS_EXACTLY_ONCE) {
-                try {
-                    $this->sendPublishReceived($messageId);
-                    $this->repository->addNewPendingPublishConfirmation($messageId, $topic, $message);
-                } catch (PendingPublishConfirmationAlreadyExistsException $e) {
-                    // We already received and processed this message, therefore we do not respond
-                    // with a receipt a second time and wait for the release instead.
-                }
-                // We only deliver this published message as soon as we receive a publish complete.
-                return;
-            }
-        }
-
-        $this->deliverPublishedMessage($topic, $message, $qualityOfServiceLevel);
-    }
-
-    /**
-     * Handles a received publish acknowledgement. The buffer contains the whole
-     * message except command and length. The message structure is:
-     *
-     *   [message-identifier]
-     *
-     * @param string $buffer
-     * @return void
-     * @throws UnexpectedAcknowledgementException
-     */
-    protected function handlePublishAcknowledgement(string $buffer): void
-    {
-        $this->logDebug('Handling publish acknowledgement received from the broker.');
-
-        if (strlen($buffer) !== 2) {
-            $this->logNotice('Received invalid publish acknowledgement from the broker.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_PUBLISH,
-                'The MQTT broker responded with an invalid publish acknowledgement.'
-            );
-        }
-
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
-
-        $result = $this->repository->removePendingPublishedMessage($messageId);
-        if ($result === false) {
-            $this->logNotice('Received publish acknowledgement from the broker for already acknowledged message.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_PUBLISH,
-                'The MQTT broker acknowledged a publish that has not been pending anymore.'
-            );
-        }
-
-        $this->repository->releaseMessageId($messageId);
-    }
-
-    /**
-     * Handles a received publish receipt. The buffer contains the whole
-     * message except command and length. The message structure is:
-     *
-     *   [message-identifier]
-     *
-     * @param string $buffer
-     * @return void
-     * @throws UnexpectedAcknowledgementException
-     */
-    protected function handlePublishReceipt(string $buffer): void
-    {
-        $this->logDebug('Handling publish receipt from the broker.');
-
-        if (strlen($buffer) !== 2) {
-            $this->logNotice('Received invalid publish receipt from the broker.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_RECEIVE,
-                'The MQTT broker responded with an invalid publish receipt.'
-            );
-        }
-
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
-
-        $result = $this->repository->markPendingPublishedMessageAsReceived($messageId);
-        if ($result === false) {
-            $this->logNotice('Received publish receipt from the broker for already acknowledged message.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_RECEIVE,
-                'The MQTT broker sent a receipt for a publish that has not been pending anymore.'
-            );
-        }
-    }
-
-    /**
-     * Handles a received publish release message. The buffer contains the whole
-     * message except command and length. The message structure is:
-     *
-     *   [message-identifier]
-     *
-     * @param string $buffer
-     * @return void
-     * @throws DataTransferException
-     * @throws UnexpectedAcknowledgementException
-     */
-    protected function handlePublishRelease(string $buffer): void
-    {
-        $this->logDebug('Handling publish release received from the broker.');
-
-        if (strlen($buffer) !== 2) {
-            $this->logNotice('Received invalid publish release from the broker.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_RELEASE,
-                'The MQTT broker responded with an invalid publish release message.'
-            );
-        }
-
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
-
-        $message = $this->repository->getPendingPublishConfirmationWithMessageId($messageId);
-
-        $result = $this->repository->removePendingPublishConfirmation($messageId);
-        if ($message === null || $result === false) {
-            $this->logNotice('Received publish release from the broker for already released message.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_RELEASE,
-                'The MQTT broker released a publish that has not been pending anymore.'
-            );
-        }
-
-        $this->deliverPublishedMessage($message->getTopic(), $message->getMessage(), $message->getQualityOfServiceLevel());
-        $this->sendPublishComplete($messageId);
-    }
-
-    /**
-     * Handles a received publish confirmation message. The buffer contains the whole
-     * message except command and length. The message structure is:
-     *
-     *   [message-identifier]
-     *
-     * @param string $buffer
-     * @return void
-     * @throws UnexpectedAcknowledgementException
-     */
-    protected function handlePublishCompletion(string $buffer): void
-    {
-        $this->logDebug('Handling publish completion from the broker.');
-
-        if (strlen($buffer) !== 2) {
-            $this->logNotice('Received invalid publish completion from the broker.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_COMPLETE,
-                'The MQTT broker responded with an invalid publish completion.'
-            );
-        }
-
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
-
-        $result = $this->repository->removePendingPublishedMessage($messageId);
-        if ($result === false) {
-            $this->logNotice('Received publish completion from the broker for already acknowledged message.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_COMPLETE,
-                'The MQTT broker sent a completion for a publish that has not been pending anymore.'
-            );
-        }
-
-        $this->repository->releaseMessageId($messageId);
-    }
-
-    /**
-     * Handles a received subscription acknowledgement. The buffer contains the whole
-     * message except command and length. The message structure is:
-     *
-     *   [message-identifier:[qos-level]+]
-     *
-     * The order of the received QoS levels matches the order of the sent subscriptions.
-     *
-     * @param string $buffer
-     * @return void
-     * @throws UnexpectedAcknowledgementException
-     */
-    protected function handleSubscribeAcknowledgement(string $buffer): void
-    {
-        $this->logDebug('Handling subscribe acknowledgement received from the broker.');
-
-        if (strlen($buffer) < 3) {
-            $this->logNotice('Received invalid subscribe acknowledgement from the broker.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_SUBSCRIBE,
-                'The MQTT broker responded with an invalid subscribe acknowledgement.'
-            );
-        }
-
-        $messageId        = $this->decodeMessageId($this->pop($buffer, 2));
-        $subscriptions    = $this->repository->getTopicSubscriptionsWithMessageId($messageId);
-        $acknowledgements = str_split($buffer);
-
-        if (count($acknowledgements) !== count($subscriptions)) {
-            $this->logNotice('Received subscribe acknowledgement from the broker with wrong number of QoS acknowledgements.', [
-                'required' => count($subscriptions),
-                'received' => count($acknowledgements),
-            ]);
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_SUBSCRIBE,
-                sprintf(
-                    'The MQTT broker responded with a different amount of QoS acknowledgements as we have subscriptions.'
-                        . ' Subscriptions: %s, QoS Acknowledgements: %s',
-                    count($subscriptions),
-                    count($acknowledgements)
-                )
-            );
-        }
-
-        foreach ($acknowledgements as $index => $qualityOfServiceLevel) {
-            $subscriptions[$index]->setAcknowledgedQualityOfServiceLevel(intval($qualityOfServiceLevel));
-        }
-
-        $this->repository->releaseMessageId($messageId);
-    }
-
-    /**
-     * Handles a received unsubscribe acknowledgement. The buffer contains the whole
-     * message except command and length. The message structure is:
-     *
-     *   [message-identifier]
-     *
-     * @param string $buffer
-     * @return void
-     * @throws UnexpectedAcknowledgementException
-     */
-    protected function handleUnsubscribeAcknowledgement(string $buffer): void
-    {
-        $this->logDebug('Handling unsubscribe acknowledgement received from the broker.');
-
-        if (strlen($buffer) !== 2) {
-            $this->logNotice('Received invalid unsubscribe acknowledgement from the broker.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_PUBLISH,
-                'The MQTT broker responded with an invalid unsubscribe acknowledgement.'
-            );
-        }
-
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
-
-        $unsubscribeRequest = $this->repository->getPendingUnsubscribeRequestWithMessageId($messageId);
-        $result             = $this->repository->removePendingUnsubscribeRequest($messageId);
-        if ($result === false) {
-            $this->logNotice('Received unsubscribe acknowledgement from the broker for already acknowledged request.');
-            throw new UnexpectedAcknowledgementException(
-                self::EXCEPTION_ACK_PUBLISH,
-                'The MQTT broker acknowledged an unsubscribe request that has not been pending anymore.'
-            );
-        }
-
-        if ($unsubscribeRequest !== null) {
-            $this->repository->removeTopicSubscription($unsubscribeRequest->getTopic());
-        }
-
-        $this->repository->releaseMessageId($messageId);
-    }
-
-    /**
-     * Handles a received ping request. Simply sends an acknowledgement.
-     *
-     * @return void
-     * @throws DataTransferException
-     */
-    protected function handlePingRequest(): void
-    {
-        $this->logDebug('Received ping request from the broker. Sending response.');
-
-        $this->writeToSocket(chr(0xd0) . chr(0x00));
-    }
-
-    /**
-     * Handles a received ping acknowledgement.
-     *
-     * @return void
-     */
-    protected function handlePingAcknowledgement(): void
-    {
-        $this->logDebug('Received ping acknowledgement from the broker.');
-    }
-
-    /**
      * Delivers a published message to subscribed callbacks.
      *
      * @param string $topic
@@ -1131,7 +665,7 @@ class MqttClient implements ClientContract
     {
         $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
 
-        $this->logDebug('Delivering message received on topic [{topic}] from the broker to [{subscribers}] subscribers.', [
+        $this->logger->debug('Delivering message received on topic [{topic}] from the broker to [{subscribers}] subscribers.', [
             'topic' => $topic,
             'message' => $message,
             'subscribers' => count($subscribers),
@@ -1147,55 +681,13 @@ class MqttClient implements ClientContract
             try {
                 call_user_func($subscriber->getCallback(), $topic, $message);
             } catch (\Throwable $e) {
-                $this->logError('Subscriber callback threw exception for published message on topic [{topic}].', [
+                $this->logger->error('Subscriber callback threw exception for published message on topic [{topic}].', [
                     'topic' => $topic,
                     'message' => $message,
                     'exception' => $e,
                 ]);
             }
         }
-    }
-
-    /**
-     * Sends a publish acknowledgement for the given message identifier.
-     *
-     * @param int $messageId
-     * @return void
-     * @throws DataTransferException
-     */
-    protected function sendPublishAcknowledgement(int $messageId): void
-    {
-        $this->logDebug('Sending publish acknowledgement to the broker.', ['message_id' => $messageId]);
-
-        $this->writeToSocket(chr(0x40) . chr(0x02) . $this->encodeMessageId($messageId));
-    }
-
-    /**
-     * Sends a publish received message for the given message identifier.
-     *
-     * @param int $messageId
-     * @return void
-     * @throws DataTransferException
-     */
-    protected function sendPublishReceived(int $messageId): void
-    {
-        $this->logDebug('Sending publish received message to the broker.', ['message_id' => $messageId]);
-
-        $this->writeToSocket(chr(0x50) . chr(0x02) . $this->encodeMessageId($messageId));
-    }
-
-    /**
-     * Sends a publish complete message for the given message identifier.
-     *
-     * @param int $messageId
-     * @return void
-     * @throws DataTransferException
-     */
-    protected function sendPublishComplete(int $messageId): void
-    {
-        $this->logDebug('Sending publish complete message to the broker.', ['message_id' => $messageId]);
-
-        $this->writeToSocket(chr(0x70) . chr(0x02) . $this->encodeMessageId($messageId));
     }
 
     /**
@@ -1206,14 +698,14 @@ class MqttClient implements ClientContract
      */
     protected function republishPendingMessages(): void
     {
-        $this->logDebug('Re-publishing pending messages to the broker.');
+        $this->logger->debug('Re-publishing pending messages to the broker.');
 
         /** @noinspection PhpUnhandledExceptionInspection */
         $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
         $messages = $this->repository->getPendingPublishedMessagesLastSentBefore($dateTime);
 
         foreach ($messages as $message) {
-            $this->logDebug('Re-publishing pending message to the broker.', ['message_id' => $message->getMessageId()]);
+            $this->logger->debug('Re-publishing pending message to the broker.', ['messageId' => $message->getMessageId()]);
 
             $this->publishMessage(
                 $message->getTopic(),
@@ -1237,16 +729,21 @@ class MqttClient implements ClientContract
      */
     protected function republishPendingUnsubscribeRequests(): void
     {
-        $this->logDebug('Re-sending pending unsubscribe requests to the broker.');
+        $this->logger->debug('Re-sending pending unsubscribe requests to the broker.');
 
         /** @noinspection PhpUnhandledExceptionInspection */
         $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
         $requests = $this->repository->getPendingUnsubscribeRequestsLastSentBefore($dateTime);
 
         foreach ($requests as $request) {
-            $this->logDebug('Re-sending pending unsubscribe request to the broker.', ['message_id' => $request->getMessageId()]);
+            $data = $this->messageProcessor->buildUnsubscribeMessage($request->getMessageId(), $request->getTopic(), true);
 
-            $this->sendUnsubscribeRequest($request->getMessageId(), $request->getTopic(), true);
+            $this->logger->debug('Re-sending pending unsubscribe request to the broker.', [
+                'messageId' => $request->getMessageId(),
+                'topic' => $request->getTopic(),
+            ]);
+
+            $this->writeToSocket($data);
 
             $request->setLastSentAt(new DateTime());
             $request->incrementSendingAttempts();
@@ -1254,47 +751,73 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Sets the interrupted signal. Doing so instructs the client to exit the loop, if it is
-     * actually looping.
+     * Sends a publish acknowledgement for the given message identifier.
      *
-     * Sending multiple interrupt signals has no effect, unless the client exits the loop,
-     * which resets the signal for another loop.
-     *
+     * @param int $messageId
      * @return void
+     * @throws DataTransferException
      */
-    public function interrupt(): void
+    protected function sendPublishAcknowledgement(int $messageId): void
     {
-        $this->interrupted = true;
+        $this->logger->debug('Sending publish acknowledgement to the broker.', ['message_id' => $messageId]);
+
+        $this->writeToSocket($this->messageProcessor->buildPublishAcknowledgementMessage($messageId));
     }
 
     /**
-     * Returns the host used by the client to connect to.
+     * Sends a publish received message for the given message identifier.
      *
-     * @return string
+     * @param int $messageId
+     * @return void
+     * @throws DataTransferException
      */
-    public function getHost(): string
+    protected function sendPublishReceived(int $messageId): void
     {
-        return $this->host;
+        $this->logger->debug('Sending publish received message to the broker.', ['message_id' => $messageId]);
+
+        $this->writeToSocket($this->messageProcessor->buildPublishReceivedMessage($messageId));
     }
 
     /**
-     * Returns the port used by the client to connect to.
+     * Sends a publish complete message for the given message identifier.
      *
-     * @return int
+     * @param int $messageId
+     * @return void
+     * @throws DataTransferException
      */
-    public function getPort(): int
+    protected function sendPublishComplete(int $messageId): void
     {
-        return $this->port;
+        $this->logger->debug('Sending publish complete message to the broker.', ['message_id' => $messageId]);
+
+        $this->writeToSocket($this->messageProcessor->buildPublishCompleteMessage($messageId));
     }
 
     /**
-     * Returns the identifier used by the client.
+     * Sends a ping message to the broker to keep the connection alive.
      *
-     * @return string
+     * @throws DataTransferException
      */
-    public function getClientId(): string
+    protected function ping(): void
     {
-        return $this->clientId;
+        $data = $this->messageProcessor->buildPingMessage();
+
+        $this->logger->debug('Sending ping to the broker to keep the connection alive.');
+
+        $this->writeToSocket($data);
+    }
+
+    /**
+     * Sends a disconnect message to the broker. Does not close the socket.
+     *
+     * @throws DataTransferException
+     */
+    protected function disconnect(): void
+    {
+        $data = $this->messageProcessor->buildDisconnectMessage();
+
+        $this->logger->debug('Sending disconnect package to the broker.');
+
+        $this->writeToSocket($data);
     }
 
     /**
@@ -1317,8 +840,11 @@ class MqttClient implements ClientContract
         $result = @fwrite($this->socket, $data, $length);
 
         if ($result === false || $result !== $length) {
-            $this->logError('Sending data over the socket to the broker failed.');
-            throw new DataTransferException(self::EXCEPTION_TX_DATA, 'Sending data over the socket failed. Has it been closed?');
+            $this->logger->error('Sending data over the socket to the broker failed.');
+            throw new DataTransferException(
+                DataTransferException::EXCEPTION_TX_DATA,
+                'Sending data over the socket failed. Has it been closed?'
+            );
         }
 
         // After writing successfully to the socket, the broker should have received a new message from us.
@@ -1344,8 +870,11 @@ class MqttClient implements ClientContract
         if ($withoutBlocking) {
             $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
-                $this->logError('Reading data from the socket of the broker failed.');
-                throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket failed. Has it been closed?');
+                $this->logger->error('Reading data from the socket of the broker failed.');
+                throw new DataTransferException(
+                    DataTransferException::EXCEPTION_RX_DATA,
+                    'Reading data from the socket failed. Has it been closed?'
+                );
             }
             return $receivedData;
         }
@@ -1353,8 +882,11 @@ class MqttClient implements ClientContract
         while (feof($this->socket) === false && $remaining > 0) {
             $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
-                $this->logError('Reading data from the socket of the broker failed.');
-                throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket failed. Has it been closed?');
+                $this->logger->error('Reading data from the socket of the broker failed.');
+                throw new DataTransferException(
+                    DataTransferException::EXCEPTION_RX_DATA,
+                    'Reading data from the socket failed. Has it been closed?'
+                );
             }
             $result .= $receivedData;
             $remaining = $limit - strlen($result);
