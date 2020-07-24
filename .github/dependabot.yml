@@ -3,6 +3,8 @@ version: 2
 updates:
   - package-ecosystem: "composer"
     directory: "/"
+    allow:
+      - dependency-type: "development"
     schedule:
       interval: "daily"
       time: "05:00"
