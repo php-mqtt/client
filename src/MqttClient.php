@@ -157,7 +157,7 @@ class MqttClient implements ClientContract
      */
     protected function establishSocketConnection(): void
     {
-        $socketContext = null;
+        $contextOptions = [];
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
 
         if ($this->settings->shouldUseTls()) {
@@ -177,7 +177,7 @@ class MqttClient implements ClientContract
                 $tlsOptions['capath'] = $this->settings->getTlsCertificateAuthorityPath();
             }
 
-            $socketContext = stream_context_create(['ssl' => $tlsOptions]);
+            $contextOptions['ssl'] = $tlsOptions;
             $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
         }
 
@@ -187,7 +187,7 @@ class MqttClient implements ClientContract
             $errorMessage,
             $this->settings->getConnectTimeout(),
             STREAM_CLIENT_CONNECT,
-            $socketContext
+            stream_context_create($contextOptions)
         );
 
         if ($this->socket === false) {
