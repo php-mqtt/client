@@ -599,6 +599,7 @@ class MQTTClient implements ClientContract
                 // Read the first byte of a message (command and flags).
                 $command          = (int)(ord($byte) / 16);
                 $qualityOfService = (ord($byte) & 0x06) >> 1;
+                $retained         = (bool) (ord($byte) & 0x01);
 
                 // Read the second byte of a message (remaining length)
                 // If the continuation bit (8) is set on the length byte,
@@ -622,7 +623,7 @@ class MQTTClient implements ClientContract
                         case 2:
                             throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
                         case 3:
-                            $this->handlePublishedMessage($buffer, $qualityOfService);
+                            $this->handlePublishedMessage($buffer, $qualityOfService, $retained);
                             break;
                         case 4:
                             $this->handlePublishAcknowledgement($buffer);
@@ -726,7 +727,7 @@ class MQTTClient implements ClientContract
      * @return void
      * @throws DataTransferException
      */
-    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel): void
+    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel, bool $retained = null): void
     {
         $topicLength = (ord($buffer[0]) << 8) + ord($buffer[1]);
         $topic       = substr($buffer, 2, $topicLength);
@@ -763,7 +764,7 @@ class MQTTClient implements ClientContract
             }
         }
 
-        $this->deliverPublishedMessage($topic, $message, $qualityOfServiceLevel);
+        $this->deliverPublishedMessage($topic, $message, $qualityOfServiceLevel, $retained);
     }
 
     /**
@@ -1064,7 +1065,7 @@ class MQTTClient implements ClientContract
      * @param int    $qualityOfServiceLevel
      * @return void
      */
-    protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel): void
+    protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel, bool $retained = null): void
     {
         $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
 
@@ -1083,7 +1084,7 @@ class MQTTClient implements ClientContract
             }
 
             try {
-                call_user_func($subscriber->getCallback(), $topic, $message);
+                call_user_func($subscriber->getCallback(), $topic, $message, $retained);
             } catch (\Throwable $e) {
                 // We ignore errors produced by custom callbacks.
             }
