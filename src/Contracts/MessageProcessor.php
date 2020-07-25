@@ -7,6 +7,7 @@ namespace PhpMqtt\Client\Contracts;
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
+use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 
 /**
  * Implementations of this interface provide message parsing capabilities.
@@ -35,6 +36,7 @@ interface MessageProcessor
      * Handles the given message based on its message type and contents.
      *
      * @param string $message
+     * @throws UnexpectedAcknowledgementException
      * @throws MqttClientException
      */
     public function handleMessage(string $message): void;

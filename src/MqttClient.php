@@ -14,6 +14,7 @@ use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
+use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
@@ -497,12 +498,11 @@ class MqttClient implements ClientContract
      * @return void
      * @throws DataTransferException
      * @throws UnexpectedAcknowledgementException
+     * @throws MqttClientException
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void
     {
         $this->logger->debug('Starting client loop to process incoming messages and the resend queue.');
-
-        // TODO: rework loop to buffer data, use parser to extract messages efficiently, and then handle them accordingly
 
         $loopStartedAt            = microtime(true);
         $lastRepublishedAt        = microtime(true);
@@ -524,77 +524,31 @@ class MqttClient implements ClientContract
                 }
             }
 
-            $buffer = null;
-            $byte   = $this->readFromSocket(1, true);
+            // Read data from the socket - as much as available.
+            $this->buffer .= $this->readAllAvailableDataFromSocket();
 
-            if (strlen($byte) === 0) {
-                if($allowSleep){
-                    usleep(100000); // 100ms
+            // Try to parse a message from the buffer and handle it, as long as messages can be parsed.
+            if (strlen($this->buffer) > 0) {
+                while (true) {
+                    $message = '';
+                    $requiredBytes = -1;
+                    $hasMessage = $this->messageProcessor->tryParseMessage($this->buffer, strlen($this->buffer), $message, $requiredBytes);
+
+                    // When there is no full message in the buffer, we stop processing for now and go on
+                    // with the next iteration.
+                    if ($hasMessage === false) {
+                        break;
+                    }
+
+                    // If we found a message, the buffer needs to be reduced by the message length.
+                    $this->buffer = substr($this->buffer, strlen($message));
+
+                    // We then pass the message over to the message processor to handle it according to the protocol.
+                    $this->messageProcessor->handleMessage($message);
                 }
             } else {
-                // Read the first byte of a message (command and flags).
-                $command          = (int)(ord($byte) / 16);
-                $qualityOfService = (ord($byte) & 0x06) >> 1;
-
-                // Read the second byte of a message (remaining length)
-                // If the continuation bit (8) is set on the length byte,
-                // another byte will be read as length.
-                $length     = 0;
-                $multiplier = 1;
-                do {
-                    $digit       = ord($this->readFromSocket(1));
-                    $length     += ($digit & 127) * $multiplier;
-                    $multiplier *= 128;
-                } while (($digit & 128) !== 0);
-
-                // Read the remaining message according to the length information.
-                if ($length) {
-                    $buffer = $this->readFromSocket($length);
-                }
-
-                // Handle the received command according to the $command identifier.
-                if ($command > 0 && $command < 15) {
-                    switch($command){
-                        case 2:
-                            throw new UnexpectedAcknowledgementException(
-                                self::EXCEPTION_ACK_CONNECT,
-                                'We unexpectedly received a connection acknowledgement.'
-                            );
-                        case 3:
-                            $this->handlePublishedMessage($buffer, $qualityOfService);
-                            break;
-                        case 4:
-                            $this->handlePublishAcknowledgement($buffer);
-                            break;
-                        case 5:
-                            $this->handlePublishReceipt($buffer);
-                            break;
-                        case 6:
-                            $this->handlePublishRelease($buffer);
-                            break;
-                        case 7:
-                            $this->handlePublishCompletion($buffer);
-                            break;
-                        case 9:
-                            $this->handleSubscribeAcknowledgement($buffer);
-                            break;
-                        case 11:
-                            $this->handleUnsubscribeAcknowledgement($buffer);
-                            break;
-                        case 12:
-                            $this->handlePingRequest();
-                            break;
-                        case 13;
-                            $this->handlePingAcknowledgement();
-                            break;
-                        default:
-                            $this->logger->debug('Received message with unsupported command [{command}]. Skipping.', ['command' => $command]);
-                            break;
-                    }
-                } else {
-                    $this->logger->error('Reserved command received from the broker. Supported are commands (including) 1-14.', [
-                        'command' => $command,
-                    ]);
+                if ($allowSleep) {
+                    usleep(100000); // 100ms
                 }
             }
 
@@ -899,6 +853,31 @@ class MqttClient implements ClientContract
         }
 
         $this->logger->debug('Read data from the socket: {data}', ['data' => $result]);
+
+        return $result;
+    }
+
+    /**
+     * Reads all the available data from the socket using non-blocking mode. Essentially this means
+     * that {@see MqttClient::readFromSocket()} is called over and over again, as long as data is
+     * returned.
+     *
+     * @return string
+     * @throws DataTransferException
+     */
+    protected function readAllAvailableDataFromSocket(): string
+    {
+        $result = '';
+
+        while (true) {
+            $buffer = $this->readFromSocket(8192, true);
+
+            $result .= $buffer;
+
+            if (strlen($buffer) < 8192) {
+                break;
+            }
+        }
 
         return $result;
     }
