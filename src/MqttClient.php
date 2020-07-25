@@ -54,7 +54,7 @@ class MqttClient implements ClientContract
     private $socket;
 
     /** @var string */
-    private $buffer;
+    private $buffer = '';
 
     /** @var bool */
     private $connected = false;
@@ -227,13 +227,20 @@ class MqttClient implements ClientContract
 
             $this->writeToSocket($data);
 
-            $buffer    = '';
+            $buffer        = '';
+            $requiredBytes = -1;
             while (true) {
-                $buffer .= $this->readFromSocket(8192, true);
+                if ($requiredBytes > 0) {
+                    $buffer .= $this->readFromSocket($requiredBytes);
+                } else {
+                    $buffer .= $this->readAllAvailableDataFromSocket();
+                }
 
-                $message       = null;
-                $requiredBytes = -1;
-                $result        = $this->messageProcessor->tryFindMessageInBuffer($buffer, strlen($buffer), $message, $requiredBytes);
+                $message = null;
+                $result  = $this->messageProcessor->tryFindMessageInBuffer($buffer, strlen($buffer), $message, $requiredBytes);
+
+                // We only need to wait for the bytes we don't have in the buffer yet.
+                $requiredBytes = $requiredBytes - strlen($buffer);
 
                 if ($result === true) {
                     /** @var string $message */
@@ -975,11 +982,8 @@ class MqttClient implements ClientContract
      */
     protected function readFromSocket(int $limit = 8192, bool $withoutBlocking = false): string
     {
-        $result      = '';
-        $remaining   = $limit;
-
         if ($withoutBlocking) {
-            $result = fread($this->socket, $remaining);
+            $result = fread($this->socket, $limit);
 
             if ($result === false) {
                 $this->logger->error('Reading data from the socket of the broker failed.');
@@ -994,6 +998,11 @@ class MqttClient implements ClientContract
             return $result;
         }
 
+        $result    = '';
+        $remaining = $limit;
+
+        $this->logger->debug('Waiting for {bytes} bytes of data.', ['bytes' => $remaining]);
+
         while (feof($this->socket) === false && $remaining > 0) {
             $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
@@ -1003,8 +1012,8 @@ class MqttClient implements ClientContract
                     'Reading data from the socket failed. Has it been closed?'
                 );
             }
-            $result .= $receivedData;
-            $remaining = $limit - strlen($result);
+            $result   .= $receivedData;
+            $remaining = $remaining - strlen($result);
         }
 
         $this->logger->debug('Read data from the socket: {data}', ['data' => $result]);
