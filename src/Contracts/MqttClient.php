@@ -174,7 +174,7 @@ interface MqttClient
      * Example:
      * ```php
      * $mqtt->registerLoopEventHandler(function (
-     *     MQTTClient $mqtt,
+     *     MqttClient $mqtt,
      *     float $elapsedTime
      * ) use ($logger) {
      *     $logger->info("Running for [{$elapsedTime}] seconds already.");
@@ -211,7 +211,7 @@ interface MqttClient
      * Example:
      * ```php
      * $mqtt->registerPublishEventHandler(function (
-     *     MQTTClient $mqtt,
+     *     MqttClient $mqtt,
      *     string $topic,
      *     string $message,
      *     int $messageId,

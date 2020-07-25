@@ -9,7 +9,7 @@ namespace PhpMqtt\Client\Exceptions;
  *
  * @package PhpMqtt\Client\Exceptions
  */
-class DataTransferException extends MQTTClientException
+class DataTransferException extends MqttClientException
 {
     public function __construct(int $code, string $error)
     {

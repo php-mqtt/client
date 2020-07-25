@@ -9,7 +9,7 @@ namespace PhpMqtt\Client\Exceptions;
  *
  * @package PhpMqtt\Client\Exceptions
  */
-class ConnectingToBrokerFailedException extends MQTTClientException
+class ConnectingToBrokerFailedException extends MqttClientException
 {
     public function __construct(int $code, string $error)
     {

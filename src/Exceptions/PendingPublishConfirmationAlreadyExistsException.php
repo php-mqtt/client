@@ -10,7 +10,7 @@ namespace PhpMqtt\Client\Exceptions;
  *
  * @package PhpMqtt\Client\Exceptions
  */
-class PendingPublishConfirmationAlreadyExistsException extends MQTTClientException
+class PendingPublishConfirmationAlreadyExistsException extends MqttClientException
 {
     public function __construct(int $messageId)
     {

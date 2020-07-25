@@ -9,7 +9,7 @@ namespace PhpMqtt\Client\Exceptions;
  *
  * @package PhpMqtt\Client\Exceptions
  */
-class UnexpectedAcknowledgementException extends MQTTClientException
+class UnexpectedAcknowledgementException extends MqttClientException
 {
     public function __construct(int $code, string $error)
     {
