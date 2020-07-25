@@ -1013,7 +1013,7 @@ class MqttClient implements ClientContract
                 );
             }
             $result   .= $receivedData;
-            $remaining = $remaining - strlen($result);
+            $remaining = $limit - strlen($result);
         }
 
         $this->logger->debug('Read data from the socket: {data}', ['data' => $result]);
