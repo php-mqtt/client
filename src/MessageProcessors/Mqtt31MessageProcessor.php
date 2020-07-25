@@ -86,7 +86,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
 
         // At this point, we can now tell whether the remaining length amount of bytes are available
         // or not. If not, we return the amount of bytes required for the message to be complete.
-        $requiredBufferLength = $byteIndex + 1 + $remainingLength;
+        $requiredBufferLength = $byteIndex + $remainingLength;
         if ($requiredBufferLength > $bufferLength) {
             $requiredBytes = $requiredBufferLength;
             return false;
