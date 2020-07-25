@@ -23,7 +23,7 @@ A very basic publish example requires only three steps: connect, publish and clo
 ```php
 $clientId = 'test-publisher';
 
-$mqtt = new MQTTClient($server, $port, $clientId);
+$mqtt = new MqttClient($server, $port, $clientId);
 $mqtt->connect();
 $mqtt->publish('php-mqtt/client/test', 'Hello World!', 0);
 $mqtt->close();
@@ -40,7 +40,7 @@ Subscribing is a little more complex than publishing as it requires to run an ev
 ```php
 $clientId = 'test-subscriber';
 
-$mqtt = new MQTTClient($server, $port, $clientId);
+$mqtt = new MqttClient($server, $port, $clientId);
 $mqtt->connect();
 $mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
     echo sprintf("Received message on topic [%s]: %s\n", $topic, $message);
@@ -56,7 +56,7 @@ pcntl_async_signals(true);
 
 $clientId = 'test-subscriber';
 
-$mqtt = new MQTTClient($server, $port, $clientId);
+$mqtt = new MqttClient($server, $port, $clientId);
 pcntl_signal(SIGINT, function (int $signal, $info) use ($mqtt) {
     $mqtt->interrupt();
 });
