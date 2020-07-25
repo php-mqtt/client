@@ -847,6 +847,8 @@ class MqttClient implements ClientContract
             );
         }
 
+        $this->logger->debug('Sent data over the socket: {data}', ['data' => $data]);
+
         // After writing successfully to the socket, the broker should have received a new message from us.
         // Because we only need to send a ping if no other messages are delivered, we can safely reset the ping timer.
         $this->lastPingAt = microtime(true);
@@ -868,15 +870,19 @@ class MqttClient implements ClientContract
         $remaining   = $limit;
 
         if ($withoutBlocking) {
-            $receivedData = fread($this->socket, $remaining);
-            if ($receivedData === false) {
+            $result = fread($this->socket, $remaining);
+
+            if ($result === false) {
                 $this->logger->error('Reading data from the socket of the broker failed.');
                 throw new DataTransferException(
                     DataTransferException::EXCEPTION_RX_DATA,
                     'Reading data from the socket failed. Has it been closed?'
                 );
             }
-            return $receivedData;
+
+            $this->logger->debug('Read data from the socket (without blocking): {data}', ['data' => $result]);
+
+            return $result;
         }
 
         while (feof($this->socket) === false && $remaining > 0) {
@@ -891,6 +897,8 @@ class MqttClient implements ClientContract
             $result .= $receivedData;
             $remaining = $limit - strlen($result);
         }
+
+        $this->logger->debug('Read data from the socket: {data}', ['data' => $result]);
 
         return $result;
     }
