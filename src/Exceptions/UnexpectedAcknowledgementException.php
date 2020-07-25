@@ -7,7 +7,7 @@ namespace PhpMqtt\Client\Exceptions;
 /**
  * Exception to be thrown if an MQTT client encountered an unexpected acknowledgement.
  */
-class UnexpectedAcknowledgementException extends MQTTClientException
+class UnexpectedAcknowledgementException extends MqttClientException
 {
     public function __construct(int $code, string $error)
     {

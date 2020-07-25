@@ -7,7 +7,7 @@ namespace PhpMqtt\Client\Exceptions;
 /**
  * Exception to be thrown if an MQTT client error occurs.
  */
-class MQTTClientException extends \Exception
+class MqttClientException extends \Exception
 {
     public function __construct(string $message = '', int $code = 0, \Throwable $parentException = null)
     {

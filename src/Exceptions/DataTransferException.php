@@ -7,7 +7,7 @@ namespace PhpMqtt\Client\Exceptions;
 /**
  * Exception to be thrown if an MQTT client encountered an error while transfering data.
  */
-class DataTransferException extends MQTTClientException
+class DataTransferException extends MqttClientException
 {
     public function __construct(int $code, string $error)
     {
