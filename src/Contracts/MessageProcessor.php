@@ -8,6 +8,7 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
+use PhpMqtt\Client\Message;
 
 /**
  * Implementations of this interface provide message parsing capabilities.
@@ -30,16 +31,19 @@ interface MessageProcessor
      * @param int         $requiredBytes
      * @return bool
      */
-    public function tryParseMessage(string $buffer, int $bufferLength, string &$message = null, int &$requiredBytes = -1): bool;
+    public function tryFindMessageInBuffer(string $buffer, int $bufferLength, string &$message = null, int &$requiredBytes = -1): bool;
 
     /**
-     * Handles the given message based on its message type and contents.
+     * Parses and validates the given message based on its message type and contents.
+     * If no valid message could be found in the data, and no further action is required by the caller,
+     * null is returned.
      *
      * @param string $message
+     * @return Message|null
      * @throws UnexpectedAcknowledgementException
      * @throws MqttClientException
      */
-    public function handleMessage(string $message): void;
+    public function parseAndValidateMessage(string $message): ?Message;
 
     /**
      * Builds a connect message from the given connection settings, taking the protocol

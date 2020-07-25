@@ -15,6 +15,7 @@ use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
+use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
@@ -232,7 +233,7 @@ class MqttClient implements ClientContract
 
                 $message       = null;
                 $requiredBytes = -1;
-                $result        = $this->messageProcessor->tryParseMessage($buffer, strlen($buffer), $message, $requiredBytes);
+                $result        = $this->messageProcessor->tryFindMessageInBuffer($buffer, strlen($buffer), $message, $requiredBytes);
 
                 if ($result === true) {
                     /** @var string $message */
@@ -530,9 +531,9 @@ class MqttClient implements ClientContract
             // Try to parse a message from the buffer and handle it, as long as messages can be parsed.
             if (strlen($this->buffer) > 0) {
                 while (true) {
-                    $message = '';
+                    $data = '';
                     $requiredBytes = -1;
-                    $hasMessage = $this->messageProcessor->tryParseMessage($this->buffer, strlen($this->buffer), $message, $requiredBytes);
+                    $hasMessage = $this->messageProcessor->tryFindMessageInBuffer($this->buffer, strlen($this->buffer), $data, $requiredBytes);
 
                     // When there is no full message in the buffer, we stop processing for now and go on
                     // with the next iteration.
@@ -541,10 +542,15 @@ class MqttClient implements ClientContract
                     }
 
                     // If we found a message, the buffer needs to be reduced by the message length.
-                    $this->buffer = substr($this->buffer, strlen($message));
+                    $this->buffer = substr($this->buffer, strlen($data));
 
-                    // We then pass the message over to the message processor to handle it according to the protocol.
-                    $this->messageProcessor->handleMessage($message);
+                    // We then pass the message over to the message processor to parse and validate it.
+                    $message = $this->messageProcessor->parseAndValidateMessage($data);
+
+                    // The result is used by us to perform required actions according to the protocol.
+                    if ($message !== null) {
+                        $this->handleMessage($message);
+                    }
                 }
             } else {
                 if ($allowSleep) {
@@ -592,6 +598,154 @@ class MqttClient implements ClientContract
                     break;
                 }
             }
+        }
+    }
+
+    /**
+     * Handles the given message according to its contents.
+     *
+     * @param Message $message
+     * @throws DataTransferException
+     * @throws UnexpectedAcknowledgementException
+     */
+    protected function handleMessage(Message $message): void
+    {
+        // PUBLISH
+        if ($message->getType()->equals(MessageType::PUBLISH())) {
+            if ($message->getQualityOfService() === self::QOS_AT_LEAST_ONCE) {
+                $this->sendPublishAcknowledgement($message->getMessageId());
+            }
+
+            if ($message->getQualityOfService() === self::QOS_EXACTLY_ONCE) {
+                try {
+                    $this->sendPublishReceived($message->getMessageId());
+                    $this->repository->addNewPendingPublishConfirmation(
+                        $message->getMessageId(),
+                        $message->getTopic(),
+                        $message->getContent()
+                    );
+                } catch (PendingPublishConfirmationAlreadyExistsException $e) {
+                    // We already received and processed this message, therefore we do not respond
+                    // with a receipt a second time and wait for the release instead.
+                }
+                // We only deliver this published message as soon as we receive a publish complete.
+                return;
+            }
+
+            $this->deliverPublishedMessage($message->getTopic(), $message->getContent(), $message->getQualityOfService());
+        }
+
+        // PUBACK
+        if ($message->getType()->equals(MessageType::PUBLISH_ACKNOWLEDGEMENT())) {
+            $result = $this->repository->removePendingPublishedMessage($message->getMessageId());
+            if ($result === false) {
+                $this->logger->notice('Received publish acknowledgement from the broker for already acknowledged message.');
+                throw new UnexpectedAcknowledgementException(
+                    UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
+                    'The MQTT broker acknowledged a publish that has not been pending anymore.'
+                );
+            }
+
+            $this->repository->releaseMessageId($message->getMessageId());
+        }
+
+        // PUBREC
+        if ($message->getType()->equals(MessageType::PUBLISH_RECEIPT())) {
+            $result = $this->repository->markPendingPublishedMessageAsReceived($message->getMessageId());
+            if ($result === false) {
+                $this->logger->notice('Received publish receipt from the broker for already acknowledged message.');
+                throw new UnexpectedAcknowledgementException(
+                    UnexpectedAcknowledgementException::EXCEPTION_ACK_RECEIVE,
+                    'The MQTT broker sent a receipt for a publish that has not been pending anymore.'
+                );
+            }
+        }
+
+        // PUBREL
+        if ($message->getType()->equals(MessageType::PUBLISH_RELEASE())) {
+            $publishedMessage = $this->repository->getPendingPublishConfirmationWithMessageId($message->getMessageId());
+            $result           = $this->repository->removePendingPublishConfirmation($message->getMessageId());
+            if ($publishedMessage === null || $result === false) {
+                $this->logger->notice('Received publish release from the broker for already released message.');
+                throw new UnexpectedAcknowledgementException(
+                    UnexpectedAcknowledgementException::EXCEPTION_ACK_RELEASE,
+                    'The MQTT broker released a publish that has not been pending anymore.'
+                );
+            }
+
+            $this->deliverPublishedMessage(
+                $publishedMessage->getTopic(),
+                $publishedMessage->getMessage(),
+                $publishedMessage->getQualityOfServiceLevel()
+            );
+
+            $this->sendPublishComplete($message->getMessageId());
+        }
+
+        // PUBCOMP
+        if ($message->getType()->equals(MessageType::PUBLISH_COMPLETE())) {
+            $result = $this->repository->removePendingPublishedMessage($message->getMessageId());
+            if ($result === false) {
+                $this->logger->notice('Received publish completion from the broker for already acknowledged message.');
+                throw new UnexpectedAcknowledgementException(
+                    UnexpectedAcknowledgementException::EXCEPTION_ACK_COMPLETE,
+                    'The MQTT broker sent a completion for a publish that has not been pending anymore.'
+                );
+            }
+
+            $this->repository->releaseMessageId($message->getMessageId());
+        }
+
+        // SUBACK
+        if ($message->getType()->equals(MessageType::SUBSCRIBE_ACKNOWLEDGEMENT())) {
+            $subscriptions    = $this->repository->getTopicSubscriptionsWithMessageId($message->getMessageId());
+
+            if (count($message->getAcknowledgedQualityOfServices()) !== count($subscriptions)) {
+                $this->logger->notice('Received subscribe acknowledgement from the broker with wrong number of QoS acknowledgements.', [
+                    'required' => count($subscriptions),
+                    'received' => count($message->getAcknowledgedQualityOfServices()),
+                ]);
+                throw new UnexpectedAcknowledgementException(
+                    UnexpectedAcknowledgementException::EXCEPTION_ACK_SUBSCRIBE,
+                    sprintf(
+                        'The MQTT broker responded with a different amount of QoS acknowledgements as we have subscriptions.'
+                        . ' Subscriptions: %s, QoS Acknowledgements: %s',
+                        count($subscriptions),
+                        count($message->getAcknowledgedQualityOfServices())
+                    )
+                );
+            }
+
+            foreach ($message->getAcknowledgedQualityOfServices() as $index => $qualityOfServiceLevel) {
+                $subscriptions[$index]->setAcknowledgedQualityOfServiceLevel(intval($qualityOfServiceLevel));
+            }
+
+            $this->repository->releaseMessageId($message->getMessageId());
+        }
+
+        // UNSUBACK
+        if ($message->getType()->equals(MessageType::UNSUBSCRIBE_ACKNOWLEDGEMENT())) {
+            $unsubscribeRequest = $this->repository->getPendingUnsubscribeRequestWithMessageId($message->getMessageId());
+            $result             = $this->repository->removePendingUnsubscribeRequest($message->getMessageId());
+            if ($result === false) {
+                $this->logger->notice('Received unsubscribe acknowledgement from the broker for already acknowledged request.');
+                throw new UnexpectedAcknowledgementException(
+                    UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
+                    'The MQTT broker acknowledged an unsubscribe request that has not been pending anymore.'
+                );
+            }
+
+            if ($unsubscribeRequest !== null) {
+                $this->repository->removeTopicSubscription($unsubscribeRequest->getTopic());
+            }
+
+            $this->repository->releaseMessageId($message->getMessageId());
+        }
+
+        // PINGREQ
+        if ($message->getType()->equals(MessageType::PING_REQUEST())) {
+            // Respond with PINGRESP.
+            $this->writeToSocket(chr(0xd0) . chr(0x00));
         }
     }
 
@@ -753,11 +907,9 @@ class MqttClient implements ClientContract
      */
     protected function ping(): void
     {
-        $data = $this->messageProcessor->buildPingMessage();
-
         $this->logger->debug('Sending ping to the broker to keep the connection alive.');
 
-        $this->writeToSocket($data);
+        $this->writeToSocket($this->messageProcessor->buildPingMessage());
     }
 
     /**

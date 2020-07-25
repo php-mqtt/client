@@ -10,9 +10,9 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Contracts\MqttClient;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
-use PhpMqtt\Client\Exceptions\DataTransferException;
-use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
+use PhpMqtt\Client\Message;
+use PhpMqtt\Client\MessageType;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -50,7 +50,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
     /**
      * {@inheritDoc}
      */
-    public function tryParseMessage(string $buffer, int $bufferLength, string &$message = null, int &$requiredBytes = -1): bool
+    public function tryFindMessageInBuffer(string $buffer, int $bufferLength, string &$message = null, int &$requiredBytes = -1): bool
     {
         // If we received no input, we can return immediately without doing work.
         if ($bufferLength === 0) {
@@ -93,128 +93,6 @@ class Mqtt31MessageProcessor implements MessageProcessor
 
         // Now that we have a full message in the buffer, we can set the output and return.
         $message = substr($buffer, $byteIndex, $remainingLength);
-        return true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function handleMessage(string $message): void
-    {
-        $result = $this->tryDecodeMessage($message, $command, $qualityOfService, $data);
-
-        if ($result === false) {
-            // TODO: throw invalid message exception
-            throw new \Exception('Invalid message');
-        }
-
-        // Ensure the command is supported by this version of the protocol.
-        if ($command <= 0 || $command > 15) {
-            $this->logger->error('Reserved command received from the broker. Supported are commands (including) 1-14.', [
-                'command' => $command,
-            ]);
-            return;
-        }
-
-        // Then handle the command accordingly.
-        switch($command){
-            case 2:
-                throw new UnexpectedAcknowledgementException(
-                    UnexpectedAcknowledgementException::EXCEPTION_ACK_CONNECT,
-                    'We unexpectedly received a connection acknowledgement.'
-                );
-            case 3:
-                $this->handlePublishedMessage($data, $qualityOfService);
-                break;
-            case 4:
-                $this->handlePublishAcknowledgement($data);
-                break;
-            case 5:
-                $this->handlePublishReceipt($data);
-                break;
-            case 6:
-                $this->handlePublishRelease($data);
-                break;
-            case 7:
-                $this->handlePublishCompletion($data);
-                break;
-            case 9:
-                $this->handleSubscribeAcknowledgement($data);
-                break;
-            case 11:
-                $this->handleUnsubscribeAcknowledgement($data);
-                break;
-            case 12:
-                $this->handlePingRequest();
-                break;
-            case 13;
-                $this->handlePingAcknowledgement();
-                break;
-            default:
-                $this->logger->debug('Received message with unsupported command [{command}]. Skipping.', ['command' => $command]);
-                break;
-        }
-    }
-
-    /**
-     * Attempt to decode the given message. If successful, the result is true and the reference
-     * parameters are set accordingly. Otherwise, false is returned and the reference parameters
-     * remain untouched.
-     *
-     * @param string      $message
-     * @param int|null    $command
-     * @param int|null    $qualityOfService
-     * @param string|null $data
-     * @return bool
-     */
-    protected function tryDecodeMessage(string $message, int &$command = null, int &$qualityOfService = null, string &$data = null): bool
-    {
-        // If we received no input, we can return immediately without doing work.
-        if (strlen($message) === 0) {
-            return false;
-        }
-
-        // If we received not at least the fixed header with one length indicating byte,
-        // we know that there can't be a valid message in the buffer. So we return early.
-        if (strlen($message) < 2) {
-            return false;
-        }
-
-        // Read the first byte of a message (command and flags).
-        $byte             = $message[0];
-        $command          = (int)(ord($byte) / 16);
-        $qualityOfService = (ord($byte) & 0x06) >> 1;
-
-        // Read the second byte of a message (remaining length).
-        // If the continuation bit (8) is set on the length byte, another byte will be read as length.
-        $byteIndex       = 1;
-        $remainingLength = 0;
-        $multiplier      = 1;
-        do {
-            // If the buffer has no more data, but we need to read more for the length header,
-            // we cannot give useful information about the remaining length and exit early.
-            if ($byteIndex + 1 > strlen($message)) {
-                return false;
-            }
-
-            // Otherwise, we can take seven bits to calculate the length and the remaining eighth bit
-            // as continuation bit.
-            $digit            = ord($message[$byteIndex]);
-            $remainingLength += ($digit & 127) * $multiplier;
-            $multiplier      *= 128;
-            $byteIndex++;
-        } while (($digit & 128) !== 0);
-
-        // At this point, we can now tell whether the remaining length amount of bytes are available
-        // or not. If not, the message is incomplete.
-        $requiredBytes = $byteIndex + 1 + $remainingLength;
-        if ($requiredBytes > strlen($message)) {
-            return false;
-        }
-
-        // Set the output data based on the calculated bytes.
-        $data = substr($message, $byteIndex, $remainingLength);
-
         return true;
     }
 
@@ -525,313 +403,365 @@ class Mqtt31MessageProcessor implements MessageProcessor
     }
 
     /**
-     * Handles a received message. The buffer contains the whole message except
-     * command and length. The message structure is:
+     * {@inheritDoc}
+     */
+    public function parseAndValidateMessage(string $message): ?Message
+    {
+        $qualityOfService = 0;
+        $data             = '';
+        $result           = $this->tryDecodeMessage($message, $command, $qualityOfService, $data);
+
+        if ($result === false) {
+            // TODO: throw invalid message exception
+            throw new \Exception('Invalid message');
+        }
+
+        // Ensure the command is supported by this version of the protocol.
+        if ($command <= 0 || $command >= 15) {
+            $this->logger->error('Reserved command received from the broker. Supported are commands (including) 1-14.', [
+                'command' => $command,
+            ]);
+            // TODO: throw invalid message exception
+            return null;
+        }
+
+        // Then handle the command accordingly.
+        switch($command){
+            case 0x02:
+                throw new UnexpectedAcknowledgementException(
+                    UnexpectedAcknowledgementException::EXCEPTION_ACK_CONNECT,
+                    'We unexpectedly received a connection acknowledgement.'
+                );
+
+            case 0x03:
+                return $this->parseAndValidatePublishMessage($data, $qualityOfService);
+
+            case 0x04:
+                return $this->parseAndValidatePublishAcknowledgementMessage($data);
+
+            case 0x05:
+                return $this->parseAndValidatePublishReceiptMessage($data);
+
+            case 0x06:
+                return $this->parseAndValidatePublishReleaseMessage($data);
+
+            case 0x07:
+                return $this->parseAndValidatePublishCompleteMessage($data);
+
+            case 0x09:
+                return $this->parseAndValidateSubscribeAcknowledgementMessage($data);
+
+            case 0x0b:
+                return $this->parseAndValidateUnsubscribeAcknowledgementMessage($data);
+
+            case 0x0c:
+                return $this->parseAndValidatePingRequestMessage();
+
+            case 0x0d;
+                return $this->parseAndValidatePingAcknowledgementMessage();
+
+            default:
+                $this->logger->debug('Received message with unsupported command [{command}]. Skipping.', ['command' => $command]);
+                break;
+        }
+
+        // If we arrive here, we must have parsed a message with an unsupported type and it cannot be
+        // very relevant for us. So we return an empty result without information to skip processing.
+        return null;
+    }
+
+    /**
+     * Attempt to decode the given message. If successful, the result is true and the reference
+     * parameters are set accordingly. Otherwise, false is returned and the reference parameters
+     * remain untouched.
+     *
+     * @param string      $message
+     * @param int|null    $command
+     * @param int|null    $qualityOfService
+     * @param string|null $data
+     * @return bool
+     */
+    protected function tryDecodeMessage(string $message, int &$command = null, int &$qualityOfService = null, string &$data = null): bool
+    {
+        // If we received no input, we can return immediately without doing work.
+        if (strlen($message) === 0) {
+            return false;
+        }
+
+        // If we received not at least the fixed header with one length indicating byte,
+        // we know that there can't be a valid message in the buffer. So we return early.
+        if (strlen($message) < 2) {
+            return false;
+        }
+
+        // Read the first byte of a message (command and flags).
+        $byte             = $message[0];
+        $command          = (int)(ord($byte) / 16);
+        $qualityOfService = (ord($byte) & 0x06) >> 1;
+
+        // Read the second byte of a message (remaining length).
+        // If the continuation bit (8) is set on the length byte, another byte will be read as length.
+        $byteIndex       = 1;
+        $remainingLength = 0;
+        $multiplier      = 1;
+        do {
+            // If the buffer has no more data, but we need to read more for the length header,
+            // we cannot give useful information about the remaining length and exit early.
+            if ($byteIndex + 1 > strlen($message)) {
+                return false;
+            }
+
+            // Otherwise, we can take seven bits to calculate the length and the remaining eighth bit
+            // as continuation bit.
+            $digit            = ord($message[$byteIndex]);
+            $remainingLength += ($digit & 127) * $multiplier;
+            $multiplier      *= 128;
+            $byteIndex++;
+        } while (($digit & 128) !== 0);
+
+        // At this point, we can now tell whether the remaining length amount of bytes are available
+        // or not. If not, the message is incomplete.
+        $requiredBytes = $byteIndex + 1 + $remainingLength;
+        if ($requiredBytes > strlen($message)) {
+            return false;
+        }
+
+        // Set the output data based on the calculated bytes.
+        $data = substr($message, $byteIndex, $remainingLength);
+
+        return true;
+    }
+
+    /**
+     * Parses a received published message. The data contains the whole message except the
+     * fixed header with command and length. The message structure is:
      *
      *   [topic-length:topic:message]+
      *
-     * @param string $buffer
+     * @param string $data
      * @param int    $qualityOfServiceLevel
-     * @return void
-     * @throws DataTransferException
+     * @return Message|null
      */
-    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel): void
+    protected function parseAndValidatePublishMessage(string $data, int $qualityOfServiceLevel): ?Message
     {
-        $topicLength = (ord($buffer[0]) << 8) + ord($buffer[1]);
-        $topic       = substr($buffer, 2, $topicLength);
-        $message     = substr($buffer, ($topicLength + 2));
+        $topicLength = (ord($data[0]) << 8) + ord($data[1]);
+        $topic       = substr($data, 2, $topicLength);
+        $content     = substr($data, ($topicLength + 2));
+
+        $message = new Message(MessageType::PUBLISH(), $qualityOfServiceLevel);
 
         if ($qualityOfServiceLevel > self::QOS_AT_MOST_ONCE) {
-            if (strlen($message) < 2) {
-                $this->logger->error('Received a message with QoS level [{qos}] without message identifier.', [
+            if (strlen($content) < 2) {
+                $this->logger->error('Received a message with QoS level [{qos}] without message identifier. Waiting for retransmission.', [
                     'qos' => $qualityOfServiceLevel,
                 ]);
 
                 // This message seems to be incomplete or damaged. We ignore it and wait for a retransmission,
                 // which will occur at some point due to QoS level > 0.
-                return;
+                return null;
             }
 
-            $messageId = $this->decodeMessageId($this->pop($message, 2));
-
-            if ($qualityOfServiceLevel === self::QOS_AT_LEAST_ONCE) {
-                $this->sendPublishAcknowledgement($messageId);
-            }
-
-            if ($qualityOfServiceLevel === self::QOS_EXACTLY_ONCE) {
-                try {
-                    $this->sendPublishReceived($messageId);
-                    $this->repository->addNewPendingPublishConfirmation($messageId, $topic, $message);
-                } catch (PendingPublishConfirmationAlreadyExistsException $e) {
-                    // We already received and processed this message, therefore we do not respond
-                    // with a receipt a second time and wait for the release instead.
-                }
-                // We only deliver this published message as soon as we receive a publish complete.
-                return;
-            }
+            // Publish messages with a quality of service level > 0 require acknowledgement and therefore
+            // also a message identifier.
+            $messageId = $this->decodeMessageId($this->pop($content, 2));
+            $message->setMessageId($messageId);
         }
 
-        $this->deliverPublishedMessage($topic, $message, $qualityOfServiceLevel);
+        return $message
+            ->setTopic($topic)
+            ->setContent($content);
     }
 
     /**
-     * Handles a received publish acknowledgement. The buffer contains the whole
-     * message except command and length. The message structure is:
+     * Parses a received publish acknowledgement. The data contains the whole message except
+     * the fixed header with command and length. The message structure is:
      *
      *   [message-identifier]
      *
-     * @param string $buffer
-     * @return void
+     * @param string $data
+     * @return Message
      * @throws UnexpectedAcknowledgementException
      */
-    protected function handlePublishAcknowledgement(string $buffer): void
+    protected function parseAndValidatePublishAcknowledgementMessage(string $data): Message
     {
-        $this->logger->debug('Handling publish acknowledgement received from the broker.');
-
-        if (strlen($buffer) !== 2) {
+        if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid publish acknowledgement from the broker.');
+            // TODO: throw invalid message exception
             throw new UnexpectedAcknowledgementException(
                 UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
                 'The MQTT broker responded with an invalid publish acknowledgement.'
             );
         }
 
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($data, 2));
 
-        $result = $this->repository->removePendingPublishedMessage($messageId);
-        if ($result === false) {
-            $this->logger->notice('Received publish acknowledgement from the broker for already acknowledged message.');
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
-                'The MQTT broker acknowledged a publish that has not been pending anymore.'
-            );
-        }
-
-        $this->repository->releaseMessageId($messageId);
+        return (new Message(MessageType::PUBLISH_ACKNOWLEDGEMENT()))
+            ->setMessageId($messageId);
     }
 
     /**
-     * Handles a received publish receipt. The buffer contains the whole
-     * message except command and length. The message structure is:
+     * Parses a received publish receipt. The data contains the whole message except the
+     * fixed header with command and length. The message structure is:
      *
      *   [message-identifier]
      *
-     * @param string $buffer
-     * @return void
+     * @param string $data
+     * @return Message
      * @throws UnexpectedAcknowledgementException
      */
-    protected function handlePublishReceipt(string $buffer): void
+    protected function parseAndValidatePublishReceiptMessage(string $data): Message
     {
-        $this->logger->debug('Handling publish receipt from the broker.');
-
-        if (strlen($buffer) !== 2) {
+        if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid publish receipt from the broker.');
+            // TODO: throw invalid message exception
             throw new UnexpectedAcknowledgementException(
                 UnexpectedAcknowledgementException::EXCEPTION_ACK_RECEIVE,
                 'The MQTT broker responded with an invalid publish receipt.'
             );
         }
 
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($data, 2));
 
-        $result = $this->repository->markPendingPublishedMessageAsReceived($messageId);
-        if ($result === false) {
-            $this->logger->notice('Received publish receipt from the broker for already acknowledged message.');
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_RECEIVE,
-                'The MQTT broker sent a receipt for a publish that has not been pending anymore.'
-            );
-        }
+        return (new Message(MessageType::PUBLISH_RECEIPT()))
+            ->setMessageId($messageId);
     }
 
     /**
-     * Handles a received publish release message. The buffer contains the whole
-     * message except command and length. The message structure is:
+     * Parses a received publish release message. The data contains the whole message except the
+     * fixed header with command and length. The message structure is:
      *
      *   [message-identifier]
      *
-     * @param string $buffer
-     * @return void
-     * @throws DataTransferException
+     * @param string $data
+     * @return Message
      * @throws UnexpectedAcknowledgementException
      */
-    protected function handlePublishRelease(string $buffer): void
+    protected function parseAndValidatePublishReleaseMessage(string $data): Message
     {
-        $this->logger->debug('Handling publish release received from the broker.');
-
-        if (strlen($buffer) !== 2) {
+        if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid publish release from the broker.');
+            // TODO: throw invalid message exception
             throw new UnexpectedAcknowledgementException(
                 UnexpectedAcknowledgementException::EXCEPTION_ACK_RELEASE,
                 'The MQTT broker responded with an invalid publish release message.'
             );
         }
 
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($data, 2));
 
-        $message = $this->repository->getPendingPublishConfirmationWithMessageId($messageId);
-
-        $result = $this->repository->removePendingPublishConfirmation($messageId);
-        if ($message === null || $result === false) {
-            $this->logger->notice('Received publish release from the broker for already released message.');
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_RELEASE,
-                'The MQTT broker released a publish that has not been pending anymore.'
-            );
-        }
-
-        $this->deliverPublishedMessage($message->getTopic(), $message->getMessage(), $message->getQualityOfServiceLevel());
-        $this->sendPublishComplete($messageId);
+        return (new Message(MessageType::PUBLISH_RELEASE()))
+            ->setMessageId($messageId);
     }
 
     /**
-     * Handles a received publish confirmation message. The buffer contains the whole
-     * message except command and length. The message structure is:
+     * Parses a received publish confirmation message. The data contains the whole message except the
+     * fixed header with command and length. The message structure is:
      *
      *   [message-identifier]
      *
-     * @param string $buffer
-     * @return void
+     * @param string $data
+     * @return Message
      * @throws UnexpectedAcknowledgementException
      */
-    protected function handlePublishCompletion(string $buffer): void
+    protected function parseAndValidatePublishCompleteMessage(string $data): Message
     {
-        $this->logger->debug('Handling publish completion from the broker.');
-
-        if (strlen($buffer) !== 2) {
+        if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid publish completion from the broker.');
+            // TODO: throw invalid message exception
             throw new UnexpectedAcknowledgementException(
                 UnexpectedAcknowledgementException::EXCEPTION_ACK_COMPLETE,
                 'The MQTT broker responded with an invalid publish completion.'
             );
         }
 
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($data, 2));
 
-        $result = $this->repository->removePendingPublishedMessage($messageId);
-        if ($result === false) {
-            $this->logger->notice('Received publish completion from the broker for already acknowledged message.');
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_COMPLETE,
-                'The MQTT broker sent a completion for a publish that has not been pending anymore.'
-            );
-        }
-
-        $this->repository->releaseMessageId($messageId);
+        return (new Message(MessageType::PUBLISH_COMPLETE()))
+            ->setMessageId($messageId);
     }
 
     /**
-     * Handles a received subscription acknowledgement. The buffer contains the whole
-     * message except command and length. The message structure is:
+     * Parses a received subscription acknowledgement. The data contains the whole message except the
+     * fixed header with command and length. The message structure is:
      *
      *   [message-identifier:[qos-level]+]
      *
      * The order of the received QoS levels matches the order of the sent subscriptions.
      *
-     * @param string $buffer
-     * @return void
+     * @param string $data
+     * @return Message
      * @throws UnexpectedAcknowledgementException
      */
-    protected function handleSubscribeAcknowledgement(string $buffer): void
+    protected function parseAndValidateSubscribeAcknowledgementMessage(string $data): Message
     {
-        $this->logger->debug('Handling subscribe acknowledgement received from the broker.');
-
-        if (strlen($buffer) < 3) {
+        if (strlen($data) < 3) {
             $this->logger->notice('Received invalid subscribe acknowledgement from the broker.');
+            // TODO: throw invalid message exception
             throw new UnexpectedAcknowledgementException(
                 UnexpectedAcknowledgementException::EXCEPTION_ACK_SUBSCRIBE,
                 'The MQTT broker responded with an invalid subscribe acknowledgement.'
             );
         }
 
-        $messageId        = $this->decodeMessageId($this->pop($buffer, 2));
-        $subscriptions    = $this->repository->getTopicSubscriptionsWithMessageId($messageId);
-        $acknowledgements = str_split($buffer);
+        $messageId = $this->decodeMessageId($this->pop($data, 2));
 
-        if (count($acknowledgements) !== count($subscriptions)) {
-            $this->logger->notice('Received subscribe acknowledgement from the broker with wrong number of QoS acknowledgements.', [
-                'required' => count($subscriptions),
-                'received' => count($acknowledgements),
-            ]);
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_SUBSCRIBE,
-                sprintf(
-                    'The MQTT broker responded with a different amount of QoS acknowledgements as we have subscriptions.'
-                    . ' Subscriptions: %s, QoS Acknowledgements: %s',
-                    count($subscriptions),
-                    count($acknowledgements)
-                )
-            );
+        // Parse and validate the QoS acknowledgements.
+        $acknowledgements = str_split($data);
+        foreach ($acknowledgements as $acknowledgement) {
+            if (!in_array($acknowledgement, [0, 1, 2])) {
+                // TODO: throw invalid message exception
+            }
         }
 
-        foreach ($acknowledgements as $index => $qualityOfServiceLevel) {
-            $subscriptions[$index]->setAcknowledgedQualityOfServiceLevel(intval($qualityOfServiceLevel));
-        }
-
-        $this->repository->releaseMessageId($messageId);
+        return (new Message(MessageType::SUBSCRIBE_ACKNOWLEDGEMENT()))
+            ->setMessageId($messageId)
+            ->setAcknowledgedQualityOfServices($acknowledgements);
     }
 
     /**
-     * Handles a received unsubscribe acknowledgement. The buffer contains the whole
-     * message except command and length. The message structure is:
+     * Parses a received unsubscribe acknowledgement. The data contains the whole message except the
+     * fixed header with command and length. The message structure is:
      *
      *   [message-identifier]
      *
-     * @param string $buffer
-     * @return void
+     * @param string $data
+     * @return Message
      * @throws UnexpectedAcknowledgementException
      */
-    protected function handleUnsubscribeAcknowledgement(string $buffer): void
+    protected function parseAndValidateUnsubscribeAcknowledgementMessage(string $data): Message
     {
-        $this->logger->debug('Handling unsubscribe acknowledgement received from the broker.');
-
-        if (strlen($buffer) !== 2) {
+        if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid unsubscribe acknowledgement from the broker.');
+            // TODO: throw invalid message exception
             throw new UnexpectedAcknowledgementException(
                 UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
                 'The MQTT broker responded with an invalid unsubscribe acknowledgement.'
             );
         }
 
-        $messageId = $this->decodeMessageId($this->pop($buffer, 2));
+        $messageId = $this->decodeMessageId($this->pop($data, 2));
 
-        $unsubscribeRequest = $this->repository->getPendingUnsubscribeRequestWithMessageId($messageId);
-        $result             = $this->repository->removePendingUnsubscribeRequest($messageId);
-        if ($result === false) {
-            $this->logger->notice('Received unsubscribe acknowledgement from the broker for already acknowledged request.');
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
-                'The MQTT broker acknowledged an unsubscribe request that has not been pending anymore.'
-            );
-        }
-
-        if ($unsubscribeRequest !== null) {
-            $this->repository->removeTopicSubscription($unsubscribeRequest->getTopic());
-        }
-
-        $this->repository->releaseMessageId($messageId);
+        return (new Message(MessageType::UNSUBSCRIBE_ACKNOWLEDGEMENT()))
+            ->setMessageId($messageId);
     }
 
     /**
-     * Handles a received ping request. Simply sends an acknowledgement.
+     * Parses a received ping request.
      *
-     * @return void
-     * @throws DataTransferException
+     * @return Message
      */
-    protected function handlePingRequest(): void
+    protected function parseAndValidatePingRequestMessage(): Message
     {
-        $this->logger->debug('Received ping request from the broker. Sending response.');
-
-        $this->writeToSocket(chr(0xd0) . chr(0x00));
+        return new Message(MessageType::PING_REQUEST());
     }
 
     /**
-     * Handles a received ping acknowledgement.
+     * Parses a received ping acknowledgement.
      *
-     * @return void
+     * @return Message
      */
-    protected function handlePingAcknowledgement(): void
+    protected function parseAndValidatePingAcknowledgementMessage(): Message
     {
-        $this->logger->debug('Received ping acknowledgement from the broker.');
+        return new Message(MessageType::PING_RESPONSE());
     }
 }
