@@ -18,7 +18,8 @@
     ],
     "autoload": {
         "psr-4": {
-            "PhpMqtt\\Client\\": "src"
+            "PhpMqtt\\Client\\": "src/",
+            "PhpMqtt\\": "src/"
         }
     },
     "require": {

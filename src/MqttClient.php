@@ -117,6 +117,10 @@ class MqttClient implements ClientContract
         $this->repository = $repository;
         $this->logger     = new Logger($logger);
 
+
+        $this->protocol = new \PhpMqtt\Protocol\v3\Protocol();
+
+
         $this->initializeEventHandlers();
     }
 
@@ -180,6 +184,11 @@ class MqttClient implements ClientContract
             $contextOptions['ssl'] = $tlsOptions;
             $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
         }
+        else {
+            $socketContext = stream_context_get_default();
+        }
+
+// return;
 
         $this->socket = stream_socket_client(
             $connectionString,
@@ -201,6 +210,33 @@ class MqttClient implements ClientContract
         stream_set_blocking($this->socket, $this->settings->shouldBlockSocket());
     }
 
+
+    /* FIXME: sample buffered read attempt #1 */
+    protected function readPacket()
+    {
+        static $buffer = "";
+
+        /* initially we require at least 2 bytes (minimum packet size) */
+        $more_bytes = 2;
+
+        /* keep reading until we have enough bytes to decode a full packet */
+        $packet = null;
+        while (strlen($buffer) < $bytes_wanted) {
+            $buffer .= $this->readFromSocket();
+
+            if (strlen($buffer) >= $bytes_wanted) {
+              /* ask the protocol to either decode the packet, or ask for more bytes */
+              $bytes_wanted = $this->protocol->extractPacket($buffer, $packet);
+            }
+            else {
+               print "STILL NOT ENOUGH BYTES...\n";
+               sleep(1);
+            }
+        }
+
+        return $packet;
+    }
+
     /**
      * Sends a connection message over the socket and processes the response.
      * If the socket connection is not established, an exception is thrown.
@@ -213,63 +249,22 @@ class MqttClient implements ClientContract
      */
     protected function performConnectionHandshake(string $username = null, string $password = null, bool $sendCleanSessionFlag = false): void
     {
-        try {
-            $i = 0;
-            $buffer = '';
 
-            // protocol header
-            $buffer .= chr(0x00); $i++; // length of protocol name 1
-            $buffer .= chr(0x06); $i++; // length of protocol name 2
-            $buffer .= chr(0x4d); $i++; // protocol name: M
-            $buffer .= chr(0x51); $i++; // protocol name: Q
-            $buffer .= chr(0x49); $i++; // protocol name: I
-            $buffer .= chr(0x73); $i++; // protocol name: s
-            $buffer .= chr(0x64); $i++; // protocol name: d
-            $buffer .= chr(0x70); $i++; // protocol name: p
-            $buffer .= chr(0x03); $i++; // protocol version (3.1)
+        $pkt = $this->protocol->packet('CONNECT');
+        $pkt->username = $username;
+        $pkt->password = $password;
+        $pkt->cleanSession = $sendCleanSessionFlag;
+        $pkt->keepAlive = $this->settings->getKeepAliveInterval();
+        $pkt->clientId = $this->clientId;
+        if ($this->settings->hasLastWill())
+            $pkt->will = new Message($this->settings->getLastWillTopic(),
+                                     $this->settings->getLastWillMessage());
 
-            // connection flags
-            $flags   = $this->buildConnectionFlags($username, $password, $sendCleanSessionFlag);
-            $buffer .= chr($flags); $i++;
+print "GOT PACKET READY: " . (string) $pkt . "\n";
 
-            // keep alive settings
-            $buffer .= chr($this->settings->getKeepAliveInterval() >> 8); $i++;
-            $buffer .= chr($this->settings->getKeepAliveInterval() & 0xff); $i++;
-
-            // client id (connection identifier)
-            $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
-            $buffer      .= $clientIdPart;
-            $i           += strlen($clientIdPart);
-
-            // last will topic and message
-            if ($this->settings->hasLastWill()) {
-                $topicPart = $this->buildLengthPrefixedString($this->settings->getLastWillTopic());
-                $buffer   .= $topicPart;
-                $i        += strlen($topicPart);
-
-                $messagePart = $this->buildLengthPrefixedString($this->settings->getLastWillMessage());
-                $buffer     .= $messagePart;
-                $i          += strlen($messagePart);
-            }
-
-            // credentials
-            if ($username !== null) {
-                $usernamePart = $this->buildLengthPrefixedString($username);
-                $buffer      .= $usernamePart;
-                $i           += strlen($usernamePart);
-            }
-            if ($password !== null) {
-                $passwordPart = $this->buildLengthPrefixedString($password);
-                $buffer      .= $passwordPart;
-                $i           += strlen($passwordPart);
-            }
-
-            // message type and message length
-            $header = chr(0x10) . chr($i);
-
-            // send the connection message
-            $this->logDebug('Sending connection handshake to broker.');
-            $this->writeToSocket($header . $buffer);
+        // send the connection message
+        $this->logDebug('Sending connection handshake to broker.');
+        $this->writeToSocket($pkt->encode());
 
             // read and process the acknowledgement
             $acknowledgement = $this->readFromSocket(4);
@@ -322,58 +317,13 @@ class MqttClient implements ClientContract
                 $this->logError('The broker refused the connection.');
                 throw new ConnectingToBrokerFailedException(self::EXCEPTION_CONNECTION_FAILED, 'A connection could not be established.');
             }
-        } catch (DataTransferException $e) {
-            $this->logError('While connecting to the broker, a transfer error occurred.');
-            throw new ConnectingToBrokerFailedException(
-                self::EXCEPTION_CONNECTION_FAILED,
-                'A connection could not be established due to data transfer issues.'
-            );
-        }
-    }
-
-    /**
-     * Builds the connection flags from the inputs and settings.
-     *
-     * @param string|null $username
-     * @param string|null $password
-     * @param bool        $sendCleanSessionFlag
-     * @return int
-     */
-    protected function buildConnectionFlags(string $username = null, string $password = null, bool $sendCleanSessionFlag = false): int
-    {
-        $flags = 0;
-
-        if ($sendCleanSessionFlag) {
-            $this->logDebug('Using the [clean session] flag for the connection.');
-            $flags += 1 << 1; // set the `clean session` flag
-        }
-
-        if ($this->settings->hasLastWill()) {
-            $this->logDebug('Using the [will] flag for the connection.');
-            $flags += 1 << 2; // set the `will` flag
-
-            if ($this->settings->getQualityOfService() > self::QOS_AT_MOST_ONCE) {
-                $this->logDebug('Using QoS level [{qos}] for the connection.', ['qos' => $this->settings->getQualityOfService()]);
-                $flags += $this->settings->getQualityOfService() << 3; // set the `qos` bits
-            }
-
-            if ($this->settings->shouldRetain()) {
-                $this->logDebug('Using the [retain] flag for the connection.');
-                $flags += 1 << 5; // set the `retain` flag
-            }
-        }
-
-        if ($password !== null) {
-            $this->logDebug('Using the [password] flag for the connection.');
-            $flags += 1 << 6; // set the `has password` flag
-        }
-
-        if ($username !== null) {
-            $this->logDebug('Using the [username] flag for the connection.');
-            $flags += 1 << 7; // set the `has username` flag
-        }
-
-        return $flags;
+        // } catch (DataTransferException $e) {
+            // $this->logError('While connecting to the broker, a transfer error occurred.');
+            // throw new ConnectingToBrokerFailedException(
+                // self::EXCEPTION_CONNECTION_FAILED,
+                // 'A connection could not be established due to data transfer issues.'
+            // );
+        // }
     }
 
     /**
@@ -1314,6 +1264,8 @@ class MqttClient implements ClientContract
 
         $length = min($length, strlen($data));
 
+print "SOCKET_WRITE [" . strlen($data) . "] " . bin2hex($data) . "\n";
+
         $result = @fwrite($this->socket, $data, $length);
 
         if ($result === false || $result !== $length) {
@@ -1347,6 +1299,9 @@ class MqttClient implements ClientContract
                 $this->logError('Reading data from the socket of the broker failed.');
                 throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket failed. Has it been closed?');
             }
+
+print "SOCKET_READ [" . strlen($receivedData) . "] " . bin2hex($receivedData) . "\n";
+
             return $receivedData;
         }
 
@@ -1359,6 +1314,8 @@ class MqttClient implements ClientContract
             $result .= $receivedData;
             $remaining = $limit - strlen($result);
         }
+
+print "SOCKET_READ [" . strlen($result) . "] " . bin2hex($result) . "\n";
 
         return $result;
     }
