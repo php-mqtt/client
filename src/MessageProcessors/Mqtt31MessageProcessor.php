@@ -92,7 +92,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
         }
 
         // Now that we have a full message in the buffer, we can set the output and return.
-        $message = substr($buffer, $byteIndex, $remainingLength);
+        $message = substr($buffer, 0, $requiredBufferLength);
         return true;
     }
 
@@ -207,7 +207,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
     public function handleConnectAcknowledgement(string $message): void
     {
         if (strlen($message) !== 4 || ($messageType = ord($message[0]) >> 4) !== 2) {
-            $this->logger->error('Expected connect acknowledgement; received a different response else.', ['messageType' => $messageType ?? null]);
+            $this->logger->error('Expected connect acknowledgement; received a different response.', ['messageType' => $messageType ?? null]);
 
             throw new ConnectingToBrokerFailedException(
                 ConnectingToBrokerFailedException::EXCEPTION_CONNECTION_FAILED,
@@ -519,7 +519,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
 
         // At this point, we can now tell whether the remaining length amount of bytes are available
         // or not. If not, the message is incomplete.
-        $requiredBytes = $byteIndex + 1 + $remainingLength;
+        $requiredBytes = $byteIndex + $remainingLength;
         if ($requiredBytes > strlen($message)) {
             return false;
         }
