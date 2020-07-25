@@ -118,7 +118,7 @@ class MqttClient implements ClientContract
         switch ($protocol) {
             case self::MQTT_3_1:
             default:
-                $this->messageProcessor = new Mqtt31MessageProcessor($this, $this->logger);
+                $this->messageProcessor = new Mqtt31MessageProcessor($this->clientId, $this->logger);
         }
 
         $this->initializeEventHandlers();

@@ -8,7 +8,6 @@ use PhpMqtt\Client\Concerns\TranscodesData;
 use PhpMqtt\Client\Concerns\WorksWithBuffers;
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Contracts\MessageProcessor;
-use PhpMqtt\Client\Contracts\MqttClient;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\InvalidMessageException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
@@ -30,8 +29,8 @@ class Mqtt31MessageProcessor implements MessageProcessor
     const QOS_AT_LEAST_ONCE = 1;
     const QOS_EXACTLY_ONCE  = 2;
 
-    /** @var MqttClient */
-    private $client;
+    /** @var string */
+    private $clientId;
 
     /** @var LoggerInterface */
     private $logger;
@@ -39,13 +38,13 @@ class Mqtt31MessageProcessor implements MessageProcessor
     /**
      * Mqtt3MessageProcessor constructor.
      *
-     * @param MqttClient      $client
+     * @param string          $clientId
      * @param LoggerInterface $logger
      */
-    public function __construct(MqttClient $client, LoggerInterface $logger)
+    public function __construct(string $clientId, LoggerInterface $logger)
     {
-        $this->client = $client;
-        $this->logger = $logger;
+        $this->clientId = $clientId;
+        $this->logger   = $logger;
     }
 
     /**
@@ -125,7 +124,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
         $buffer .= chr($connectionSettings->getKeepAliveInterval() & 0xff); $i++;
 
         // Encode and add the client identifier.
-        $clientIdPart = $this->buildLengthPrefixedString($this->client->getClientId());
+        $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
         $buffer      .= $clientIdPart;
         $i           += strlen($clientIdPart);
 
