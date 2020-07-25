@@ -498,7 +498,6 @@ class MqttClient implements ClientContract
      * @param int|null $queueWaitLimit
      * @return void
      * @throws DataTransferException
-     * @throws UnexpectedAcknowledgementException
      * @throws MqttClientException
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void
@@ -549,7 +548,11 @@ class MqttClient implements ClientContract
 
                     // The result is used by us to perform required actions according to the protocol.
                     if ($message !== null) {
-                        $this->handleMessage($message);
+                        try {
+                            $this->handleMessage($message);
+                        } catch (UnexpectedAcknowledgementException $e) {
+                            $this->logger->warning($e);
+                        }
                     }
                 }
             } else {

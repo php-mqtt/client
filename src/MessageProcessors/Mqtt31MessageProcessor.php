@@ -10,6 +10,7 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Contracts\MqttClient;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
+use PhpMqtt\Client\Exceptions\InvalidMessageException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\Message;
 use PhpMqtt\Client\MessageType;
@@ -412,8 +413,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
         $result           = $this->tryDecodeMessage($message, $command, $qualityOfService, $data);
 
         if ($result === false) {
-            // TODO: throw invalid message exception
-            throw new \Exception('Invalid message');
+            throw new InvalidMessageException('The passed message could not be decoded.');
         }
 
         // Ensure the command is supported by this version of the protocol.
@@ -421,8 +421,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
             $this->logger->error('Reserved command received from the broker. Supported are commands (including) 1-14.', [
                 'command' => $command,
             ]);
-            // TODO: throw invalid message exception
-            return null;
+            throw new InvalidMessageException('A reserved command has been used in the message.');
         }
 
         // Then handle the command accordingly.
@@ -580,17 +579,13 @@ class Mqtt31MessageProcessor implements MessageProcessor
      *
      * @param string $data
      * @return Message
-     * @throws UnexpectedAcknowledgementException
+     * @throws InvalidMessageException
      */
     protected function parseAndValidatePublishAcknowledgementMessage(string $data): Message
     {
         if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid publish acknowledgement from the broker.');
-            // TODO: throw invalid message exception
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
-                'The MQTT broker responded with an invalid publish acknowledgement.'
-            );
+            throw new InvalidMessageException('Received invalid publish acknowledgement from the broker.');
         }
 
         $messageId = $this->decodeMessageId($this->pop($data, 2));
@@ -607,17 +602,13 @@ class Mqtt31MessageProcessor implements MessageProcessor
      *
      * @param string $data
      * @return Message
-     * @throws UnexpectedAcknowledgementException
+     * @throws InvalidMessageException
      */
     protected function parseAndValidatePublishReceiptMessage(string $data): Message
     {
         if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid publish receipt from the broker.');
-            // TODO: throw invalid message exception
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_RECEIVE,
-                'The MQTT broker responded with an invalid publish receipt.'
-            );
+            throw new InvalidMessageException('Received invalid publish receipt from the broker.');
         }
 
         $messageId = $this->decodeMessageId($this->pop($data, 2));
@@ -634,17 +625,13 @@ class Mqtt31MessageProcessor implements MessageProcessor
      *
      * @param string $data
      * @return Message
-     * @throws UnexpectedAcknowledgementException
+     * @throws InvalidMessageException
      */
     protected function parseAndValidatePublishReleaseMessage(string $data): Message
     {
         if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid publish release from the broker.');
-            // TODO: throw invalid message exception
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_RELEASE,
-                'The MQTT broker responded with an invalid publish release message.'
-            );
+            throw new InvalidMessageException('Received invalid publish release from the broker.');
         }
 
         $messageId = $this->decodeMessageId($this->pop($data, 2));
@@ -661,17 +648,13 @@ class Mqtt31MessageProcessor implements MessageProcessor
      *
      * @param string $data
      * @return Message
-     * @throws UnexpectedAcknowledgementException
+     * @throws InvalidMessageException
      */
     protected function parseAndValidatePublishCompleteMessage(string $data): Message
     {
         if (strlen($data) !== 2) {
-            $this->logger->notice('Received invalid publish completion from the broker.');
-            // TODO: throw invalid message exception
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_COMPLETE,
-                'The MQTT broker responded with an invalid publish completion.'
-            );
+            $this->logger->notice('Received invalid publish complete from the broker.');
+            throw new InvalidMessageException('Received invalid complete release from the broker.');
         }
 
         $messageId = $this->decodeMessageId($this->pop($data, 2));
@@ -690,17 +673,13 @@ class Mqtt31MessageProcessor implements MessageProcessor
      *
      * @param string $data
      * @return Message
-     * @throws UnexpectedAcknowledgementException
+     * @throws InvalidMessageException
      */
     protected function parseAndValidateSubscribeAcknowledgementMessage(string $data): Message
     {
         if (strlen($data) < 3) {
             $this->logger->notice('Received invalid subscribe acknowledgement from the broker.');
-            // TODO: throw invalid message exception
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_SUBSCRIBE,
-                'The MQTT broker responded with an invalid subscribe acknowledgement.'
-            );
+            throw new InvalidMessageException('Received invalid subscribe acknowledgement from the broker.');
         }
 
         $messageId = $this->decodeMessageId($this->pop($data, 2));
@@ -709,7 +688,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
         $acknowledgements = str_split($data);
         foreach ($acknowledgements as $acknowledgement) {
             if (!in_array($acknowledgement, [0, 1, 2])) {
-                // TODO: throw invalid message exception
+                throw new InvalidMessageException('Received subscribe acknowledgement with invalid QoS values from the broker.');
             }
         }
 
@@ -726,17 +705,13 @@ class Mqtt31MessageProcessor implements MessageProcessor
      *
      * @param string $data
      * @return Message
-     * @throws UnexpectedAcknowledgementException
+     * @throws InvalidMessageException
      */
     protected function parseAndValidateUnsubscribeAcknowledgementMessage(string $data): Message
     {
         if (strlen($data) !== 2) {
             $this->logger->notice('Received invalid unsubscribe acknowledgement from the broker.');
-            // TODO: throw invalid message exception
-            throw new UnexpectedAcknowledgementException(
-                UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
-                'The MQTT broker responded with an invalid unsubscribe acknowledgement.'
-            );
+            throw new InvalidMessageException('Received invalid unsubscribe acknowledgement from the broker.');
         }
 
         $messageId = $this->decodeMessageId($this->pop($data, 2));

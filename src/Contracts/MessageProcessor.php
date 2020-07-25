@@ -6,6 +6,7 @@ namespace PhpMqtt\Client\Contracts;
 
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
+use PhpMqtt\Client\Exceptions\InvalidMessageException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\Message;
@@ -40,6 +41,7 @@ interface MessageProcessor
      *
      * @param string $message
      * @return Message|null
+     * @throws InvalidMessageException
      * @throws UnexpectedAcknowledgementException
      * @throws MqttClientException
      */
