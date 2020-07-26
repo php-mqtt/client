@@ -33,14 +33,14 @@ class ConnectionSettings
     /**
      * Constructs a new settings object.
      *
-     * @param int    $qualityOfService
-     * @param bool   $retain
-     * @param bool   $blockSocket
-     * @param int    $socketTimeout
-     * @param int    $keepAlive
-     * @param int    $resendTimeout
-     * @param string $lastWillTopic
-     * @param string $lastWillMessage
+     * @param int         $qualityOfService
+     * @param bool        $retain
+     * @param bool        $blockSocket
+     * @param int         $socketTimeout
+     * @param int         $keepAlive
+     * @param int         $resendTimeout
+     * @param string|null $lastWillTopic
+     * @param string|null $lastWillMessage
      */
     public function __construct(
         int $qualityOfService = 0,

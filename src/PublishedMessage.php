@@ -39,7 +39,7 @@ class PublishedMessage
      * @param string        $topic
      * @param string        $message
      * @param int           $qualityOfService
-     * @param int           $retain
+     * @param bool          $retain
      * @param DateTime|null $sentAt
      */
     public function __construct(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null)
