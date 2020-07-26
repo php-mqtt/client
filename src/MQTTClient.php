@@ -565,6 +565,16 @@ class MQTTClient implements ClientContract
     }
 
     /**
+     * Returns the next time the broker expects to be pinged.
+     *
+     * @return float
+     */
+    protected function nextPingAt(): float
+    {
+        return ($this->lastPingAt + $this->settings->getKeepAlive());
+    }
+
+    /**
      * Runs an event loop that handles messages from the server and calls the registered
      * callbacks for published messages.
      *
@@ -678,13 +688,6 @@ class MQTTClient implements ClientContract
                 }
             }
 
-            // If the last message of the broker has been received more seconds ago
-            // than specified by the keep alive time, we will send a ping to ensure
-            // the connection is kept alive.
-            if ($this->lastPingAt < (microtime(true) - $this->settings->getKeepAlive())) {
-                $this->ping();
-            }
-
             // Once a second we try to republish messages without confirmation.
             // This will only trigger the republishing though. If a message really
             // gets republished depends on the resend timeout and the last time
@@ -701,6 +704,13 @@ class MQTTClient implements ClientContract
             if (1 < (microtime(true) - $lastResendUnsubscribedAt)) {
                 $this->republishPendingUnsubscribeRequests();
                 $lastResendUnsubscribedAt = microtime(true);
+            }
+
+            // If the last message of the broker has been received more seconds ago
+            // than specified by the keep alive time, we will send a ping to ensure
+            // the connection is kept alive.
+            if ($this->nextPingAt() <= microtime(true)) {
+                $this->ping();
             }
 
             // This check will ensure, that, if we want to exit as soon as all queues
