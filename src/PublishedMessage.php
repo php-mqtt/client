@@ -34,7 +34,7 @@ class PublishedMessage
 
     /**
      * Creates a new published message object.
-     * 
+     *
      * @param int           $messageId
      * @param string        $topic
      * @param string        $message
@@ -58,7 +58,7 @@ class PublishedMessage
 
     /**
      * Returns the message identifier.
-     * 
+     *
      * @return int
      */
     public function getMessageId(): int
@@ -68,7 +68,7 @@ class PublishedMessage
 
     /**
      * Returns the topic of the published message.
-     * 
+     *
      * @return string
      */
     public function getTopic(): string
@@ -78,7 +78,7 @@ class PublishedMessage
 
     /**
      * Returns the content of the published message.
-     * 
+     *
      * @return string
      */
     public function getMessage(): string
@@ -88,7 +88,7 @@ class PublishedMessage
 
     /**
      * Returns the requested quality of service level.
-     * 
+     *
      * @return int
      */
     public function getQualityOfServiceLevel(): int
@@ -98,7 +98,7 @@ class PublishedMessage
 
     /**
      * Determines whether this message wants to be retained.
-     * 
+     *
      * @return bool
      */
     public function wantsToBeRetained(): bool
@@ -108,7 +108,7 @@ class PublishedMessage
 
     /**
      * Returns the date time when the message was last attempted to be sent.
-     * 
+     *
      * @return DateTime
      */
     public function getLastSentAt(): DateTime
@@ -118,7 +118,7 @@ class PublishedMessage
 
     /**
      * Returns the number of times the message has been attempted to be sent.
-     * 
+     *
      * @return int
      */
     public function getSendingAttempts(): int
@@ -138,7 +138,7 @@ class PublishedMessage
 
     /**
      * Sets the date time when the message was last attempted to be sent.
-     * 
+     *
      * @param DateTime $value
      * @return static
      */
@@ -151,7 +151,7 @@ class PublishedMessage
 
     /**
      * Increments the sending attempts by one.
-     * 
+     *
      * @return static
      */
     public function incrementSendingAttempts(): self

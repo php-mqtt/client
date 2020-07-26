@@ -50,7 +50,7 @@ class MemoryRepository implements Repository
 
     /**
      * Adds a topic subscription to the repository.
-     * 
+     *
      * @param TopicSubscription $subscription
      * @return void
      */
@@ -98,7 +98,7 @@ class MemoryRepository implements Repository
 
     /**
      * Get all topic subscriptions matching the given topic.
-     * 
+     *
      * @param string $topic
      * @return TopicSubscription[]
      */
@@ -150,7 +150,7 @@ class MemoryRepository implements Repository
 
     /**
      * Adds a pending published message to the repository.
-     * 
+     *
      * @param PublishedMessage $message
      * @return void
      */
@@ -183,7 +183,7 @@ class MemoryRepository implements Repository
 
     /**
      * Gets a pending published message with the given message identifier, if found.
-     * 
+     *
      * @param int $messageId
      * @return PublishedMessage|null
      */
@@ -200,7 +200,7 @@ class MemoryRepository implements Repository
 
     /**
      * Gets a list of pending published messages last sent before the given date time.
-     * 
+     *
      * @param DateTime $dateTime
      * @return PublishedMessage[]
      */
@@ -242,7 +242,7 @@ class MemoryRepository implements Repository
      * Removes a pending published message from the repository. If a pending message
      * with the given identifier is found and successfully removed from the repository,
      * `true` is returned. Otherwise `false` will be returned.
-     * 
+     *
      * @param int $messageId
      * @return bool
      */

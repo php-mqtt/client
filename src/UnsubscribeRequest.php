@@ -53,7 +53,7 @@ class UnsubscribeRequest
 
     /**
      * Returns the topic of the subscription.
-     * 
+     *
      * @return string
      */
     public function getTopic(): string

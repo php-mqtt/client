@@ -26,7 +26,7 @@ class TopicSubscription
 
     /**
      * Creates a new topic subscription object.
-     * 
+     *
      * @param string   $topic
      * @param callable $callback
      * @param int      $messageId
@@ -43,7 +43,7 @@ class TopicSubscription
 
     /**
      * Returns the topic of the subscription.
-     * 
+     *
      * @return string
      */
     public function getTopic(): string
@@ -54,7 +54,7 @@ class TopicSubscription
     /**
      * Returns the regexified topic. This regex can be used to match
      * incoming messages to subscriptions.
-     * 
+     *
      * @return string
      */
     public function getRegexifiedTopic(): string
@@ -64,7 +64,7 @@ class TopicSubscription
 
     /**
      * Returns the callback for this subscription.
-     * 
+     *
      * @return callable
      */
     public function getCallback(): callable
@@ -74,7 +74,7 @@ class TopicSubscription
 
     /**
      * Returns the message identifier.
-     * 
+     *
      * @return int
      */
     public function getMessageId(): int
@@ -84,7 +84,7 @@ class TopicSubscription
 
     /**
      * Returns the requested quality of service level.
-     * 
+     *
      * @return int
      */
     public function getQualityOfServiceLevel(): int
@@ -94,7 +94,7 @@ class TopicSubscription
 
     /**
      * Returns the acknowledged quality of service level.
-     * 
+     *
      * @return int|null
      */
     public function getAcknowledgedQualityOfServiceLevel(): ?int
@@ -104,7 +104,7 @@ class TopicSubscription
 
     /**
      * Sets the acknowledged quality of service level.
-     * 
+     *
      * @param int $value
      * @return static
      */

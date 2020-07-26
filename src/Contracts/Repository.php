@@ -22,7 +22,7 @@ interface Repository
 
     /**
      * Adds a topic subscription to the repository.
-     * 
+     *
      * @param TopicSubscription $subscription
      * @return void
      */
@@ -49,7 +49,7 @@ interface Repository
 
     /**
      * Get all topic subscriptions matching the given topic.
-     * 
+     *
      * @param string $topic
      * @return TopicSubscription[]
      */
@@ -74,7 +74,7 @@ interface Repository
 
     /**
      * Adds a pending published message to the repository.
-     * 
+     *
      * @param PublishedMessage $message
      * @return void
      */
@@ -95,7 +95,7 @@ interface Repository
 
     /**
      * Gets a pending published message with the given message identifier, if found.
-     * 
+     *
      * @param int $messageId
      * @return PublishedMessage|null
      */
@@ -103,7 +103,7 @@ interface Repository
 
     /**
      * Gets a list of pending published messages last sent before the given date time.
-     * 
+     *
      * @param DateTime $dateTime
      * @return PublishedMessage[]
      */
@@ -123,7 +123,7 @@ interface Repository
      * Removes a pending published message from the repository. If a pending message
      * with the given identifier is found and successfully removed from the repository,
      * `true` is returned. Otherwise `false` will be returned.
-     * 
+     *
      * @param int $messageId
      * @return bool
      */
