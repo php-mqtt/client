@@ -113,10 +113,10 @@ class MQTTClient implements ClientContract
      * If no custom settings are passed, the client will use the default settings.
      * See {@see ConnectionSettings} for more details about the defaults.
      *
-     * @param string|null        $username
-     * @param string|null        $password
-     * @param ConnectionSettings $settings
-     * @param bool               $sendCleanSessionFlag
+     * @param string|null             $username
+     * @param string|null             $password
+     * @param ConnectionSettings|null $settings
+     * @param bool                    $sendCleanSessionFlag
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
@@ -469,6 +469,24 @@ class MQTTClient implements ClientContract
     /**
      * Subscribe to the given topic with the given quality of service.
      *
+     * The subscription callback is passed the topic as first and the message as second
+     * parameter. A third parameter indicates whether the received message has been sent
+     * because it was retained by the broker.
+     *
+     * Example:
+     * ```php
+     * $mqtt->subscribe(
+     *     '/foo/bar/+',
+     *     function (string $topic, string $message, bool $retained) use ($logger) {
+     *         $logger->info("Received {retained} message on topic [{topic}]: {message}", [
+     *             'topic' => $topic,
+     *             'message' => $message,
+     *             'retained' => $retained ? 'retained' : 'live'
+     *         ]);
+     *     }
+     * );
+     * ```
+     *
      * @param string   $topic
      * @param callable $callback
      * @param int      $qualityOfService
@@ -598,6 +616,7 @@ class MQTTClient implements ClientContract
                 // Read the first byte of a message (command and flags).
                 $command          = (int)(ord($byte) / 16);
                 $qualityOfService = (ord($byte) & 0x06) >> 1;
+                $retained         = (bool) (ord($byte) & 0x01);
 
                 // Read the second byte of a message (remaining length)
                 // If the continuation bit (8) is set on the length byte,
@@ -621,7 +640,7 @@ class MQTTClient implements ClientContract
                         case 2:
                             throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
                         case 3:
-                            $this->handlePublishedMessage($buffer, $qualityOfService);
+                            $this->handlePublishedMessage($buffer, $qualityOfService, $retained);
                             break;
                         case 4:
                             $this->handlePublishAcknowledgement($buffer);
@@ -722,10 +741,11 @@ class MQTTClient implements ClientContract
      *
      * @param string $buffer
      * @param int    $qualityOfServiceLevel
+     * @param bool   $retained
      * @return void
      * @throws DataTransferException
      */
-    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel): void
+    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel, bool $retained = false): void
     {
         $topicLength = (ord($buffer[0]) << 8) + ord($buffer[1]);
         $topic       = substr($buffer, 2, $topicLength);
@@ -762,7 +782,7 @@ class MQTTClient implements ClientContract
             }
         }
 
-        $this->deliverPublishedMessage($topic, $message, $qualityOfServiceLevel);
+        $this->deliverPublishedMessage($topic, $message, $qualityOfServiceLevel, $retained);
     }
 
     /**
@@ -1061,9 +1081,10 @@ class MQTTClient implements ClientContract
      * @param string $topic
      * @param string $message
      * @param int    $qualityOfServiceLevel
+     * @param bool   $retained
      * @return void
      */
-    protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel): void
+    protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel, bool $retained = false): void
     {
         $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
 
@@ -1082,7 +1103,7 @@ class MQTTClient implements ClientContract
             }
 
             try {
-                call_user_func($subscriber->getCallback(), $topic, $message);
+                call_user_func($subscriber->getCallback(), $topic, $message, $retained);
             } catch (\Throwable $e) {
                 // We ignore errors produced by custom callbacks.
             }
@@ -1300,7 +1321,7 @@ class MQTTClient implements ClientContract
             ]);
             throw new DataTransferException(self::EXCEPTION_TX_DATA, 'Sending data over the socket failed. Has it been closed?');
         }
-        
+
         // After writing successfully to the socket, the broker should have received a new message from us.
         // Because we only need to send a ping if no other messages are delivered, we can safely reset the ping timer.
         $this->lastPingAt = microtime(true);
