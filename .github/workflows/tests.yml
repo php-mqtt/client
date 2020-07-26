@@ -1,9 +1,10 @@
-name: Unit & Feature Tests
+name: Tests
 
 on: [push]
 
 jobs:
   test-unit:
+    name: Unit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -30,6 +31,7 @@ jobs:
           testsuite: Unit
 
   test-feature:
+    name: Feature
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
