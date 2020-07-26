@@ -56,7 +56,6 @@
     <rule ref="Generic.PHP.DeprecatedFunctions"/>
     <rule ref="Generic.PHP.DisallowShortOpenTag"/>
     <rule ref="Generic.PHP.ForbiddenFunctions"/>
-    <rule ref="Generic.PHP.NoSilencedErrors"/>
     <rule ref="Generic.WhiteSpace.DisallowTabIndent"/>
     <rule ref="Generic.WhiteSpace.ScopeIndent">
         <properties>
