@@ -227,7 +227,9 @@ class MqttClient implements ClientContract
 
             $this->writeToSocket($data);
 
-            $buffer        = '';
+            // Start by waiting for the first byte, then using polling logic to fetch all remaining
+            // data from the socket.
+            $buffer        = $this->readFromSocket(1);
             $requiredBytes = -1;
             while (true) {
                 if ($requiredBytes > 0) {
