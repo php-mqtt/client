@@ -455,7 +455,7 @@ class Mqtt31MessageProcessor implements MessageProcessor
             case 0x0c:
                 return $this->parseAndValidatePingRequestMessage();
 
-            case 0x0d;
+            case 0x0d:
                 return $this->parseAndValidatePingAcknowledgementMessage();
 
             default:
