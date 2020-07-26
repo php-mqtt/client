@@ -113,10 +113,10 @@ class MQTTClient implements ClientContract
      * If no custom settings are passed, the client will use the default settings.
      * See {@see ConnectionSettings} for more details about the defaults.
      *
-     * @param string|null        $username
-     * @param string|null        $password
-     * @param ConnectionSettings $settings
-     * @param bool               $sendCleanSessionFlag
+     * @param string|null             $username
+     * @param string|null             $password
+     * @param ConnectionSettings|null $settings
+     * @param bool                    $sendCleanSessionFlag
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
@@ -724,10 +724,11 @@ class MQTTClient implements ClientContract
      *
      * @param string $buffer
      * @param int    $qualityOfServiceLevel
+     * @param bool   $retained
      * @return void
      * @throws DataTransferException
      */
-    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel, bool $retained = null): void
+    protected function handlePublishedMessage(string $buffer, int $qualityOfServiceLevel, bool $retained = false): void
     {
         $topicLength = (ord($buffer[0]) << 8) + ord($buffer[1]);
         $topic       = substr($buffer, 2, $topicLength);
@@ -1063,9 +1064,10 @@ class MQTTClient implements ClientContract
      * @param string $topic
      * @param string $message
      * @param int    $qualityOfServiceLevel
+     * @param bool   $retained
      * @return void
      */
-    protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel, bool $retained = null): void
+    protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel, bool $retained = false): void
     {
         $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
 
