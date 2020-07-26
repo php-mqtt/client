@@ -12,6 +12,13 @@ use PhpMqtt\Client\TopicSubscription;
 use PhpMqtt\Client\UnsubscribeRequest;
 use SplObjectStorage;
 
+/**
+ * An in-memory implementation of the repository which loses all its data when
+ * being deleted or when a script ends. Using this implementation is fine for
+ * simple uses cases and testing though.
+ *
+ * @package PhpMqtt\Client\Repositories
+ */
 class MemoryRepository implements Repository
 {
     /** @var SplObjectStorage|TopicSubscription[] */
@@ -71,7 +78,7 @@ class MemoryRepository implements Repository
     public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): TopicSubscription
     {
         $subscription = new TopicSubscription($topic, $callback, $messageId, $qualityOfService);
-        
+
         $this->addTopicSubscription($subscription);
 
         return $subscription;
@@ -172,7 +179,14 @@ class MemoryRepository implements Repository
      * @param DateTime|null $sentAt
      * @return PublishedMessage
      */
-    public function addNewPendingPublishedMessage(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null): PublishedMessage
+    public function addNewPendingPublishedMessage(
+        int $messageId,
+        string $topic,
+        string $message,
+        int $qualityOfService,
+        bool $retain,
+        DateTime $sentAt = null
+    ): PublishedMessage
     {
         $message = new PublishedMessage($messageId, $topic, $message, $qualityOfService, $retain, $sentAt);
 
@@ -255,7 +269,7 @@ class MemoryRepository implements Repository
         }
 
         $this->pendingPublishedMessages->detach($message);
-        
+
         return true;
     }
 

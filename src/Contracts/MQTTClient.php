@@ -21,10 +21,10 @@ interface MQTTClient
      * If no custom settings are passed, the client will use the default settings.
      * See {@see ConnectionSettings} for more details about the defaults.
      *
-     * @param string|null        $username
-     * @param string|null        $password
-     * @param ConnectionSettings $settings
-     * @param bool               $sendCleanSessionFlag
+     * @param string|null             $username
+     * @param string|null             $password
+     * @param ConnectionSettings|null $settings
+     * @param bool                    $sendCleanSessionFlag
      * @return void
      * @throws ConnectingToBrokerFailedException
      */

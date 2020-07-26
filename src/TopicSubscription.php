@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
+/**
+ * A simple DTO for subscriptions to a topic which need to be stored in a repository.
+ *
+ * @package PhpMqtt\Client
+ */
 class TopicSubscription
 {
     /** @var string */

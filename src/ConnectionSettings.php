@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
+/**
+ * The settings used during connection to a broker.
+ *
+ * @package PhpMqtt\Client
+ */
 class ConnectionSettings
 {
     /** @var int */
@@ -33,14 +38,14 @@ class ConnectionSettings
     /**
      * Constructs a new settings object.
      *
-     * @param int    $qualityOfService
-     * @param bool   $retain
-     * @param bool   $blockSocket
-     * @param int    $socketTimeout
-     * @param int    $keepAlive
-     * @param int    $resendTimeout
-     * @param string $lastWillTopic
-     * @param string $lastWillMessage
+     * @param int         $qualityOfService
+     * @param bool        $retain
+     * @param bool        $blockSocket
+     * @param int         $socketTimeout
+     * @param int         $keepAlive
+     * @param int         $resendTimeout
+     * @param string|null $lastWillTopic
+     * @param string|null $lastWillMessage
      */
     public function __construct(
         int $qualityOfService = 0,
