@@ -51,8 +51,7 @@ class ConnectionSettings
         int $resendTimeout = 10,
         string $lastWillTopic = null,
         string $lastWillMessage = null
-    )
-    {
+    ) {
         $this->qualityOfService = $qualityOfService;
         $this->retain           = $retain;
         $this->blockSocket      = $blockSocket;

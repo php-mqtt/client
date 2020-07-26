@@ -92,8 +92,7 @@ class MQTTClient implements ClientContract
         string $caFile = null,
         Repository $repository = null,
         LoggerInterface $logger = null
-    )
-    {
+    ) {
         if ($repository === null) {
             $repository = new MemoryRepository();
         }
@@ -125,8 +124,7 @@ class MQTTClient implements ClientContract
         string $password = null,
         ConnectionSettings $settings = null,
         bool $sendCleanSessionFlag = false
-    ): void
-    {
+    ): void {
         $this->logger->info(sprintf('Connecting to MQTT broker [%s:%s].', $this->host, $this->port));
 
         $this->settings = $settings ?? new ConnectionSettings();
@@ -420,8 +418,7 @@ class MQTTClient implements ClientContract
         bool $retain,
         int $messageId = null,
         bool $isDuplicate = false
-    ): void
-    {
+    ): void {
         $this->logger->debug('Publishing an MQTT message.', [
             'broker' => sprintf('%s:%s', $this->host, $this->port),
             'topic' => $topic,
