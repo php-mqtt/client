@@ -403,7 +403,7 @@ class MQTTClient implements ClientContract
 
     /**
      * Builds and publishes a message.
-     * 
+     *
      * @param string   $topic
      * @param string   $message
      * @param int      $qualityOfService
@@ -469,6 +469,24 @@ class MQTTClient implements ClientContract
 
     /**
      * Subscribe to the given topic with the given quality of service.
+     *
+     * The subscription callback is passed the topic as first and the message as second
+     * parameter. A third parameter indicates whether the received message has been sent
+     * because it was retained by the broker.
+     *
+     * Example:
+     * ```php
+     * $mqtt->subscribe(
+     *     '/foo/bar/+',
+     *     function (string $topic, string $message, bool $retained) use ($logger) {
+     *         $logger->info("Received {retained} message on topic [{topic}]: {message}", [
+     *             'topic' => $topic,
+     *             'message' => $message,
+     *             'retained' => $retained ? 'retained' : 'live'
+     *         ]);
+     *     }
+     * );
+     * ```
      *
      * @param string   $topic
      * @param callable $callback
@@ -771,9 +789,9 @@ class MQTTClient implements ClientContract
     /**
      * Handles a received publish acknowledgement. The buffer contains the whole
      * message except command and length. The message structure is:
-     * 
+     *
      *   [message-identifier]
-     * 
+     *
      * @param string $buffer
      * @return void
      * @throws UnexpectedAcknowledgementException
@@ -991,9 +1009,9 @@ class MQTTClient implements ClientContract
     /**
      * Handles a received unsubscribe acknowledgement. The buffer contains the whole
      * message except command and length. The message structure is:
-     * 
+     *
      *   [message-identifier]
-     * 
+     *
      * @param string $buffer
      * @return void
      * @throws UnexpectedAcknowledgementException
@@ -1304,7 +1322,7 @@ class MQTTClient implements ClientContract
             ]);
             throw new DataTransferException(self::EXCEPTION_TX_DATA, 'Sending data over the socket failed. Has it been closed?');
         }
-        
+
         // After writing successfully to the socket, the broker should have received a new message from us.
         // Because we only need to send a ping if no other messages are delivered, we can safely reset the ping timer.
         $this->lastPingAt = microtime(true);
