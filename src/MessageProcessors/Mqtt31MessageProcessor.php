@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client\MessageProcessors;
 
-use PhpMqtt\Client\Concerns\TranscodesData;
-use PhpMqtt\Client\Concerns\WorksWithBuffers;
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
@@ -20,20 +18,10 @@ use Psr\Log\LoggerInterface;
  *
  * @package PhpMqtt\Client\MessageProcessors
  */
-class Mqtt31MessageProcessor implements MessageProcessor
+class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProcessor
 {
-    use TranscodesData,
-        WorksWithBuffers;
-
-    const QOS_AT_MOST_ONCE  = 0;
-    const QOS_AT_LEAST_ONCE = 1;
-    const QOS_EXACTLY_ONCE  = 2;
-
     /** @var string */
     private $clientId;
-
-    /** @var LoggerInterface */
-    private $logger;
 
     /**
      * Mqtt3MessageProcessor constructor.
@@ -43,8 +31,9 @@ class Mqtt31MessageProcessor implements MessageProcessor
      */
     public function __construct(string $clientId, LoggerInterface $logger)
     {
+        parent::__construct($logger);
+
         $this->clientId = $clientId;
-        $this->logger   = $logger;
     }
 
     /**
