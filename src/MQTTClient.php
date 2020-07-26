@@ -25,10 +25,15 @@ class MQTTClient implements ClientContract
 {
     use OffersHooks;
 
+    const EXCEPTION_CONNECTION_SOCKET_ERROR        = 1000;
+    const EXCEPTION_CONNECTION_TLS_ERROR           = 2000;
     const EXCEPTION_CONNECTION_FAILED              = 0001;
     const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
     const EXCEPTION_CONNECTION_IDENTIFIER_REJECTED = 0003;
     const EXCEPTION_CONNECTION_BROKER_UNAVAILABLE  = 0004;
+    const EXCEPTION_CONNECTION_BAD_LOGIN           = 0005;
+    const EXCEPTION_CONNECTION_NOT_AUTHORIZED      = 0006;
+    const EXCEPTION_CONNECTION_UNKNOWN_ERROR       = 0400;
     const EXCEPTION_TX_DATA                        = 0101;
     const EXCEPTION_RX_DATA                        = 0102;
     const EXCEPTION_ACK_CONNECT                    = 0201;
@@ -113,6 +118,9 @@ class MQTTClient implements ClientContract
      * If no custom settings are passed, the client will use the default settings.
      * See {@see ConnectionSettings} for more details about the defaults.
      *
+     * In case there is an existing connection, it will be abruptly closed and
+     * replaced with the new one, as `disconnect()` should be called first.
+     *
      * @param string|null             $username
      * @param string|null             $password
      * @param ConnectionSettings|null $settings
@@ -127,6 +135,10 @@ class MQTTClient implements ClientContract
         bool $sendCleanSessionFlag = false
     ): void
     {
+        // Always abruptly close any previous connection if we are opening a
+        // new one, it is responsibility of the caller to do it properly.
+        $this->closeSocket();
+
         $this->logger->info(sprintf('Connecting to MQTT broker [%s:%s].', $this->host, $this->port));
 
         $this->settings = $settings ?? new ConnectionSettings();
@@ -143,44 +155,114 @@ class MQTTClient implements ClientContract
      */
     protected function establishSocketConnection(): void
     {
-        if ($this->hasCertificateAuthorityFile()) {
-            $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->caFile));
+        $useTls = ($this->settings->shouldUseTls() || $this->hasCertificateAuthorityFile());
 
-            $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
-            $socketContext    = stream_context_create([
-                'ssl' => [
-                    'verify_peer_name' => true,
-                    'cafile' => $this->getCertificateAuthorityFile(),
-                ],
-            ]);
+        $contextOptions = [];
 
-            $this->socket = stream_socket_client(
+        if ($useTls) {
+            $contextOptions['ssl'] = [];
+
+            if ($this->settings->shouldTlsVerifyPeer() || $this->hasCertificateAuthorityFile()) {
+                // As it does not make any sense to specify a certificate file without
+                // enabling peer verification, we automatically enable it in that case
+                $contextOptions['ssl']['verify_peer'] = true;
+            } else {
+                // You get a warning output for free, on every connection
+                $this->logger->warning('Enabled TLS encryption without peer verification - DANGEROUS SECURITY ISSUE');
+                $contextOptions['ssl']['verify_peer'] = false;
+            }
+
+            $contextOptions['ssl']['verify_peer_name'] = $this->settings->shouldTlsVerifyPeerName();
+
+            if ($this->hasCertificateAuthorityFile()) {
+                $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->getCertificateAuthorityFile()));
+                $contextOptions['ssl']['cafile'] = $this->getCertificateAuthorityFile();
+            }
+        }
+
+        $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
+        $socketContext    = stream_context_create($contextOptions);
+        $socket           = @stream_socket_client(
+            $connectionString,
+            $errorCode,
+            $errorMessage,
+            $this->settings->getSocketTimeout(),
+            STREAM_CLIENT_CONNECT,
+            $socketContext
+        );
+
+        if ($socket === false) {
+            $this->logger->error(sprintf(
+                'Establishing a connection with the MQTT broker using connection string [%s] failed: %s (code %d).',
                 $connectionString,
-                $errorCode,
                 $errorMessage,
-                60,
-                STREAM_CLIENT_CONNECT,
-                $socketContext
+                $errorCode
+            ));
+            // errorCode is a POSIX socket error (0-255)
+            throw new ConnectingToBrokerFailedException(
+                self::EXCEPTION_CONNECTION_SOCKET_ERROR,
+                "Socket error [$errorCode]: " . $errorMessage,
+                $errorMessage,
+                (string) $errorCode
             );
+        }
+
+        if ($useTls) {
+            error_clear_last();
+            $retval = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_ANY_CLIENT);
+            if ($retval === false) {
+                // At this point, PHP should have given us something like this:
+                //     SSL operation failed with code 1. OpenSSL Error messages:
+                //     error:1416F086:SSL routines:tls_process_server_certificate:certificate verify failed
+                // We need to get our hands dirty and extract the OpenSSL error
+                // from the PHP message, which luckily gives us a handy newline.
+                $this->parseTlsErrorMessage(error_get_last(), $tlsErrorCode, $tlsErrorMessage);
+
+                $this->logger->error(sprintf(
+                    'Enabling TLS on the connection with the MQTT broker [%s] failed: %s (code %s).',
+                    $connectionString,
+                    $tlsErrorMessage,
+                    $tlsErrorCode
+                ));
+                fclose($socket);
+                throw new ConnectingToBrokerFailedException(
+                    self::EXCEPTION_CONNECTION_TLS_ERROR,
+                    "TLS error [$tlsErrorCode]: " . $tlsErrorMessage,
+                    $tlsErrorMessage,
+                    $tlsErrorCode
+                );
+            }
+        }
+
+        stream_set_timeout($socket, $this->settings->getSocketTimeout());
+        stream_set_blocking($socket, $this->settings->wantsToBlockSocket());
+
+        $this->socket = $socket;
+    }
+
+    /**
+     * Internal parser for SSL-related PHP error messages
+     *
+     * @param array $phpError
+     * @param string $tlsErrorCode
+     * @param string $tlsErrorMessage
+     */
+    private function parseTlsErrorMessage($phpError, &$tlsErrorCode, &$tlsErrorMessage)
+    {
+        if (!$phpError || !isset($phpError['message'])) {
+            $tlsErrorCode    = "UNKNOWN:1";
+            $tlsErrorMessage = "Unknown error";
+            return;
+        } elseif (!preg_match('/:\n(?:error:([0-9A-Z]+):)?(.+)$/', $phpError['message'], $regp)) {
+            $tlsErrorCode    = "UNKNOWN:2";
+            $tlsErrorMessage = $phpError['message'];
+        } elseif ($regp[1] == "") {
+            $tlsErrorCode    = "UNKNOWN:3";
+            $tlsErrorMessage = $regp[2];
         } else {
-            $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
-
-            $this->socket = stream_socket_client(
-                $connectionString,
-                $errorCode,
-                $errorMessage,
-                60,
-                STREAM_CLIENT_CONNECT
-            );
+            $tlsErrorCode    = $regp[1];
+            $tlsErrorMessage = $regp[2];
         }
-
-        if ($this->socket === false) {
-            $this->logger->error(sprintf('Establishing a connection with the MQTT broker using connection string [%s] failed.', $connectionString));
-            throw new ConnectingToBrokerFailedException($errorCode, $errorMessage);
-        }
-
-        stream_set_timeout($this->socket, $this->settings->getSocketTimeout());
-        stream_set_blocking($this->socket, $this->settings->wantsToBlockSocket());
     }
 
     /**
@@ -262,44 +344,61 @@ class MQTTClient implements ClientContract
 
             // read and process the acknowledgement
             $acknowledgement = $this->readFromSocket(4);
-            if (ord($acknowledgement[0]) >> 4 === 2) {
-                switch ($acknowledgement[3]) {
-                    case chr(0):
+            if ($acknowledgement && (ord($acknowledgement[0]) >> 4 === 2)) {
+                switch (ord($acknowledgement[3])) {
+                    case 0:
                         $this->logger->info(sprintf('Connection with MQTT broker at [%s:%s] established successfully.', $this->host, $this->port));
                         break;
-                    case chr(1):
+                    case 1:
                         $this->logger->error(sprintf('The MQTT broker at [%s:%s] does not support MQTT v3.', $this->host, $this->port));
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_PROTOCOL_VERSION,
-                            'The selected MQTT broker does not support MQTT v3.'
+                            'Connection Refused: Protocol version 3.1 is not supported'
                         );
-                    case chr(2):
+                    case 2:
                         $this->logger->error(sprintf('The MQTT broker at [%s:%s] rejected the sent identifier.', $this->host, $this->port));
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_IDENTIFIER_REJECTED,
-                            'The selected MQTT broker rejected the sent identifier.'
+                            'Connection Refused: Client identifier rejected'
                         );
-                    case chr(3):
+                    case 3:
                         $this->logger->error(sprintf('The MQTT broker at [%s:%s] is currently unavailable.', $this->host, $this->port));
                         throw new ConnectingToBrokerFailedException(
                             self::EXCEPTION_CONNECTION_BROKER_UNAVAILABLE,
-                            'The selected MQTT broker is currently unavailable.'
+                            'Connection Refused: Service currently not available'
+                        );
+                    case 4:
+                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] bad user or password.', $this->host, $this->port));
+                        throw new ConnectingToBrokerFailedException(
+                            self::EXCEPTION_CONNECTION_BAD_LOGIN,
+                            'Connection Refused: Bad username or password'
+                        );
+                    case 5:
+                        $this->logger->error(sprintf('The MQTT broker at [%s:%s] denied our connection.', $this->host, $this->port));
+                        throw new ConnectingToBrokerFailedException(
+                            self::EXCEPTION_CONNECTION_NOT_AUTHORIZED,
+                            'Connection Refused: Not authorized'
                         );
                     default:
                         $this->logger->error(sprintf(
-                            'The MQTT broker at [%s:%s] responded with an invalid error code [%s].',
+                            'The MQTT broker at [%s:%s] responded with an invalid error code [0x%02x].',
                             $this->host,
                             $this->port,
-                            $acknowledgement[3]
+                            ord($acknowledgement[3])
                         ));
                         throw new ConnectingToBrokerFailedException(
-                            self::EXCEPTION_CONNECTION_FAILED,
-                            'The selected MQTT broker responded with an invalid error code. A connection could not be established.'
+                            self::EXCEPTION_CONNECTION_UNKNOWN_ERROR,
+                            'Connection Refused: Unknown reason ' . ord($acknowledgement[3])
                         );
                 }
             } else {
-                $this->logger->error(sprintf('The MQTT broker at [%s:%s] refused the connection.', $this->host, $this->port));
-                throw new ConnectingToBrokerFailedException(self::EXCEPTION_CONNECTION_FAILED, 'A connection could not be established.');
+                // The server might have closed the connection without reason, or it might have sent something other
+                // than CONNACK, which would be a protocol violation. Thus, we don't need to distinguish.
+                $this->logger->error(sprintf('The MQTT broker at [%s:%s] closed the connection without reason.', $this->host, $this->port));
+                throw new ConnectingToBrokerFailedException(
+                    self::EXCEPTION_CONNECTION_FAILED,
+                    'Connection closed without reason'
+                );
             }
         } catch (DataTransferException $e) {
             $this->logger->error(sprintf('While connecting to the MQTT broker at [%s:%s], a transfer error occurred.', $this->host, $this->port));
@@ -1418,6 +1517,24 @@ class MQTTClient implements ClientContract
         }
 
         return $result;
+    }
+
+    /**
+     * Closes the socket connection immediately without flushing data queues.
+     */
+    protected function closeSocket(): void
+    {
+        if ($this->socket) {
+            if (@fclose($this->socket)) {
+                $this->logger->debug('Successfully closed socket connection to the broker');
+            } else {
+                $phpError = error_get_last();
+                $this->logger->debug('Closing socket connection failed: {error}', [
+                    'error' => ($phpError ? $phpError['message'] : 'undefined') ]);
+            }
+
+            $this->socket = null;
+        }
     }
 
     /**

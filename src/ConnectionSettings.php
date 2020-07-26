@@ -35,6 +35,15 @@ class ConnectionSettings
     /** @var string */
     private $lastWillMessage;
 
+    /** @var bool */
+    private $useTls;
+
+    /** @var bool */
+    private $tlsVerifyPeer;
+
+    /** @var bool */
+    private $tlsVerifyName;
+
     /**
      * Constructs a new settings object.
      *
@@ -46,6 +55,9 @@ class ConnectionSettings
      * @param int         $resendTimeout
      * @param string|null $lastWillTopic
      * @param string|null $lastWillMessage
+     * @param bool        $useTls
+     * @param bool        $tlsVerifyPeer
+     * @param bool        $tlsVerifyName
      */
     public function __construct(
         int $qualityOfService = 0,
@@ -55,7 +67,10 @@ class ConnectionSettings
         int $keepAlive = 10,
         int $resendTimeout = 10,
         string $lastWillTopic = null,
-        string $lastWillMessage = null
+        string $lastWillMessage = null,
+        bool $useTls = false,
+        bool $tlsVerifyPeer = true,
+        bool $tlsVerifyName = true
     )
     {
         $this->qualityOfService = $qualityOfService;
@@ -66,6 +81,9 @@ class ConnectionSettings
         $this->resendTimeout    = $resendTimeout;
         $this->lastWillTopic    = $lastWillTopic;
         $this->lastWillMessage  = $lastWillMessage;
+        $this->useTls           = $useTls;
+        $this->tlsVerifyPeer    = $tlsVerifyPeer;
+        $this->tlsVerifyName    = $tlsVerifyName;
     }
 
     /**
@@ -168,5 +186,35 @@ class ConnectionSettings
     public function hasLastWill(): bool
     {
         return $this->lastWillTopic !== null && $this->lastWillMessage !== null;
+    }
+
+    /**
+     * Determines whether the client wants to use TLS.
+     *
+     * @return bool
+     */
+    public function shouldUseTls(): bool
+    {
+        return $this->useTls;
+    }
+
+    /**
+     * Determines whether the TLS peer certificate validation must occur.
+     *
+     * @return bool
+     */
+    public function shouldTlsVerifyPeer(): bool
+    {
+        return $this->tlsVerifyPeer;
+    }
+
+    /**
+     * Determines whether we should check for name match of the certificate.
+     *
+     * @return bool
+     */
+    public function shouldTlsVerifyPeerName(): bool
+    {
+        return $this->tlsVerifyName;
     }
 }
