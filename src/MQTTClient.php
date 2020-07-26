@@ -1391,11 +1391,10 @@ class MQTTClient implements ClientContract
             return $receivedData;
         }
 
-        // Before entering the busy waiting for data, set a maximum amount of time to spend
-        if ($this->settings->getSocketTimeout()) {
+        // Before entering busy waiting for data in blocking mode, define when to timeout.
+        $timeout = null;
+        if ($this->settings->getSocketTimeout() > 0) {
             $timeout = microtime(true) + $this->settings->getSocketTimeout();
-        } else {
-            $timeout = null;
         }
 
         while (feof($this->socket) === false && $remaining > 0) {
@@ -1409,11 +1408,11 @@ class MQTTClient implements ClientContract
             $result   .= $receivedData;
             $remaining = $limit - strlen($result);
 
-            // If the server is delaying expected data, we do not want to enter busy waiting.
+            // If the server is delaying the expected data, we do not want to enter busy waiting.
             if ($remaining > 0) {
                 usleep(10000); // 10ms
-                if ($timeout && (microtime(true) > $timeout)) {
-                    throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket timed out');
+                if ($timeout !== null && microtime(true) >= $timeout) {
+                    throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Timed out while reading data from the socket.');
                 }
             }
         }
