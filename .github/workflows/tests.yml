@@ -16,7 +16,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-versions }}
-          tools: phpunit:8.5
+          tools: phpunit:8.5.8
           coverage: pcov
 
       - name: Setup problem matchers for PHP
