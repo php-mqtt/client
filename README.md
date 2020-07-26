@@ -21,9 +21,11 @@ This library requires PHP version 7.2 or higher.
 A very basic publish example requires only three steps: connect, publish and close
 
 ```php
+$server   = 'some-broker.example.com';
+$port     = 1883;
 $clientId = 'test-publisher';
 
-$mqtt = new MQTTClient($server, $port, $clientId);
+$mqtt = new \PhpMqtt\Client\MQTTClient($server, $port, $clientId);
 $mqtt->connect();
 $mqtt->publish('php-mqtt/client/test', 'Hello World!', 0);
 $mqtt->close();
@@ -40,7 +42,7 @@ Subscribing is a little more complex than publishing as it requires to run an ev
 ```php
 $clientId = 'test-subscriber';
 
-$mqtt = new MQTTClient($server, $port, $clientId);
+$mqtt = new \PhpMqtt\Client\MQTTClient($server, $port, $clientId);
 $mqtt->connect();
 $mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
     echo sprintf("Received message on topic [%s]: %s\n", $topic, $message);
@@ -56,7 +58,7 @@ pcntl_async_signals(true);
 
 $clientId = 'test-subscriber';
 
-$mqtt = new MQTTClient($server, $port, $clientId);
+$mqtt = new \PhpMqtt\Client\MQTTClient($server, $port, $clientId);
 pcntl_signal(SIGINT, function (int $signal, $info) use ($mqtt) {
     $mqtt->interrupt();
 });
@@ -66,6 +68,57 @@ $mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
 }, 0);
 $mqtt->loop(true);
 $mqtt->close();
+```
+
+### Client Settings
+
+As shown in the examples above, the `MQTTClient` takes the server, port and client id as first, second and third parameter.
+As fourth parameter, the path to a CA file can be passed which will enable TLS and is used to verify the peer.
+A fifth parameter allows passing a repository (currently, only a `MemoryRepository` is available by default).
+Lastly, a logger can be passed as sixth parameter. If none is given, a null logger is used instead.
+
+Example:
+```php
+$mqtt = new \PhpMqtt\Client\MQTTClient(
+    $server, 
+    $port, 
+    $clientId,
+    '/path/to/ca/file',
+    new \PhpMqtt\Client\Repositories\MemoryRepository(),
+    new Logger()
+);
+```
+
+The logger must implement the `Psr\Log\LoggerInterface`.
+
+### Connection Settings
+
+The `connect()` method of the `MQTTClient` takes four optional parameters:
+1. Username
+2. Password
+3. A `ConnectionSettings` instance
+4. A `boolean` flag indicating whether a clean session should be requested (a random client id does this implicitly)
+
+Example:
+```php
+$mqtt = new \PhpMqtt\Client\MQTTClient($server, $port, $clientId);
+
+$connectionSettings = new \PhpMqtt\Client\ConnectionSettings();
+$mqtt->connect($username, $password, $connectionSettings, true);
+```
+
+The `ConnectionSettings` class has the following constructor and defaults:
+```php
+public function __construct(
+    int $qualityOfService = 0,
+    bool $retain = false,
+    bool $blockSocket = false,
+    int $socketTimeout = 5,
+    int $keepAlive = 10,
+    int $resendTimeout = 10,
+    string $lastWillTopic = null,
+    string $lastWillMessage = null
+) { ... }
 ```
 
 ## Features
