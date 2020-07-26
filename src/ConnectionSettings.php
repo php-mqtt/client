@@ -32,7 +32,7 @@ class ConnectionSettings
 
     /**
      * Constructs a new settings object.
-     * 
+     *
      * @param int    $qualityOfService
      * @param bool   $retain
      * @param bool   $blockSocket
@@ -65,7 +65,7 @@ class ConnectionSettings
 
     /**
      * Returns the desired quality of service level of the client.
-     * 
+     *
      * @return int
      */
     public function getQualityOfServiceLevel(): int
@@ -75,7 +75,7 @@ class ConnectionSettings
 
     /**
      * Determines whether the client is supposed to block the socket.
-     * 
+     *
      * @return bool
      */
     public function wantsToBlockSocket(): bool
@@ -85,7 +85,7 @@ class ConnectionSettings
 
     /**
      * Returns the socket timeout of the client in seconds.
-     * 
+     *
      * @return int
      */
     public function getSocketTimeout(): int
@@ -95,7 +95,7 @@ class ConnectionSettings
 
     /**
      * Returns the keep alive interval used by the client in seconds.
-     * 
+     *
      * @return int
      */
     public function getKeepAlive(): int
@@ -105,7 +105,7 @@ class ConnectionSettings
 
     /**
      * Returns the resend timeout used by the client in seconds.
-     * 
+     *
      * @return int
      */
     public function getResendTimeout(): int
@@ -116,7 +116,7 @@ class ConnectionSettings
     /**
      * Returns the last will topic of the client. When the client loses connection
      * to the broker, this topic will be used to publish the last will message.
-     * 
+     *
      * @return string|null
      */
     public function getLastWillTopic(): ?string
@@ -127,7 +127,7 @@ class ConnectionSettings
     /**
      * Returns the last will message of the client. When the client loses connection
      * to the broker, this message will be published.
-     * 
+     *
      * @return string|null
      */
     public function getLastWillMessage(): ?string
@@ -137,7 +137,7 @@ class ConnectionSettings
 
     /**
      * Determines whether quality of service is required.
-     * 
+     *
      * @return bool
      */
     public function requiresQualityOfService(): bool
@@ -147,7 +147,7 @@ class ConnectionSettings
 
     /**
      * Determines whether message retention is required.
-     * 
+     *
      * @return bool
      */
     public function requiresMessageRetention(): bool
@@ -157,7 +157,7 @@ class ConnectionSettings
 
     /**
      * Determines whether the client has a last will.
-     * 
+     *
      * @return bool
      */
     public function hasLastWill(): bool

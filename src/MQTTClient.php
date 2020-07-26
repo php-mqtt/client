@@ -403,7 +403,7 @@ class MQTTClient implements ClientContract
 
     /**
      * Builds and publishes a message.
-     * 
+     *
      * @param string   $topic
      * @param string   $message
      * @param int      $qualityOfService
@@ -443,8 +443,7 @@ class MQTTClient implements ClientContract
         $buffer   .= $topicPart;
         $i        += strlen($topicPart);
 
-        if ($messageId !== null)
-        {
+        if ($messageId !== null) {
             $buffer .= $this->encodeMessageId($messageId); $i += 2;
         }
 
@@ -592,7 +591,7 @@ class MQTTClient implements ClientContract
             $byte   = $this->readFromSocket(1, true);
 
             if (strlen($byte) === 0) {
-                if($allowSleep){
+                if ($allowSleep) {
                     usleep(100000); // 100ms
                 }
             } else {
@@ -618,7 +617,7 @@ class MQTTClient implements ClientContract
 
                 // Handle the received command according to the $command identifier.
                 if ($command > 0 && $command < 15) {
-                    switch($command){
+                    switch ($command) {
                         case 2:
                             throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
                         case 3:
@@ -645,7 +644,7 @@ class MQTTClient implements ClientContract
                         case 12:
                             $this->handlePingRequest();
                             break;
-                        case 13;
+                        case 13:
                             $this->handlePingAcknowledgement();
                             break;
                         default:
@@ -769,9 +768,9 @@ class MQTTClient implements ClientContract
     /**
      * Handles a received publish acknowledgement. The buffer contains the whole
      * message except command and length. The message structure is:
-     * 
+     *
      *   [message-identifier]
-     * 
+     *
      * @param string $buffer
      * @return void
      * @throws UnexpectedAcknowledgementException
@@ -989,9 +988,9 @@ class MQTTClient implements ClientContract
     /**
      * Handles a received unsubscribe acknowledgement. The buffer contains the whole
      * message except command and length. The message structure is:
-     * 
+     *
      *   [message-identifier]
-     * 
+     *
      * @param string $buffer
      * @return void
      * @throws UnexpectedAcknowledgementException
@@ -1248,15 +1247,15 @@ class MQTTClient implements ClientContract
         $result = '';
 
         do {
-          $digit  = $length % 128;
-          $length = $length >> 7;
+            $digit  = $length % 128;
+            $length = $length >> 7;
 
-          // if there are more digits to encode, set the top bit of this digit
-          if ($length > 0) {
-              $digit = ($digit | 0x80);
-          }
+            // if there are more digits to encode, set the top bit of this digit
+            if ($length > 0) {
+                $digit = ($digit | 0x80);
+            }
 
-          $result .= chr($digit);
+            $result .= chr($digit);
         } while ($length > 0);
 
         return $result;
@@ -1457,7 +1456,7 @@ class MQTTClient implements ClientContract
         $limit = min(strlen($buffer), $limit);
 
         $result = substr($buffer, $limit * (-1));
-        $buffer = substr($buffer, 0 ,$limit * (-1));
+        $buffer = substr($buffer, 0, $limit * (-1));
 
         return $result;
     }
