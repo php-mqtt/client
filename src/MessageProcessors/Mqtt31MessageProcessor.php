@@ -14,7 +14,7 @@ use PhpMqtt\Client\MessageType;
 use Psr\Log\LoggerInterface;
 
 /**
- * This message processor implements the MQTT protocol version 3.
+ * This message processor implements the MQTT protocol version 3.1.
  *
  * @package PhpMqtt\Client\MessageProcessors
  */
@@ -24,7 +24,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     private $clientId;
 
     /**
-     * Mqtt3MessageProcessor constructor.
+     * Creates a new message processor instance which supports version 3.1 of the MQTT protocol.
      *
      * @param string          $clientId
      * @param LoggerInterface $logger
