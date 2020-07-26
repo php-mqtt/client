@@ -7,6 +7,8 @@ namespace PhpMqtt\Client\Exceptions;
 /**
  * Exception to be thrown if a publish message with QoS level 2 is received and a
  * publish receive message has already been sent, but a publish confirmation is pending.
+ *
+ * @package PhpMqtt\Client\Exceptions
  */
 class PendingPublishConfirmationAlreadyExistsException extends MQTTClientException
 {

@@ -10,6 +10,12 @@ use PhpMqtt\Client\PublishedMessage;
 use PhpMqtt\Client\TopicSubscription;
 use PhpMqtt\Client\UnsubscribeRequest;
 
+/**
+ * A repository is a storage backend for the MQTT client where topic subscriptions
+ * and published messages are stored until they are used or delivered.
+ *
+ * @package PhpMqtt\Client\Contracts
+ */
 interface Repository
 {
     /**
@@ -91,7 +97,14 @@ interface Repository
      * @param DateTime|null $sentAt
      * @return PublishedMessage
      */
-    public function addNewPendingPublishedMessage(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null): PublishedMessage;
+    public function addNewPendingPublishedMessage(
+        int $messageId,
+        string $topic,
+        string $message,
+        int $qualityOfService,
+        bool $retain,
+        DateTime $sentAt = null
+    ): PublishedMessage;
 
     /**
      * Gets a pending published message with the given message identifier, if found.

@@ -6,6 +6,12 @@ namespace PhpMqtt\Client;
 
 use DateTime;
 
+/**
+ * A simple DTO for published messages which need to be stored in a repository
+ * while waiting for the confirmation to be deliverable.
+ *
+ * @package PhpMqtt\Client
+ */
 class PublishedMessage
 {
     /** @var int */
@@ -42,7 +48,14 @@ class PublishedMessage
      * @param bool          $retain
      * @param DateTime|null $sentAt
      */
-    public function __construct(int $messageId, string $topic, string $message, int $qualityOfService, bool $retain, DateTime $sentAt = null)
+    public function __construct(
+        int $messageId,
+        string $topic,
+        string $message,
+        int $qualityOfService,
+        bool $retain,
+        DateTime $sentAt = null
+    )
     {
         if ($sentAt === null) {
             $sentAt = new DateTime();

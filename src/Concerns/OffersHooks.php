@@ -26,7 +26,7 @@ trait OffersHooks
      */
     protected function initializeEventHandlers(): void
     {
-        $this->loopEventHandlers = new \SplObjectStorage();
+        $this->loopEventHandlers    = new \SplObjectStorage();
         $this->publishEventHandlers = new \SplObjectStorage();
     }
 

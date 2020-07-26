@@ -6,6 +6,8 @@ namespace PhpMqtt\Client\Exceptions;
 
 /**
  * Exception to be thrown if an MQTT client could not connect to the broker.
+ *
+ * @package PhpMqtt\Client\Exceptions
  */
 class ConnectingToBrokerFailedException extends MQTTClientException
 {

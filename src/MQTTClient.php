@@ -92,7 +92,8 @@ class MQTTClient implements ClientContract
         string $caFile = null,
         Repository $repository = null,
         LoggerInterface $logger = null
-    ) {
+    )
+    {
         if ($repository === null) {
             $repository = new MemoryRepository();
         }
@@ -124,7 +125,8 @@ class MQTTClient implements ClientContract
         string $password = null,
         ConnectionSettings $settings = null,
         bool $sendCleanSessionFlag = false
-    ): void {
+    ): void
+    {
         $this->logger->info(sprintf('Connecting to MQTT broker [%s:%s].', $this->host, $this->port));
 
         $this->settings = $settings ?? new ConnectionSettings();
@@ -144,17 +146,32 @@ class MQTTClient implements ClientContract
         if ($this->hasCertificateAuthorityFile()) {
             $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->caFile));
 
-            $socketContext = stream_context_create([
+            $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
+            $socketContext    = stream_context_create([
                 'ssl' => [
-                'verify_peer_name' => true,
+                    'verify_peer_name' => true,
                     'cafile' => $this->getCertificateAuthorityFile(),
                 ],
             ]);
-            $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
-            $this->socket     = stream_socket_client($connectionString, $errorCode, $errorMessage, 60, STREAM_CLIENT_CONNECT, $socketContext);
+
+            $this->socket = stream_socket_client(
+                $connectionString,
+                $errorCode,
+                $errorMessage,
+                60,
+                STREAM_CLIENT_CONNECT,
+                $socketContext
+            );
         } else {
             $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
-            $this->socket     = stream_socket_client($connectionString, $errorCode, $errorMessage, 60, STREAM_CLIENT_CONNECT);
+
+            $this->socket = stream_socket_client(
+                $connectionString,
+                $errorCode,
+                $errorMessage,
+                60,
+                STREAM_CLIENT_CONNECT
+            );
         }
 
         if ($this->socket === false) {
@@ -176,30 +193,37 @@ class MQTTClient implements ClientContract
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
-    protected function performConnectionHandshake(string $username = null, string $password = null, bool $sendCleanSessionFlag = false): void
+    protected function performConnectionHandshake(
+        string $username = null,
+        string $password = null,
+        bool $sendCleanSessionFlag = false
+    ): void
     {
         try {
-            $i = 0;
+            $i      = 0;
             $buffer = '';
 
             // protocol header
-            $buffer .= chr(0x00); $i++; // length of protocol name 1
-            $buffer .= chr(0x06); $i++; // length of protocol name 2
-            $buffer .= chr(0x4d); $i++; // protocol name: M
-            $buffer .= chr(0x51); $i++; // protocol name: Q
-            $buffer .= chr(0x49); $i++; // protocol name: I
-            $buffer .= chr(0x73); $i++; // protocol name: s
-            $buffer .= chr(0x64); $i++; // protocol name: d
-            $buffer .= chr(0x70); $i++; // protocol name: p
-            $buffer .= chr(0x03); $i++; // protocol version (3.1.1)
+            $buffer .= chr(0x00); // length of protocol name 1
+            $buffer .= chr(0x06); // length of protocol name 2
+            $buffer .= chr(0x4d); // protocol name: M
+            $buffer .= chr(0x51); // protocol name: Q
+            $buffer .= chr(0x49); // protocol name: I
+            $buffer .= chr(0x73); // protocol name: s
+            $buffer .= chr(0x64); // protocol name: d
+            $buffer .= chr(0x70); // protocol name: p
+            $buffer .= chr(0x03); // protocol version (3.1)
+            $i      += 9;
 
             // connection flags
             $flags   = $this->buildConnectionFlags($username, $password, $sendCleanSessionFlag);
-            $buffer .= chr($flags); $i++;
+            $buffer .= chr($flags);
+            $i++;
 
             // keep alive settings
-            $buffer .= chr($this->settings->getKeepAlive() >> 8); $i++;
-            $buffer .= chr($this->settings->getKeepAlive() & 0xff); $i++;
+            $buffer .= chr($this->settings->getKeepAlive() >> 8);
+            $buffer .= chr($this->settings->getKeepAlive() & 0xff);
+            $i      += 2;
 
             // client id (connection identifier)
             $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
@@ -418,7 +442,8 @@ class MQTTClient implements ClientContract
         bool $retain,
         int $messageId = null,
         bool $isDuplicate = false
-    ): void {
+    ): void
+    {
         $this->logger->debug('Publishing an MQTT message.', [
             'broker' => sprintf('%s:%s', $this->host, $this->port),
             'topic' => $topic,
@@ -441,7 +466,8 @@ class MQTTClient implements ClientContract
         $i        += strlen($topicPart);
 
         if ($messageId !== null) {
-            $buffer .= $this->encodeMessageId($messageId); $i += 2;
+            $buffer .= $this->encodeMessageId($messageId);
+            $i      += 2;
         }
 
         $buffer .= $message;
@@ -501,16 +527,18 @@ class MQTTClient implements ClientContract
         $i         = 0;
         $buffer    = '';
         $messageId = $this->nextMessageId();
-        $buffer   .= $this->encodeMessageId($messageId); $i += 2;
+        $buffer   .= $this->encodeMessageId($messageId);
+        $i        += 2;
 
         $topicPart = $this->buildLengthPrefixedString($topic);
         $buffer   .= $topicPart;
         $i        += strlen($topicPart);
-        $buffer   .= chr($qualityOfService); $i++;
+        $buffer   .= chr($qualityOfService);
+        $i++;
 
         $this->repository->addNewTopicSubscription($topic, $callback, $messageId, $qualityOfService);
 
-        $header  = chr(0x82) . chr($i);
+        $header = chr(0x82) . chr($i);
 
         $this->writeToSocket($header . $buffer);
     }
@@ -548,8 +576,8 @@ class MQTTClient implements ClientContract
             'is_duplicate' => $isDuplicate,
         ]);
 
-        $i      = 0;
-        $buffer = $this->encodeMessageId($messageId); $i += 2;
+        $buffer = $this->encodeMessageId($messageId);
+        $i      = 2;
 
         $topicPart = $this->buildLengthPrefixedString($topic);
         $buffer   .= $topicPart;
@@ -621,7 +649,7 @@ class MQTTClient implements ClientContract
                 }
             } else {
                 // Read the first byte of a message (command and flags).
-                $command          = (int)(ord($byte) / 16);
+                $command          = (int) (ord($byte) / 16);
                 $qualityOfService = (ord($byte) & 0x06) >> 1;
                 $retained         = (bool) (ord($byte) & 0x01);
 
@@ -645,7 +673,10 @@ class MQTTClient implements ClientContract
                 if ($command > 0 && $command < 15) {
                     switch ($command) {
                         case 2:
-                            throw new UnexpectedAcknowledgementException(self::EXCEPTION_ACK_CONNECT, 'We unexpectedly received a connection acknowledgement.');
+                            throw new UnexpectedAcknowledgementException(
+                                self::EXCEPTION_ACK_CONNECT,
+                                'We unexpectedly received a connection acknowledgement.'
+                            );
                         case 3:
                             $this->handlePublishedMessage($buffer, $qualityOfService, $retained);
                             break;
@@ -1320,7 +1351,7 @@ class MQTTClient implements ClientContract
 
         $length = min($length, strlen($data));
 
-        $result = @fwrite($this->socket, $data, $length);
+        $result = fwrite($this->socket, $data, $length);
 
         if ($result === false || $result !== $length) {
             $this->logger->error('Sending data over the socket to an MQTT broker failed.', [
@@ -1346,8 +1377,8 @@ class MQTTClient implements ClientContract
      */
     protected function readFromSocket(int $limit = 8192, bool $withoutBlocking = false): string
     {
-        $result      = '';
-        $remaining   = $limit;
+        $result    = '';
+        $remaining = $limit;
 
         if ($withoutBlocking) {
             $receivedData = fread($this->socket, $remaining);
@@ -1368,7 +1399,7 @@ class MQTTClient implements ClientContract
                 ]);
                 throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket failed. Has it been closed?');
             }
-            $result .= $receivedData;
+            $result   .= $receivedData;
             $remaining = $limit - strlen($result);
         }
 
