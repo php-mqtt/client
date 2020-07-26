@@ -38,6 +38,12 @@ class ConnectionSettings
     /** @var string|null */
     private $lastWillMessage = null;
 
+    /** @var string|null */
+    private $username;
+
+    /** @var string|null */
+    private $password;
+
     /** @var bool */
     private $useTls = false;
 
@@ -235,6 +241,44 @@ class ConnectionSettings
     public function hasLastWill(): bool
     {
         return $this->lastWillTopic !== null && $this->lastWillMessage !== null;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getUsername(): ?string
+    {
+        return $this->username;
+    }
+
+    /**
+     * @param string|null $username
+     * @return ConnectionSettings
+     */
+    public function setUsername(?string $username): ConnectionSettings
+    {
+        $this->username = $username;
+
+        return $this;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getPassword(): ?string
+    {
+        return $this->password;
+    }
+
+    /**
+     * @param string|null $password
+     * @return ConnectionSettings
+     */
+    public function setPassword(?string $password): ConnectionSettings
+    {
+        $this->password = $password;
+
+        return $this;
     }
 
     /**
