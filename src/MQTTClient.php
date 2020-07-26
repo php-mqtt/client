@@ -57,9 +57,6 @@ class MQTTClient implements ClientContract
     /** @var string|null */
     private $caFile;
 
-    /** @var resource|null */
-    private $socket;
-
     /** @var float */
     private $lastPingAt;
 
@@ -74,6 +71,9 @@ class MQTTClient implements ClientContract
 
     /** @var bool */
     private $interrupted = false;
+
+    /** @var resource|null */
+    protected $socket;
 
     /**
      * Constructs a new MQTT client which subsequently supports publishing and subscribing.
