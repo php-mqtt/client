@@ -200,7 +200,6 @@ class MQTTClient implements ClientContract
     ): void
     {
         try {
-            $i      = 0;
             $buffer = '';
 
             // protocol header
@@ -213,48 +212,33 @@ class MQTTClient implements ClientContract
             $buffer .= chr(0x64); // protocol name: d
             $buffer .= chr(0x70); // protocol name: p
             $buffer .= chr(0x03); // protocol version (3.1)
-            $i      += 9;
 
             // connection flags
-            $flags   = $this->buildConnectionFlags($username, $password, $sendCleanSessionFlag);
-            $buffer .= chr($flags);
-            $i++;
+            $buffer .= chr($this->buildConnectionFlags($username, $password, $sendCleanSessionFlag));
 
             // keep alive settings
             $buffer .= chr($this->settings->getKeepAlive() >> 8);
             $buffer .= chr($this->settings->getKeepAlive() & 0xff);
-            $i      += 2;
 
             // client id (connection identifier)
-            $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
-            $buffer      .= $clientIdPart;
-            $i           += strlen($clientIdPart);
+            $buffer .= $this->buildLengthPrefixedString($this->clientId);
 
             // last will topic and message
             if ($this->settings->hasLastWill()) {
-                $topicPart = $this->buildLengthPrefixedString($this->settings->getLastWillTopic());
-                $buffer   .= $topicPart;
-                $i        += strlen($topicPart);
-
-                $messagePart = $this->buildLengthPrefixedString($this->settings->getLastWillMessage());
-                $buffer     .= $messagePart;
-                $i          += strlen($messagePart);
+                $buffer .= $this->buildLengthPrefixedString($this->settings->getLastWillTopic());
+                $buffer .= $this->buildLengthPrefixedString($this->settings->getLastWillMessage());
             }
 
             // credentials
             if ($username !== null) {
-                $usernamePart = $this->buildLengthPrefixedString($username);
-                $buffer      .= $usernamePart;
-                $i           += strlen($usernamePart);
+                $buffer .= $this->buildLengthPrefixedString($username);
             }
             if ($password !== null) {
-                $passwordPart = $this->buildLengthPrefixedString($password);
-                $buffer      .= $passwordPart;
-                $i           += strlen($passwordPart);
+                $buffer .= $this->buildLengthPrefixedString($password);
             }
 
             // message type and message length
-            $header = chr(0x10) . chr($i);
+            $header = chr(0x10) . $this->encodeMessageLength(strlen($buffer));
 
             // send the connection message
             $this->logger->info('Sending connection handshake to MQTT broker.');
@@ -458,33 +442,28 @@ class MQTTClient implements ClientContract
             call_user_func($handler, $this, $topic, $message, $messageId, $qualityOfService, $retain);
         }
 
-        $i      = 0;
         $buffer = '';
 
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer   .= $topicPart;
-        $i        += strlen($topicPart);
+        $buffer .= $this->buildLengthPrefixedString($topic);
 
         if ($messageId !== null) {
             $buffer .= $this->encodeMessageId($messageId);
-            $i      += 2;
         }
 
         $buffer .= $message;
-        $i      += strlen($message);
 
         $command = 0x30;
         if ($retain) {
-            $command += 1 << 0;
+            $command |= 1 << 0;
         }
         if ($qualityOfService > 0) {
-            $command += $qualityOfService << 1;
+            $command |= $qualityOfService << 1;
         }
         if ($isDuplicate) {
-            $command += 1 << 3;
+            $command |= 1 << 3;
         }
 
-        $header = chr($command) . $this->encodeMessageLength($i);
+        $header = chr($command) . $this->encodeMessageLength(strlen($buffer));
 
         $this->writeToSocket($header . $buffer);
     }
@@ -524,21 +503,19 @@ class MQTTClient implements ClientContract
             'qos' => $qualityOfService,
         ]);
 
-        $i         = 0;
-        $buffer    = '';
         $messageId = $this->nextMessageId();
-        $buffer   .= $this->encodeMessageId($messageId);
-        $i        += 2;
 
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer   .= $topicPart;
-        $i        += strlen($topicPart);
-        $buffer   .= chr($qualityOfService);
-        $i++;
+        $buffer = '';
+
+        $buffer .= $this->encodeMessageId($messageId);
+
+        $buffer .= $this->buildLengthPrefixedString($topic);
+
+        $buffer .= chr($qualityOfService);
 
         $this->repository->addNewTopicSubscription($topic, $callback, $messageId, $qualityOfService);
 
-        $header = chr(0x82) . chr($i);
+        $header = chr(0x82) . $this->encodeMessageLength(strlen($buffer));
 
         $this->writeToSocket($header . $buffer);
     }
@@ -576,15 +553,15 @@ class MQTTClient implements ClientContract
             'is_duplicate' => $isDuplicate,
         ]);
 
-        $buffer = $this->encodeMessageId($messageId);
-        $i      = 2;
+        $buffer = '';
 
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer   .= $topicPart;
-        $i        += strlen($topicPart);
+        $buffer .= $this->encodeMessageId($messageId);
+
+        $buffer .= $this->buildLengthPrefixedString($topic);
 
         $command = 0xa2 | ($isDuplicate ? 1 << 3 : 0);
-        $header  = chr($command) . chr($i);
+
+        $header = chr($command) . $this->encodeMessageLength(strlen($buffer));
 
         $this->writeToSocket($header . $buffer);
     }
