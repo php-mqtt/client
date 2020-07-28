@@ -90,27 +90,30 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
      */
     public function buildConnectMessage(ConnectionSettings $connectionSettings, bool $useCleanSession = false): string
     {
-        $i = 0;
+        $i      = 0;
         $buffer = '';
 
         // The protocol name and version.
-        $buffer .= chr(0x00); $i++; // length of protocol name 1
-        $buffer .= chr(0x06); $i++; // length of protocol name 2
-        $buffer .= chr(0x4d); $i++; // protocol name: M
-        $buffer .= chr(0x51); $i++; // protocol name: Q
-        $buffer .= chr(0x49); $i++; // protocol name: I
-        $buffer .= chr(0x73); $i++; // protocol name: s
-        $buffer .= chr(0x64); $i++; // protocol name: d
-        $buffer .= chr(0x70); $i++; // protocol name: p
-        $buffer .= chr(0x03); $i++; // protocol version (3)
+        $buffer .= chr(0x00); // length of protocol name 1
+        $buffer .= chr(0x06); // length of protocol name 2
+        $buffer .= chr(0x4d); // protocol name: M
+        $buffer .= chr(0x51); // protocol name: Q
+        $buffer .= chr(0x49); // protocol name: I
+        $buffer .= chr(0x73); // protocol name: s
+        $buffer .= chr(0x64); // protocol name: d
+        $buffer .= chr(0x70); // protocol name: p
+        $buffer .= chr(0x03); // protocol version (3)
+        $i      += 9;
 
         // Build connection flags based on the connection settings.
         $flags   = $this->buildConnectionFlags($connectionSettings, $useCleanSession);
-        $buffer .= chr($flags); $i++;
+        $buffer .= chr($flags);
+        $i++;
 
         // Encode and add the keep alive interval.
-        $buffer .= chr($connectionSettings->getKeepAliveInterval() >> 8); $i++;
-        $buffer .= chr($connectionSettings->getKeepAliveInterval() & 0xff); $i++;
+        $buffer .= chr($connectionSettings->getKeepAliveInterval() >> 8);
+        $buffer .= chr($connectionSettings->getKeepAliveInterval() & 0xff);
+        $i      += 2;
 
         // Encode and add the client identifier.
         $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
@@ -218,7 +221,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
             );
         }
 
-        $errorCode = ord($message[3]);
+        $errorCode  = ord($message[3]);
         $logContext = ['errorCode' => sprintf('0x%02X', $errorCode)];
 
         switch ($errorCode) {
@@ -305,10 +308,11 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         $i        += strlen($topicPart);
 
         // Encode the quality of service level.
-        $buffer   .= chr($qualityOfService); $i++;
+        $buffer .= chr($qualityOfService);
+        $i++;
 
         // The header consists of the message type 0x82 and the length.
-        $header  = chr(0x82) . chr($i);
+        $header = chr(0x82) . chr($i);
 
         return $header . $buffer;
     }
@@ -427,7 +431,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         }
 
         // Then handle the command accordingly.
-        switch($command){
+        switch ($command){
             case 0x02:
                 throw new UnexpectedAcknowledgementException(
                     UnexpectedAcknowledgementException::EXCEPTION_ACK_CONNECT,
@@ -497,7 +501,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
 
         // Read the first byte of a message (command and flags).
         $byte             = $message[0];
-        $command          = (int)(ord($byte) / 16);
+        $command          = (int) (ord($byte) / 16);
         $qualityOfService = (ord($byte) & 0x06) >> 1;
 
         // Read the second byte of a message (remaining length).

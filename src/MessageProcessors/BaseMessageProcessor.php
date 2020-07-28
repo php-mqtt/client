@@ -33,6 +33,6 @@ abstract class BaseMessageProcessor
      */
     public function __construct(LoggerInterface $logger)
     {
-        $this->logger   = $logger;
+        $this->logger = $logger;
     }
 }

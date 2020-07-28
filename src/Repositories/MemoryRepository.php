@@ -57,8 +57,7 @@ class MemoryRepository implements Repository
      */
     public function newMessageId(): int
     {
-        do
-        {
+        do {
             $this->rotateMessageId();
 
             $messageId = $this->lastMessageId;

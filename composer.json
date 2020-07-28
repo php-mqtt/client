@@ -36,7 +36,7 @@
         "squizlabs/php_codesniffer": "^3.5"
     },
     "scripts": {
-        "test:cs": "vendor/bin/phpcs src tests",
-        "fix:cs": "vendor/bin/phpcbf src tests"
+        "test:cs": "vendor/bin/phpcs",
+        "fix:cs": "vendor/bin/phpcbf"
     }
 }

@@ -171,7 +171,7 @@ class MqttClient implements ClientContract
      */
     protected function establishSocketConnection(): void
     {
-        $contextOptions = [];
+        $contextOptions   = [];
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
 
         if ($this->settings->shouldUseTls()) {
@@ -192,7 +192,7 @@ class MqttClient implements ClientContract
             }
 
             $contextOptions['ssl'] = $tlsOptions;
-            $connectionString = 'tls://' . $this->getHost() . ':' . $this->getPort();
+            $connectionString      = 'tls://' . $this->getHost() . ':' . $this->getPort();
         }
 
         $this->socket = stream_socket_client(
@@ -572,9 +572,9 @@ class MqttClient implements ClientContract
             // Try to parse a message from the buffer and handle it, as long as messages can be parsed.
             if (strlen($this->buffer) > 0) {
                 while (true) {
-                    $data = '';
+                    $data          = '';
                     $requiredBytes = -1;
-                    $hasMessage = $this->messageProcessor->tryFindMessageInBuffer($this->buffer, strlen($this->buffer), $data, $requiredBytes);
+                    $hasMessage    = $this->messageProcessor->tryFindMessageInBuffer($this->buffer, strlen($this->buffer), $data, $requiredBytes);
 
                     // When there is no full message in the buffer, we stop processing for now and go on
                     // with the next iteration.
@@ -743,7 +743,7 @@ class MqttClient implements ClientContract
 
         // SUBACK
         if ($message->getType()->equals(MessageType::SUBSCRIBE_ACKNOWLEDGEMENT())) {
-            $subscriptions    = $this->repository->getTopicSubscriptionsWithMessageId($message->getMessageId());
+            $subscriptions = $this->repository->getTopicSubscriptionsWithMessageId($message->getMessageId());
 
             if (count($message->getAcknowledgedQualityOfServices()) !== count($subscriptions)) {
                 $this->logger->notice('Received subscribe acknowledgement from the broker with wrong number of QoS acknowledgements.', [

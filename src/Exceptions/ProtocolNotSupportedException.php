@@ -6,6 +6,8 @@ namespace PhpMqtt\Client\Exceptions;
 
 /**
  * Exception to be thrown if an invalid MQTT version is given.
+ *
+ * @package PhpMqtt\Client\Exceptions
  */
 class ProtocolNotSupportedException extends MqttClientException
 {
