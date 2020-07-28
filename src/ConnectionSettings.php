@@ -39,10 +39,10 @@ class ConnectionSettings
     private $lastWillMessage = null;
 
     /** @var string|null */
-    private $username;
+    private $username = null;
 
     /** @var string|null */
-    private $password;
+    private $password = null;
 
     /** @var bool */
     private $useTls = false;
@@ -68,9 +68,11 @@ class ConnectionSettings
      */
     public function setQualityOfService(int $qualityOfService): ConnectionSettings
     {
-        $this->qualityOfService = $qualityOfService;
+        $copy = clone $this;
 
-        return $this;
+        $copy->qualityOfService = $qualityOfService;
+
+        return $copy;
     }
 
     /**
@@ -87,9 +89,11 @@ class ConnectionSettings
      */
     public function setRetain(bool $retain): ConnectionSettings
     {
-        $this->retain = $retain;
+        $copy = clone $this;
 
-        return $this;
+        $copy->retain = $retain;
+
+        return $copy;
     }
 
     /**
@@ -106,9 +110,11 @@ class ConnectionSettings
      */
     public function setBlockSocket(bool $blockSocket): ConnectionSettings
     {
-        $this->blockSocket = $blockSocket;
+        $copy = clone $this;
 
-        return $this;
+        $copy->blockSocket = $blockSocket;
+
+        return $copy;
     }
 
     /**
@@ -125,9 +131,11 @@ class ConnectionSettings
      */
     public function setConnectTimeout(int $connectTimeout): ConnectionSettings
     {
-        $this->connectTimeout = $connectTimeout;
+        $copy = clone $this;
 
-        return $this;
+        $copy->connectTimeout = $connectTimeout;
+
+        return $copy;
     }
 
     /**
@@ -144,9 +152,11 @@ class ConnectionSettings
      */
     public function setSocketTimeout(int $socketTimeout): ConnectionSettings
     {
-        $this->socketTimeout = $socketTimeout;
+        $copy = clone $this;
 
-        return $this;
+        $copy->socketTimeout = $socketTimeout;
+
+        return $copy;
     }
 
     /**
@@ -163,9 +173,11 @@ class ConnectionSettings
      */
     public function setKeepAliveInterval(int $keepAliveInterval): ConnectionSettings
     {
-        $this->keepAliveInterval = $keepAliveInterval;
+        $copy = clone $this;
 
-        return $this;
+        $copy->keepAliveInterval = $keepAliveInterval;
+
+        return $copy;
     }
 
     /**
@@ -182,9 +194,11 @@ class ConnectionSettings
      */
     public function setResendTimeout(int $resendTimeout): ConnectionSettings
     {
-        $this->resendTimeout = $resendTimeout;
+        $copy = clone $this;
 
-        return $this;
+        $copy->resendTimeout = $resendTimeout;
+
+        return $copy;
     }
 
     /**
@@ -201,9 +215,11 @@ class ConnectionSettings
      */
     public function setLastWillTopic(?string $lastWillTopic): ConnectionSettings
     {
-        $this->lastWillTopic = $lastWillTopic;
+        $copy = clone $this;
 
-        return $this;
+        $copy->lastWillTopic = $lastWillTopic;
+
+        return $copy;
     }
 
     /**
@@ -220,9 +236,11 @@ class ConnectionSettings
      */
     public function setLastWillMessage(?string $lastWillMessage): ConnectionSettings
     {
-        $this->lastWillMessage = $lastWillMessage;
+        $copy = clone $this;
 
-        return $this;
+        $copy->lastWillMessage = $lastWillMessage;
+
+        return $copy;
     }
 
     /**
@@ -244,6 +262,19 @@ class ConnectionSettings
     }
 
     /**
+     * @param string|null $username
+     * @return ConnectionSettings
+     */
+    public function setUsername(?string $username): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->username = $username;
+
+        return $copy;
+    }
+
+    /**
      * @return string|null
      */
     public function getUsername(): ?string
@@ -252,14 +283,16 @@ class ConnectionSettings
     }
 
     /**
-     * @param string|null $username
+     * @param string|null $password
      * @return ConnectionSettings
      */
-    public function setUsername(?string $username): ConnectionSettings
+    public function setPassword(?string $password): ConnectionSettings
     {
-        $this->username = $username;
+        $copy = clone $this;
 
-        return $this;
+        $copy->password = $password;
+
+        return $copy;
     }
 
     /**
@@ -271,25 +304,16 @@ class ConnectionSettings
     }
 
     /**
-     * @param string|null $password
-     * @return ConnectionSettings
-     */
-    public function setPassword(?string $password): ConnectionSettings
-    {
-        $this->password = $password;
-
-        return $this;
-    }
-
-    /**
      * @param bool $useTls
      * @return ConnectionSettings
      */
     public function setUseTls(bool $useTls): ConnectionSettings
     {
-        $this->useTls = $useTls;
+        $copy = clone $this;
 
-        return $this;
+        $copy->useTls = $useTls;
+
+        return $copy;
     }
 
     /**
@@ -306,9 +330,11 @@ class ConnectionSettings
      */
     public function setTlsVerifyPeer(bool $tlsVerifyPeer): ConnectionSettings
     {
-        $this->tlsVerifyPeer = $tlsVerifyPeer;
+        $copy = clone $this;
 
-        return $this;
+        $copy->tlsVerifyPeer = $tlsVerifyPeer;
+
+        return $copy;
     }
 
     /**
@@ -325,9 +351,11 @@ class ConnectionSettings
      */
     public function setTlsVerifyPeerName(bool $tlsVerifyPeerName): ConnectionSettings
     {
-        $this->tlsVerifyPeerName = $tlsVerifyPeerName;
+        $copy = clone $this;
 
-        return $this;
+        $copy->tlsVerifyPeerName = $tlsVerifyPeerName;
+
+        return $copy;
     }
 
     /**
@@ -344,9 +372,11 @@ class ConnectionSettings
      */
     public function setTlsSelfSignedAllowed(bool $tlsSelfSignedAllowed): ConnectionSettings
     {
-        $this->tlsSelfSignedAllowed = $tlsSelfSignedAllowed;
+        $copy = clone $this;
 
-        return $this;
+        $copy->tlsSelfSignedAllowed = $tlsSelfSignedAllowed;
+
+        return $copy;
     }
 
     /**
@@ -363,9 +393,11 @@ class ConnectionSettings
      */
     public function setTlsCertificateAuthorityFile(?string $tlsCertificateAuthorityFile): ConnectionSettings
     {
-        $this->tlsCertificateAuthorityFile = $tlsCertificateAuthorityFile;
+        $copy = clone $this;
 
-        return $this;
+        $copy->tlsCertificateAuthorityFile = $tlsCertificateAuthorityFile;
+
+        return $copy;
     }
 
     /**
@@ -382,9 +414,11 @@ class ConnectionSettings
      */
     public function setTlsCertificateAuthorityPath(?string $tlsCertificateAuthorityPath): ConnectionSettings
     {
-        $this->tlsCertificateAuthorityPath = $tlsCertificateAuthorityPath;
+        $copy = clone $this;
 
-        return $this;
+        $copy->tlsCertificateAuthorityPath = $tlsCertificateAuthorityPath;
+
+        return $copy;
     }
 
     /**
