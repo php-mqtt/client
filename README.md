@@ -118,7 +118,6 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings())
     // The QoS level 
     ->setUsername(null)
     ->setPassword(null)
-    ->setBlockSocket(false)
     ->setConnectTimeout(60)
     ->setSocketTimeout(5)
     ->setKeepAliveInterval(10)

@@ -17,9 +17,6 @@ class ConnectionSettings
     /** @var string|null */
     private $password = null;
 
-    /** @var bool */
-    private $blockSocket = false;
-
     /** @var int */
     private $connectTimeout = 60;
 
@@ -102,27 +99,6 @@ class ConnectionSettings
     public function getPassword(): ?string
     {
         return $this->password;
-    }
-
-    /**
-     * @param bool $blockSocket
-     * @return ConnectionSettings
-     */
-    public function setBlockSocket(bool $blockSocket): ConnectionSettings
-    {
-        $copy = clone $this;
-
-        $copy->blockSocket = $blockSocket;
-
-        return $copy;
-    }
-
-    /**
-     * @return bool
-     */
-    public function shouldBlockSocket(): bool
-    {
-        return $this->blockSocket;
     }
 
     /**
