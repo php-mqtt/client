@@ -149,6 +149,18 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     /**
      * Builds the connection flags from the inputs and settings.
      *
+     * The bit structure of the connection flags is as follows:
+     *   0 - reserved
+     *   1 - clean session flag
+     *   2 - last will flag
+     *   3 - QoS flag (1)
+     *   4 - QoS flag (2)
+     *   5 - retain last will flag
+     *   6 - password flag
+     *   7 - username flag
+     *
+     * @link http://public.dhe.ibm.com/software/dw/webservices/ws-mqtt/mqtt-v3r1.html#connect MQTT 3.1 Spec
+     *
      * @param ConnectionSettings $connectionSettings
      * @param bool               $useCleanSession
      * @return int
@@ -159,32 +171,34 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
 
         if ($useCleanSession) {
             $this->logger->debug('Using the [clean session] flag for the connection.');
-            $flags += 1 << 1; // set the `clean session` flag
+            $flags += 1 << 1;
         }
 
         if ($connectionSettings->hasLastWill()) {
             $this->logger->debug('Using the [will] flag for the connection.');
-            $flags += 1 << 2; // set the `will` flag
+            $flags += 1 << 2;
 
-            if ($connectionSettings->getQualityOfService() > self::QOS_AT_MOST_ONCE) {
-                $this->logger->debug('Using QoS level [{qos}] for the connection.', ['qos' => $connectionSettings->getQualityOfService()]);
-                $flags += $connectionSettings->getQualityOfService() << 3; // set the `qos` bits
+            if ($connectionSettings->getLastWillQualityOfService() > self::QOS_AT_MOST_ONCE) {
+                $this->logger->debug('Using last will QoS level [{qos}] for the connection.', [
+                    'qos' => $connectionSettings->getLastWillQualityOfService(),
+                ]);
+                $flags += $connectionSettings->getLastWillQualityOfService() << 3;
             }
 
-            if ($connectionSettings->shouldRetain()) {
-                $this->logger->debug('Using the [retain] flag for the connection.');
-                $flags += 1 << 5; // set the `retain` flag
+            if ($connectionSettings->shouldRetainLastWill()) {
+                $this->logger->debug('Using the [retain last will] flag for the connection.');
+                $flags += 1 << 5;
             }
         }
 
         if ($connectionSettings->getPassword() !== null) {
             $this->logger->debug('Using the [password] flag for the connection.');
-            $flags += 1 << 6; // set the `has password` flag
+            $flags += 1 << 6;
         }
 
         if ($connectionSettings->getUsername() !== null) {
             $this->logger->debug('Using the [username] flag for the connection.');
-            $flags += 1 << 7; // set the `has username` flag
+            $flags += 1 << 7;
         }
 
         return $flags;

@@ -11,11 +11,11 @@ namespace PhpMqtt\Client;
  */
 class ConnectionSettings
 {
-    /** @var int */
-    private $qualityOfService = 0;
+    /** @var string|null */
+    private $username = null;
 
-    /** @var bool */
-    private $retain = false;
+    /** @var string|null */
+    private $password = null;
 
     /** @var bool */
     private $blockSocket = false;
@@ -32,17 +32,17 @@ class ConnectionSettings
     /** @var int */
     private $resendTimeout = 10;
 
+    /** @var int */
+    private $lastWillQualityOfService = 0;
+
+    /** @var bool */
+    private $lastWillRetain = false;
+
     /** @var string|null */
     private $lastWillTopic = null;
 
     /** @var string|null */
     private $lastWillMessage = null;
-
-    /** @var string|null */
-    private $username = null;
-
-    /** @var string|null */
-    private $password = null;
 
     /** @var bool */
     private $useTls = false;
@@ -63,45 +63,45 @@ class ConnectionSettings
     private $tlsCertificateAuthorityPath = null;
 
     /**
-     * @param int $qualityOfService
+     * @param string|null $username
      * @return ConnectionSettings
      */
-    public function setQualityOfService(int $qualityOfService): ConnectionSettings
+    public function setUsername(?string $username): ConnectionSettings
     {
         $copy = clone $this;
 
-        $copy->qualityOfService = $qualityOfService;
+        $copy->username = $username;
 
         return $copy;
     }
 
     /**
-     * @return int
+     * @return string|null
      */
-    public function getQualityOfService(): int
+    public function getUsername(): ?string
     {
-        return $this->qualityOfService;
+        return $this->username;
     }
 
     /**
-     * @param bool $retain
+     * @param string|null $password
      * @return ConnectionSettings
      */
-    public function setRetain(bool $retain): ConnectionSettings
+    public function setPassword(?string $password): ConnectionSettings
     {
         $copy = clone $this;
 
-        $copy->retain = $retain;
+        $copy->password = $password;
 
         return $copy;
     }
 
     /**
-     * @return bool
+     * @return string|null
      */
-    public function shouldRetain(): bool
+    public function getPassword(): ?string
     {
-        return $this->retain;
+        return $this->password;
     }
 
     /**
@@ -210,6 +210,48 @@ class ConnectionSettings
     }
 
     /**
+     * @param int $lastWillQualityOfService
+     * @return ConnectionSettings
+     */
+    public function setLastWillQualityOfService(int $lastWillQualityOfService): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->lastWillQualityOfService = $lastWillQualityOfService;
+
+        return $copy;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLastWillQualityOfService(): int
+    {
+        return $this->lastWillQualityOfService;
+    }
+
+    /**
+     * @param bool $lastWillRetain
+     * @return ConnectionSettings
+     */
+    public function setRetainLastWill(bool $lastWillRetain): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->lastWillRetain = $lastWillRetain;
+
+        return $copy;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldRetainLastWill(): bool
+    {
+        return $this->lastWillRetain;
+    }
+
+    /**
      * @param string|null $lastWillTopic
      * @return ConnectionSettings
      */
@@ -259,48 +301,6 @@ class ConnectionSettings
     public function hasLastWill(): bool
     {
         return $this->lastWillTopic !== null && $this->lastWillMessage !== null;
-    }
-
-    /**
-     * @param string|null $username
-     * @return ConnectionSettings
-     */
-    public function setUsername(?string $username): ConnectionSettings
-    {
-        $copy = clone $this;
-
-        $copy->username = $username;
-
-        return $copy;
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getUsername(): ?string
-    {
-        return $this->username;
-    }
-
-    /**
-     * @param string|null $password
-     * @return ConnectionSettings
-     */
-    public function setPassword(?string $password): ConnectionSettings
-    {
-        $copy = clone $this;
-
-        $copy->password = $password;
-
-        return $copy;
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getPassword(): ?string
-    {
-        return $this->password;
     }
 
     /**
