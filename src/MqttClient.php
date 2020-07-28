@@ -32,7 +32,7 @@ class MqttClient implements ClientContract
     use GeneratesRandomClientIds,
         OffersHooks;
 
-    const MQTT_3_1 = 3;
+    const MQTT_3_1 = '3.1';
 
     const QOS_AT_MOST_ONCE  = 0;
     const QOS_AT_LEAST_ONCE = 1;
@@ -87,7 +87,7 @@ class MqttClient implements ClientContract
      * @param string               $host
      * @param int                  $port
      * @param string|null          $clientId
-     * @param int                  $protocol
+     * @param string               $protocol
      * @param Repository|null      $repository
      * @param LoggerInterface|null $logger
      * @throws ProtocolNotSupportedException
@@ -96,7 +96,7 @@ class MqttClient implements ClientContract
         string $host,
         int $port = 1883,
         string $clientId = null,
-        int $protocol = self::MQTT_3_1,
+        string $protocol = self::MQTT_3_1,
         Repository $repository = null,
         LoggerInterface $logger = null
     )

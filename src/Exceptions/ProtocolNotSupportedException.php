@@ -9,7 +9,7 @@ namespace PhpMqtt\Client\Exceptions;
  */
 class ProtocolNotSupportedException extends MqttClientException
 {
-    public function __construct(int $protocol)
+    public function __construct(string $protocol)
     {
         parent::__construct(sprintf('The given protocol version [%s] is not supported.', $protocol));
     }
