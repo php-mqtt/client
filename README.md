@@ -1,10 +1,13 @@
 # php-mqtt/client
 
-[![Latest Stable Version](https://poser.pugx.org/php-mqtt/client/v)](//packagist.org/packages/php-mqtt/client) [![Total Downloads](https://poser.pugx.org/php-mqtt/client/downloads)](//packagist.org/packages/php-mqtt/client) [![License](https://poser.pugx.org/php-mqtt/client/license)](//packagist.org/packages/php-mqtt/client)
+[![Latest Stable Version](https://poser.pugx.org/php-mqtt/client/v)](//packagist.org/packages/php-mqtt/client)
+[![Total Downloads](https://poser.pugx.org/php-mqtt/client/downloads)](//packagist.org/packages/php-mqtt/client)
+[![License](https://poser.pugx.org/php-mqtt/client/license)](//packagist.org/packages/php-mqtt/client)
 
-[`php-mqtt/client`](https://packagist.org/packages/php-mqtt/client) was created by, and is maintained by [Namoshek](https://github.com/namoshek).
+[`php-mqtt/client`](https://packagist.org/packages/php-mqtt/client) was created by, and is maintained
+by [Namoshek](https://github.com/namoshek).
 It allows you to connect to an MQTT broker where you can publish messages and subscribe to topics.
-The implementation supports all QoS levels ([with limitations](#limitations)).
+The current implementation supports all QoS levels ([with limitations](#limitations)).
 
 ## Installation
 
@@ -23,7 +26,7 @@ A very basic publish example requires only three steps: connect, publish and clo
 ```php
 $clientId = 'test-publisher';
 
-$mqtt = new MqttClient($server, $port, $clientId);
+$mqtt = new \PhpMqtt\Client\MqttClient($server, $port, $clientId);
 $mqtt->connect();
 $mqtt->publish('php-mqtt/client/test', 'Hello World!', 0);
 $mqtt->close();
@@ -40,7 +43,7 @@ Subscribing is a little more complex than publishing as it requires to run an ev
 ```php
 $clientId = 'test-subscriber';
 
-$mqtt = new MqttClient($server, $port, $clientId);
+$mqtt = new \PhpMqtt\Client\MqttClient($server, $port, $clientId);
 $mqtt->connect();
 $mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
     echo sprintf("Received message on topic [%s]: %s\n", $topic, $message);
@@ -56,7 +59,7 @@ pcntl_async_signals(true);
 
 $clientId = 'test-subscriber';
 
-$mqtt = new MqttClient($server, $port, $clientId);
+$mqtt = new \PhpMqtt\Client\MqttClient($server, $port, $clientId);
 pcntl_signal(SIGINT, function (int $signal, $info) use ($mqtt) {
     $mqtt->interrupt();
 });
@@ -66,6 +69,70 @@ $mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
 }, 0);
 $mqtt->loop(true);
 $mqtt->close();
+```
+
+### Client Settings
+
+As shown in the examples above, the `MqttClient` takes the server, port and client id as first, second and third parameter.
+As fourth parameter, the protocol level can be passed. Currently supported is MQTT v3.1,
+available as constant `MqttClient::MQTT_3_1`.
+A fifth parameter allows passing a repository (currently, only a `MemoryRepository` is available by default).
+Lastly, a logger can be passed as sixth parameter. If none is given, a null logger is used instead.
+
+Example:
+```php
+$mqtt = new \PhpMqtt\Client\MQTTClient(
+    $server, 
+    $port, 
+    $clientId,
+    MqttClient::MQTT_3_1,
+    new \PhpMqtt\Client\Repositories\MemoryRepository(),
+    new Logger()
+);
+```
+
+The `Logger` must implement the `Psr\Log\LoggerInterface`.
+
+### Connection Settings
+
+The `connect()` method of the `MQTTClient` takes two optional parameters:
+1. A `ConnectionSettings` instance
+2. A `boolean` flag indicating whether a clean session should be requested (a random client id does this implicitly)
+
+Example:
+```php
+$mqtt = new \PhpMqtt\Client\MQTTClient($server, $port, $clientId);
+
+$connectionSettings = new \PhpMqtt\Client\ConnectionSettings();
+$mqtt->connect($connectionSettings, true);
+```
+
+The `ConnectionSettings` class provides a few settings through a fluent interface. The type itself is immutable,
+and a new `ConnectionSettings` instance will be created for each added option.
+This also prevents changes to the connection settings after a connection has been established.
+
+The following is a complete list of options with their respective default:
+```php
+$connectionSettings = (new \PhpMqtt\Client\ConnectionSettings())
+
+    // The QoS level 
+    ->setUsername(null)
+    ->setPassword(null)
+    ->setBlockSocket(false)
+    ->setConnectTimeout(60)
+    ->setSocketTimeout(5)
+    ->setKeepAliveInterval(10)
+    ->setResendTimeout(10)
+    ->setLastWillTopic(null)
+    ->setLastWillMessage(null)
+    ->setLastWillQualityOfService(0)
+    ->setRetainLastWill(false)
+    ->setUseTls(false)
+    ->setTlsVerifyPeer(true)
+    ->setTlsVerifyPeerName(true)
+    ->setTlsSelfSignedAllowed(false)
+    ->setTlsCertificateAuthorityFile(null)
+    ->setTlsCertificateAuthorityPath(null);
 ```
 
 ## Features
