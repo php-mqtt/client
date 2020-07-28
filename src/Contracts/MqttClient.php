@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpMqtt\Client\Contracts;
 
 use PhpMqtt\Client\ConnectionSettings;
+use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
@@ -24,6 +25,7 @@ interface MqttClient
      * @param ConnectionSettings|null $settings
      * @param bool                    $sendCleanSessionFlag
      * @return void
+     * @throws ConfigurationInvalidException
      * @throws ConnectingToBrokerFailedException
      */
     public function connect(

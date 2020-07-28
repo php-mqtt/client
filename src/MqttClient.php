@@ -8,10 +8,12 @@ use DateInterval;
 use DateTime;
 use PhpMqtt\Client\Concerns\GeneratesRandomClientIds;
 use PhpMqtt\Client\Concerns\OffersHooks;
+use PhpMqtt\Client\Concerns\ValidatesConfiguration;
 use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Contracts\MqttClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
+use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
@@ -30,7 +32,8 @@ use Psr\Log\LoggerInterface;
 class MqttClient implements ClientContract
 {
     use GeneratesRandomClientIds,
-        OffersHooks;
+        OffersHooks,
+        ValidatesConfiguration;
 
     const MQTT_3_1 = '3.1';
 
@@ -132,6 +135,7 @@ class MqttClient implements ClientContract
      * @param ConnectionSettings|null $settings
      * @param bool                    $sendCleanSessionFlag
      * @return void
+     * @throws ConfigurationInvalidException
      * @throws ConnectingToBrokerFailedException
      */
     public function connect(
@@ -142,6 +146,8 @@ class MqttClient implements ClientContract
         $this->logger->debug('Connecting to broker.');
 
         $this->settings = $settings ?? new ConnectionSettings();
+
+        $this->ensureConnectionSettingsAreValid($settings);
 
         try {
             $this->establishSocketConnection();
