@@ -166,12 +166,12 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
             $this->logger->debug('Using the [will] flag for the connection.');
             $flags += 1 << 2; // set the `will` flag
 
-            if ($$connectionSettings->getQualityOfService() > self::QOS_AT_MOST_ONCE) {
-                $this->logger->debug('Using QoS level [{qos}] for the connection.', ['qos' => $$connectionSettings->getQualityOfService()]);
-                $flags += $$connectionSettings->getQualityOfService() << 3; // set the `qos` bits
+            if ($connectionSettings->getQualityOfService() > self::QOS_AT_MOST_ONCE) {
+                $this->logger->debug('Using QoS level [{qos}] for the connection.', ['qos' => $connectionSettings->getQualityOfService()]);
+                $flags += $connectionSettings->getQualityOfService() << 3; // set the `qos` bits
             }
 
-            if ($$connectionSettings->shouldRetain()) {
+            if ($connectionSettings->shouldRetain()) {
                 $this->logger->debug('Using the [retain] flag for the connection.');
                 $flags += 1 << 5; // set the `retain` flag
             }
