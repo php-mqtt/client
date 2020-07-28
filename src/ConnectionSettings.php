@@ -32,17 +32,17 @@ class ConnectionSettings
     /** @var int */
     private $resendTimeout = 10;
 
-    /** @var int */
-    private $lastWillQualityOfService = 0;
-
-    /** @var bool */
-    private $lastWillRetain = false;
-
     /** @var string|null */
     private $lastWillTopic = null;
 
     /** @var string|null */
     private $lastWillMessage = null;
+
+    /** @var int */
+    private $lastWillQualityOfService = 0;
+
+    /** @var bool */
+    private $lastWillRetain = false;
 
     /** @var bool */
     private $useTls = false;
@@ -210,48 +210,6 @@ class ConnectionSettings
     }
 
     /**
-     * @param int $lastWillQualityOfService
-     * @return ConnectionSettings
-     */
-    public function setLastWillQualityOfService(int $lastWillQualityOfService): ConnectionSettings
-    {
-        $copy = clone $this;
-
-        $copy->lastWillQualityOfService = $lastWillQualityOfService;
-
-        return $copy;
-    }
-
-    /**
-     * @return int
-     */
-    public function getLastWillQualityOfService(): int
-    {
-        return $this->lastWillQualityOfService;
-    }
-
-    /**
-     * @param bool $lastWillRetain
-     * @return ConnectionSettings
-     */
-    public function setRetainLastWill(bool $lastWillRetain): ConnectionSettings
-    {
-        $copy = clone $this;
-
-        $copy->lastWillRetain = $lastWillRetain;
-
-        return $copy;
-    }
-
-    /**
-     * @return bool
-     */
-    public function shouldRetainLastWill(): bool
-    {
-        return $this->lastWillRetain;
-    }
-
-    /**
      * @param string|null $lastWillTopic
      * @return ConnectionSettings
      */
@@ -301,6 +259,48 @@ class ConnectionSettings
     public function hasLastWill(): bool
     {
         return $this->lastWillTopic !== null && $this->lastWillMessage !== null;
+    }
+
+    /**
+     * @param int $lastWillQualityOfService
+     * @return ConnectionSettings
+     */
+    public function setLastWillQualityOfService(int $lastWillQualityOfService): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->lastWillQualityOfService = $lastWillQualityOfService;
+
+        return $copy;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLastWillQualityOfService(): int
+    {
+        return $this->lastWillQualityOfService;
+    }
+
+    /**
+     * @param bool $lastWillRetain
+     * @return ConnectionSettings
+     */
+    public function setRetainLastWill(bool $lastWillRetain): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->lastWillRetain = $lastWillRetain;
+
+        return $copy;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldRetainLastWill(): bool
+    {
+        return $this->lastWillRetain;
     }
 
     /**
