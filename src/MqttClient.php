@@ -19,6 +19,7 @@ use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
+use PhpMqtt\Client\Exceptions\TopicNotSubscribedException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
 use PhpMqtt\Client\Repositories\MemoryRepository;
@@ -594,12 +595,16 @@ class MqttClient implements ClientContract
      * @param string $topic
      * @return void
      * @throws DataTransferException
+     * @throws TopicNotSubscribedException
      */
     public function unsubscribe(string $topic): void
     {
         $this->ensureConnected();
 
-        // TODO: check if actually subscribed
+        $subscription = $this->repository->getTopicSubscriptionByTopic($topic);
+        if ($subscription === null) {
+            throw new TopicNotSubscribedException(sprintf('No subscription found for topic [%s].', $topic));
+        }
 
         $messageId = $this->repository->newMessageId();
         $data      = $this->messageProcessor->buildUnsubscribeMessage($messageId, $topic);

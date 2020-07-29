@@ -8,6 +8,7 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
+use PhpMqtt\Client\Exceptions\TopicNotSubscribedException;
 use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
 
 /**
@@ -94,6 +95,7 @@ interface MqttClient
      * @param string $topic
      * @return void
      * @throws DataTransferException
+     * @throws TopicNotSubscribedException
      */
     public function unsubscribe(string $topic): void;
 

@@ -78,6 +78,14 @@ interface Repository
     public function getTopicSubscriptionsWithMessageId(int $messageId): array;
 
     /**
+     * Find a topic subscription with the given topic.
+     *
+     * @param string $topic
+     * @return TopicSubscription|null
+     */
+    public function getTopicSubscriptionByTopic(string $topic): ?TopicSubscription;
+
+    /**
      * Get all topic subscriptions matching the given topic.
      *
      * @param string $topic

@@ -165,6 +165,23 @@ class MemoryRepository implements Repository
     }
 
     /**
+     * Find a topic subscription with the given topic.
+     *
+     * @param string $topic
+     * @return TopicSubscription|null
+     */
+    public function getTopicSubscriptionByTopic(string $topic): ?TopicSubscription
+    {
+        foreach ($this->topicSubscriptions as $subscription) {
+            if ($subscription->getTopic() === $topic) {
+                return $subscription;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Get all topic subscriptions matching the given topic.
      *
      * @param string $topic
