@@ -12,6 +12,11 @@ namespace PhpMqtt\Client\Exceptions;
  */
 class PendingPublishConfirmationAlreadyExistsException extends MqttClientException
 {
+    /**
+     * PendingPublishConfirmationAlreadyExistsException constructor.
+     *
+     * @param int $messageId
+     */
     public function __construct(int $messageId)
     {
         parent::__construct(sprintf('A pending publish confirmation with the message identifier [%s] exists already.', $messageId));

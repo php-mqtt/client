@@ -18,6 +18,12 @@ class UnexpectedAcknowledgementException extends MqttClientException
     const EXCEPTION_ACK_RECEIVE   = 0205;
     const EXCEPTION_ACK_COMPLETE  = 0206;
 
+    /**
+     * UnexpectedAcknowledgementException constructor.
+     *
+     * @param int    $code
+     * @param string $error
+     */
     public function __construct(int $code, string $error)
     {
         parent::__construct(
