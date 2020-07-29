@@ -241,8 +241,6 @@ class MemoryRepository implements Repository
      */
     public function addPendingPublishedMessage(PublishedMessage $message): void
     {
-        // TODO: add message id already pending exception
-
         $this->pendingPublishedMessages->attach($message);
     }
 
