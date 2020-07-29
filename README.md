@@ -131,7 +131,10 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings())
     ->setTlsVerifyPeerName(true)
     ->setTlsSelfSignedAllowed(false)
     ->setTlsCertificateAuthorityFile(null)
-    ->setTlsCertificateAuthorityPath(null);
+    ->setTlsCertificateAuthorityPath(null)
+    ->setTlsClientCertificateFile(null)
+    ->setTlsClientCertificateKeyFile(null)
+    ->setTlsClientCertificatePassphrase(null);
 ```
 
 ## Features

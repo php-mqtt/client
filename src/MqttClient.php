@@ -213,6 +213,18 @@ class MqttClient implements ClientContract
                 $tlsOptions['capath'] = $this->settings->getTlsCertificateAuthorityPath();
             }
 
+            if ($this->settings->getTlsClientCertificateFile() !== null) {
+                $tlsOptions['local_cert'] = $this->settings->getTlsClientCertificateFile();
+            }
+
+            if ($this->settings->getTlsClientCertificateKeyFile() !== null) {
+                $tlsOptions['local_pk'] = $this->settings->getTlsClientCertificateKeyFile();
+            }
+
+            if ($this->settings->getTlsClientCertificatePassphrase() !== null) {
+                $tlsOptions['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
+            }
+
             $contextOptions['ssl'] = $tlsOptions;
         }
 

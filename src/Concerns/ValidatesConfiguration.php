@@ -63,5 +63,21 @@ trait ValidatesConfiguration
         if ($settings->getTlsCertificateAuthorityPath() !== null && !is_dir($settings->getTlsCertificateAuthorityPath())) {
             throw new ConfigurationInvalidException('The Certificate Authority path setting must contain the path to a directory.');
         }
+
+        if ($settings->getTlsClientCertificateFile() !== null && !is_file($settings->getTlsClientCertificateFile())) {
+            throw new ConfigurationInvalidException('The client certificate file setting must contain the path to a regular file.');
+        }
+
+        if ($settings->getTlsClientCertificateKeyFile() !== null && !is_file($settings->getTlsClientCertificateKeyFile())) {
+            throw new ConfigurationInvalidException('The client certificate key file setting must contain the path to a regular file.');
+        }
+
+        if ($settings->getTlsClientCertificateKeyFile() !== null && $settings->getTlsClientCertificateFile() === null) {
+            throw new ConfigurationInvalidException('Using a client certificate key file without certificate does not work.');
+        }
+
+        if ($settings->getTlsClientCertificatePassphrase() !== null && $settings->getTlsClientCertificateFile() === null) {
+            throw new ConfigurationInvalidException('Using a client certificate passphrase without certificate does not work.');
+        }
     }
 }

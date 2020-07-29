@@ -59,6 +59,15 @@ class ConnectionSettings
     /** @var string|null */
     private $tlsCertificateAuthorityPath = null;
 
+    /** @var string|null */
+    private $tlsClientCertificateFile = null;
+
+    /** @var string|null */
+    private $tlsClientCertificateKeyFile = null;
+
+    /** @var string|null */
+    private $tlsClientCertificatePassphrase = null;
+
     /**
      * The username used for authentication when connecting to the broker.
      *
@@ -462,5 +471,90 @@ class ConnectionSettings
     public function getTlsCertificateAuthorityPath(): ?string
     {
         return $this->tlsCertificateAuthorityPath;
+    }
+
+    /**
+     * The path to a client certificate file used for authentication, if TLS is used.
+     *
+     * The client certificate must be PEM encoded. It may optionally contain the
+     * certificate chain of issuers. The certificate key can be included in this certificate
+     * file or in a separate file ({@see ConnectionSettings::setTlsClientCertificateKeyFile()}).
+     * A passphrase can be configured using {@see ConnectionSettings::setTlsClientCertificatePassphrase()}.
+     *
+     * @param string|null $tlsClientCertificateFile
+     * @return ConnectionSettings
+     */
+    public function setTlsClientCertificateFile(?string $tlsClientCertificateFile): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsClientCertificateFile = $tlsClientCertificateFile;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificateFile(): ?string
+    {
+        return $this->tlsClientCertificateFile;
+    }
+
+    /**
+     * The path to a client certificate key file used for authentication, if TLS is used.
+     *
+     * This option requires {@see ConnectionSettings::setTlsClientCertificateFile()}
+     * to be used as well.
+     *
+     * @param string|null $tlsClientCertificateKeyFile
+     * @return ConnectionSettings
+     */
+    public function setTlsClientCertificateKeyFile(?string $tlsClientCertificateKeyFile): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsClientCertificateKeyFile = $tlsClientCertificateKeyFile;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificateKeyFile(): ?string
+    {
+        return $this->tlsClientCertificateKeyFile;
+    }
+
+    /**
+     * The passphrase used to decrypt the private key of the client certificate,
+     * which in return is used for authentication, if TLS is used.
+     *
+     * This option requires {@see ConnectionSettings::setTlsClientCertificateFile()}
+     * and potentially {@see ConnectionSettings::setTlsClientCertificateKeyFile()}
+     * to be used as well.
+     *
+     * Please be aware that your passphrase is not stored in secure memory when
+     * using this option.
+     *
+     * @param string|null $tlsClientCertificatePassphrase
+     * @return ConnectionSettings
+     */
+    public function setTlsClientCertificatePassphrase(?string $tlsClientCertificatePassphrase): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsClientCertificatePassphrase = $tlsClientCertificatePassphrase;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificatePassphrase(): ?string
+    {
+        return $this->tlsClientCertificatePassphrase;
     }
 }
