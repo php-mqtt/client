@@ -132,6 +132,9 @@ class MqttClient implements ClientContract
      * If no custom settings are passed, the client will use the default settings.
      * See {@see ConnectionSettings} for more details about the defaults.
      *
+     * In case there is an existing connection, it will be abruptly closed and
+     * replaced with the new one, as `disconnect()` should be called first.
+     *
      * @param ConnectionSettings|null $settings
      * @param bool                    $sendCleanSessionFlag
      * @return void
@@ -143,6 +146,10 @@ class MqttClient implements ClientContract
         bool $sendCleanSessionFlag = false
     ): void
     {
+        // Always abruptly close any previous connection if we are opening a new one.
+        // The caller should make sure this does not happen.
+        $this->closeSocket();
+
         $this->logger->debug('Connecting to broker.');
 
         $this->settings = $settings ?? new ConnectionSettings();
@@ -153,8 +160,8 @@ class MqttClient implements ClientContract
             $this->establishSocketConnection();
             $this->performConnectionHandshake($sendCleanSessionFlag);
         } catch (ConnectingToBrokerFailedException $e) {
-            if ($this->socket !== null && is_resource($this->socket)) {
-                stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
+            if ($this->socket !== null) {
+                $this->closeSocket();
             }
 
             throw $e;
@@ -166,19 +173,33 @@ class MqttClient implements ClientContract
     /**
      * Opens a socket that connects to the host and port set on the object.
      *
+     * When this method is called, all connection settings have been validated.
+     *
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
     protected function establishSocketConnection(): void
     {
-        $contextOptions   = [];
-        $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
+        $contextOptions = [];
 
+        // Only if TLS is enabled, we add all TLS options to the context options.
         if ($this->settings->shouldUseTls()) {
             $this->logger->debug('Using TLS for the connection to the broker.');
 
+            $shouldVerifyPeer = $this->settings->shouldTlsVerifyPeer()
+                                || $this->settings->getTlsCertificateAuthorityFile() !== null
+                                || $this->settings->getTlsCertificateAuthorityPath() !== null;
+
+            if (!$shouldVerifyPeer) {
+                $this->logger->warning('Using TLS without peer verification is discouraged. Are you aware of the security risk?');
+            }
+
+            if ($this->settings->isTlsSelfSignedAllowed()) {
+                $this->logger->warning('Using TLS with self-signed certificates is discouraged. Please use a CA file to verify it.');
+            }
+
             $tlsOptions = [
-                'verify_peer' => $this->settings->shouldTlsVerifyPeer(),
+                'verify_peer' => $shouldVerifyPeer,
                 'verify_peer_name' => $this->settings->shouldTlsVerifyPeerName(),
                 'allow_self_signed' => $this->settings->isTlsSelfSignedAllowed(),
             ];
@@ -192,26 +213,108 @@ class MqttClient implements ClientContract
             }
 
             $contextOptions['ssl'] = $tlsOptions;
-            $connectionString      = 'tls://' . $this->getHost() . ':' . $this->getPort();
         }
 
-        $this->socket = stream_socket_client(
+        $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
+        $socketContext    = stream_context_create($contextOptions);
+
+        $socket = stream_socket_client(
             $connectionString,
             $errorCode,
             $errorMessage,
             $this->settings->getConnectTimeout(),
             STREAM_CLIENT_CONNECT,
-            stream_context_create($contextOptions)
+            $socketContext
         );
 
-        if ($this->socket === false) {
-            $this->logger->error('Establishing a connection with the broker using connection string [{connectionString}] failed.', [
+        // The socket will be set to false if stream_socket_client() returned an error.
+        if ($socket === false) {
+            $this->logger->error('Establishing a connection with the broker using the connection string [{connectionString}] failed: {error}', [
                 'connectionString' => $connectionString,
+                'error' => $errorMessage,
+                'code' => $errorCode,
             ]);
-            throw new ConnectingToBrokerFailedException($errorCode, $errorMessage);
+            throw new ConnectingToBrokerFailedException(
+                ConnectingToBrokerFailedException::EXCEPTION_CONNECTION_SOCKET_ERROR,
+                sprintf('Socket error [%d]: %s', $errorCode, $errorMessage),
+                (string) $errorCode,
+                $errorMessage
+            );
         }
 
-        stream_set_timeout($this->socket, $this->settings->getSocketTimeout());
+        // If TLS is enabled, we need to enable it on the already created stream.
+        // Until now, we only created a normal TCP stream.
+        if ($this->settings->shouldUseTls()) {
+            // Since stream_socket_enable_crypto() communicates errors using error_get_last(),
+            // we need to clear a potentially set error at this point to be sure the error we
+            // retrieve in the error handling part is actually of this function call and not
+            // from some unrelated code of the users application.
+            error_clear_last();
+
+            $enableEncryptionResult = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_ANY_CLIENT);
+
+            if ($enableEncryptionResult === false) {
+                // At this point, PHP should have given us something like this:
+                //    SSL operation failed with code 1. OpenSSL Error messages:
+                //    error:1416F086:SSL routines:tls_process_server_certificate:certificate verify failed
+                // We need to get our hands dirty and extract the OpenSSL error
+                // from the PHP message, which luckily gives us a handy newline.
+                $this->parseTlsErrorMessage(error_get_last(), $tlsErrorCode, $tlsErrorMessage);
+
+                // Before returning an exception, we need to close the already opened socket.
+                @fclose($socket);
+
+                $this->logger->error(sprintf(
+                    'Enabling TLS on the connection with the MQTT broker [%s] failed: %s (code %s).',
+                    $connectionString,
+                    $tlsErrorMessage,
+                    $tlsErrorCode
+                ));
+
+                throw new ConnectingToBrokerFailedException(
+                    ConnectingToBrokerFailedException::EXCEPTION_CONNECTION_TLS_ERROR,
+                    sprintf('TLS error [%s]: %s', $tlsErrorCode, $tlsErrorMessage),
+                    $tlsErrorCode,
+                    $tlsErrorMessage
+                );
+            }
+        }
+
+        stream_set_timeout($socket, $this->settings->getSocketTimeout());
+
+        $this->socket = $socket;
+    }
+
+    /**
+     * Internal parser for SSL-related PHP error messages.
+     *
+     * @param array       $phpError
+     * @param string|null $tlsErrorCode
+     * @param string|null $tlsErrorMessage
+     * @return void
+     */
+    private function parseTlsErrorMessage($phpError, ?string &$tlsErrorCode = null, ?string &$tlsErrorMessage = null): void
+    {
+        if (!$phpError || !isset($phpError['message'])) {
+            $tlsErrorCode    = "UNKNOWN:1";
+            $tlsErrorMessage = "Unknown error";
+            return;
+        }
+
+        if (!preg_match('/:\n(?:error:([0-9A-Z]+):)?(.+)$/', $phpError['message'], $matches)) {
+            $tlsErrorCode    = "UNKNOWN:2";
+            $tlsErrorMessage = $phpError['message'];
+            return;
+        }
+
+        if ($matches[1] == "") {
+            $tlsErrorCode    = "UNKNOWN:3";
+            $tlsErrorMessage = $matches[2];
+            return;
+        }
+
+        $tlsErrorCode    = $matches[1];
+        $tlsErrorMessage = $matches[2];
     }
 
     /**
@@ -1080,5 +1183,28 @@ class MqttClient implements ClientContract
         }
 
         return $result;
+    }
+
+    /**
+     * Closes the socket connection immediately, without flushing queued data.
+     *
+     * @return void
+     */
+    protected function closeSocket(): void
+    {
+        if ($this->socket === null || !is_resource($this->socket)) {
+            return;
+        }
+
+        if (@fclose($this->socket)) {
+            $this->logger->debug('Successfully closed socket connection to the broker.');
+        } else {
+            $phpError = error_get_last();
+            $this->logger->debug('Closing socket connection failed: {error}', [
+                'error' => $phpError ? $phpError['message'] : 'undefined',
+            ]);
+        }
+
+        $this->socket = null;
     }
 }
