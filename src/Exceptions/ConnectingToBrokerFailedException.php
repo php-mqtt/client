@@ -17,13 +17,21 @@ class ConnectingToBrokerFailedException extends MQTTClientException
     /** @var string|null */
     private $connectionErrorCode;
 
+    /**
+     * ConnectingToBrokerFailedException constructor.
+     *
+     * @param int         $code
+     * @param string      $error
+     * @param string|null $innerMessage
+     * @param string|null $innerCode
+     */
     public function __construct(int $code, string $error, string $innerMessage = null, string $innerCode = null)
     {
         parent::__construct(
             sprintf('[%s] Establishing a connection to the MQTT broker failed: %s', $code, $error),
             $code
         );
-        $this->connectionErrorMessage = $innerMessage;
+        $this->connectionErrorMessage = ($innerMessage ?? $error);
         $this->connectionErrorCode    = $innerCode;
     }
 
