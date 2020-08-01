@@ -36,7 +36,14 @@
         "squizlabs/php_codesniffer": "^3.5"
     },
     "scripts": {
+        "fix:cs": "vendor/bin/phpcbf",
+        "test": [
+            "@test:cs",
+            "@test:unit",
+            "@test:feature"
+        ],
         "test:cs": "vendor/bin/phpcs",
-        "fix:cs": "vendor/bin/phpcbf"
+        "test:feature": "vendor/bin/phpunit --testsuite Feature",
+        "test:unit": "vendor/bin/phpunit --testsuite Unit"
     }
 }
