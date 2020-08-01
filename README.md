@@ -117,13 +117,17 @@ public function __construct(
     int $keepAlive = 10,
     int $resendTimeout = 10,
     string $lastWillTopic = null,
-    string $lastWillMessage = null
+    string $lastWillMessage = null,
+    bool $useTls = false,
+    bool $tlsVerifyPeer = true,
+    bool $tlsVerifyName = true
 ) { ... }
 ```
 
 ## Features
 
 - MQTT Versions
+  - [x] v3 (just don't use v3.1 features like username & password)
   - [x] v3.1
   - [ ] v3.1.1
   - [ ] v5.0
