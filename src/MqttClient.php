@@ -264,6 +264,8 @@ class MqttClient implements ClientContract
             // from some unrelated code of the users application.
             error_clear_last();
 
+            $this->logger->debug('Enabling TLS on the existing socket connection.');
+
             $enableEncryptionResult = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_ANY_CLIENT);
 
             if ($enableEncryptionResult === false) {
@@ -291,9 +293,14 @@ class MqttClient implements ClientContract
                     $tlsErrorMessage
                 );
             }
+
+            $this->logger->debug('TLS enabled successfully.');
         }
 
         stream_set_timeout($socket, $this->settings->getSocketTimeout());
+        stream_set_blocking($socket, false);
+
+        $this->logger->debug('Socket opened and ready to use.');
 
         $this->socket = $socket;
     }
@@ -1103,11 +1110,8 @@ class MqttClient implements ClientContract
      */
     protected function writeToSocket(string $data, int $length = null): void
     {
-        if ($length === null) {
-            $length = strlen($data);
-        }
-
-        $length = min($length, strlen($data));
+        $calculatedLength = strlen($data);
+        $length           = min($length ?? $calculatedLength, $calculatedLength);
 
         $result = @fwrite($this->socket, $data, $length);
 
