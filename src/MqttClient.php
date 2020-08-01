@@ -155,7 +155,7 @@ class MqttClient implements ClientContract
 
         $this->settings = $settings ?? new ConnectionSettings();
 
-        $this->ensureConnectionSettingsAreValid($settings);
+        $this->ensureConnectionSettingsAreValid($this->settings);
 
         try {
             $this->establishSocketConnection();
