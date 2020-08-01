@@ -97,61 +97,36 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
      */
     public function buildConnectMessage(ConnectionSettings $connectionSettings, bool $useCleanSession = false): string
     {
-        $i      = 0;
-        $buffer = '';
-
         // The protocol name and version.
-        $buffer .= chr(0x00); // length of protocol name 1
-        $buffer .= chr(0x06); // length of protocol name 2
-        $buffer .= chr(0x4d); // protocol name: M
-        $buffer .= chr(0x51); // protocol name: Q
-        $buffer .= chr(0x49); // protocol name: I
-        $buffer .= chr(0x73); // protocol name: s
-        $buffer .= chr(0x64); // protocol name: d
-        $buffer .= chr(0x70); // protocol name: p
+        $buffer  = $this->buildLengthPrefixedString('MQIsdp');
         $buffer .= chr(0x03); // protocol version (3)
-        $i      += 9;
 
         // Build connection flags based on the connection settings.
-        $flags   = $this->buildConnectionFlags($connectionSettings, $useCleanSession);
-        $buffer .= chr($flags);
-        $i++;
+        $buffer .= chr($this->buildConnectionFlags($connectionSettings, $useCleanSession));
 
         // Encode and add the keep alive interval.
         $buffer .= chr($connectionSettings->getKeepAliveInterval() >> 8);
         $buffer .= chr($connectionSettings->getKeepAliveInterval() & 0xff);
-        $i      += 2;
 
         // Encode and add the client identifier.
-        $clientIdPart = $this->buildLengthPrefixedString($this->clientId);
-        $buffer      .= $clientIdPart;
-        $i           += strlen($clientIdPart);
+        $buffer .= $this->buildLengthPrefixedString($this->clientId);
 
         // Encode and add the last will topic and message, if configured.
         if ($connectionSettings->hasLastWill()) {
-            $topicPart = $this->buildLengthPrefixedString($connectionSettings->getLastWillTopic());
-            $buffer   .= $topicPart;
-            $i        += strlen($topicPart);
-
-            $messagePart = $this->buildLengthPrefixedString($connectionSettings->getLastWillMessage());
-            $buffer     .= $messagePart;
-            $i          += strlen($messagePart);
+            $buffer .= $this->buildLengthPrefixedString($connectionSettings->getLastWillTopic());
+            $buffer .= $this->buildLengthPrefixedString($connectionSettings->getLastWillMessage());
         }
 
         // Encode and add the credentials, if configured.
         if ($connectionSettings->getUsername() !== null) {
-            $usernamePart = $this->buildLengthPrefixedString($connectionSettings->getUsername());
-            $buffer      .= $usernamePart;
-            $i           += strlen($usernamePart);
+            $buffer .= $this->buildLengthPrefixedString($connectionSettings->getUsername());
         }
         if ($connectionSettings->getPassword() !== null) {
-            $passwordPart = $this->buildLengthPrefixedString($connectionSettings->getPassword());
-            $buffer      .= $passwordPart;
-            $i           += strlen($passwordPart);
+            $buffer .= $this->buildLengthPrefixedString($connectionSettings->getPassword());
         }
 
         // The header consists of the message type 0x10 and the length.
-        $header = chr(0x10) . chr($i);
+        $header = chr(0x10) . $this->encodeMessageLength(strlen($buffer));
 
         return $header . $buffer;
     }
@@ -287,6 +262,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
      */
     public function buildPingMessage(): string
     {
+        // The message consists of the command 0xc0 and the length 0.
         return chr(0xc0) . chr(0x00);
     }
 
@@ -297,6 +273,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
      */
     public function buildDisconnectMessage(): string
     {
+        // The message consists of the command 0xe0 and the length 0.
         return chr(0xe0) . chr(0x00);
     }
 
@@ -307,19 +284,15 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     {
         // Encode the message id, it always consists of two bytes.
         $buffer = $this->encodeMessageId($messageId);
-        $i      = 2;
 
         // Encode the topic as length prefixed string.
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer   .= $topicPart;
-        $i        += strlen($topicPart);
+        $buffer .= $this->buildLengthPrefixedString($topic);
 
         // Encode the quality of service level.
         $buffer .= chr($qualityOfService);
-        $i++;
 
         // The header consists of the message type 0x82 and the length.
-        $header = chr(0x82) . chr($i);
+        $header = chr(0x82) . $this->encodeMessageLength(strlen($buffer));
 
         return $header . $buffer;
     }
@@ -331,17 +304,14 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     {
         // Encode the message id, it always consists of two bytes.
         $buffer = $this->encodeMessageId($messageId);
-        $i      = 2;
 
         // Encode the topic as length prefixed string.
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer   .= $topicPart;
-        $i        += strlen($topicPart);
+        $buffer .= $this->buildLengthPrefixedString($topic);
 
         // The header consists of the message type 0xa2 and the length.
         // Additionally, the first byte may contain the duplicate flag.
         $command = 0xa2 | ($isDuplicate ? 1 << 3 : 0);
-        $header  = chr($command) . chr($i);
+        $header  = chr($command) . $this->encodeMessageLength(strlen($buffer));
 
         return $header . $buffer;
     }
@@ -359,20 +329,16 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     ): string
     {
         // Encode the topic as length prefixed string.
-        $topicPart = $this->buildLengthPrefixedString($topic);
-        $buffer    = $topicPart;
-        $i         = strlen($topicPart);
+        $buffer = $this->buildLengthPrefixedString($topic);
 
         // Encode the message id, if given. It always consists of two bytes.
         if ($messageId !== null)
         {
             $buffer .= $this->encodeMessageId($messageId);
-            $i      += 2;
         }
 
         // Add the message without encoding.
         $buffer .= $message;
-        $i      += strlen($message);
 
         // Encode the command with supported flags.
         $command = 0x30;
@@ -387,7 +353,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         }
 
         // Build the header from the command and the encoded message length.
-        $header = chr($command) . $this->encodeMessageLength($i);
+        $header = chr($command) . $this->encodeMessageLength(strlen($buffer));
 
         return $header . $buffer;
     }
