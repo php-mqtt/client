@@ -64,6 +64,13 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
                 return false;
             }
 
+            // There can me a maximum of four bytes for the package length, which means we cann opt-out
+            // when reaching the 6th byte in the buffer. This is only a safety measure in case the broker
+            // is sending invalid messages. Normally, the loop exits on its own.
+            if ($byteIndex >= 6) {
+                break;
+            }
+
             // Otherwise, we can take seven bits to calculate the length and the remaining eighth bit
             // as continuation bit.
             $digit            = ord($buffer[$byteIndex]);
