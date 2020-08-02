@@ -163,6 +163,20 @@ interface MqttClient
     public function getClientId(): string;
 
     /**
+     * Returns the total number of received bytes, across reconnects.
+     *
+     * @return int
+     */
+    public function getReceivedBytes(): int;
+
+    /**
+     * Returns the total number of sent bytes, across reconnects.
+     *
+     * @return int
+     */
+    public function getSentBytes(): int;
+
+    /**
      * Registers a loop event handler which is called each iteration of the loop.
      * This event handler can be used for example to interrupt the loop under
      * certain conditions.

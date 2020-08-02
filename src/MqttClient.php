@@ -75,6 +75,12 @@ class MqttClient implements ClientContract
     /** @var bool */
     private $interrupted = false;
 
+    /** @var int */
+    private $bytesReceived = 0;
+
+    /** @var int */
+    private $bytesSent = 0;
+
     /** @var resource|null */
     protected $socket;
 
@@ -438,6 +444,26 @@ class MqttClient implements ClientContract
     public function getClientId(): string
     {
         return $this->clientId;
+    }
+
+    /**
+     * Returns the total number of received bytes, across reconnects.
+     *
+     * @return int
+     */
+    public function getReceivedBytes(): int
+    {
+        return $this->bytesReceived;
+    }
+
+    /**
+     * Returns the total number of sent bytes, across reconnects.
+     *
+     * @return int
+     */
+    public function getSentBytes(): int
+    {
+        return $this->bytesSent;
     }
 
     /**
@@ -1123,6 +1149,8 @@ class MqttClient implements ClientContract
             );
         }
 
+        $this->bytesSent += $length;
+
         $this->logger->debug('Sent data over the socket: {data}', ['data' => $data]);
 
         // After writing successfully to the socket, the broker should have received a new message from us.
@@ -1153,6 +1181,8 @@ class MqttClient implements ClientContract
                 );
             }
 
+            $this->bytesReceived += strlen($result);
+
             $this->logger->debug('Read data from the socket (without blocking): {data}', ['data' => $result]);
 
             return $result;
@@ -1175,6 +1205,8 @@ class MqttClient implements ClientContract
             $result   .= $receivedData;
             $remaining = $limit - strlen($result);
         }
+
+        $this->bytesReceived += strlen($result);
 
         $this->logger->debug('Read data from the socket: {data}', ['data' => $result]);
 
