@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Unit\MessageProcessors;
 
+use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Logger;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
 use PHPUnit\Framework\TestCase;
 
 class Mqtt31MessageProcessorTest extends TestCase
 {
+    const CLIENT_ID = 'test-client';
+
     /** @var Mqtt31MessageProcessor */
     protected $messageProcessor;
 
@@ -17,7 +20,7 @@ class Mqtt31MessageProcessorTest extends TestCase
     {
         parent::setUp();
 
-        $this->messageProcessor = new Mqtt31MessageProcessor('test-client', new Logger('test.local', 1883, 'test-client'));
+        $this->messageProcessor = new Mqtt31MessageProcessor('test-client', new Logger('test.local', 1883, self::CLIENT_ID));
     }
 
     public function tryFindMessageInBuffer_testDataProvider(): array
@@ -55,7 +58,7 @@ class Mqtt31MessageProcessorTest extends TestCase
         bool $expectedResult,
         ?string $expectedMessage,
         ?int $expectedRequiredBytes
-    )
+    ): void
     {
         $message       = null;
         $requiredBytes = -1;
@@ -69,5 +72,67 @@ class Mqtt31MessageProcessorTest extends TestCase
         } else {
             $this->assertEquals(-1, $requiredBytes);
         }
+    }
+
+    public function buildConnectMessage_testDataProvider(): array
+    {
+        return [
+            // Default parameters
+            [new ConnectionSettings(), false, hex2bin('101900064d51497364700300000a000b') . self::CLIENT_ID],
+
+            // Clean Session
+            [new ConnectionSettings(), true, hex2bin('101900064d51497364700302000a000b') . self::CLIENT_ID],
+
+            // Username, Password and Clean Session
+            [
+                (new ConnectionSettings())
+                    ->setUsername('foo')
+                    ->setPassword('bar'),
+                true,
+                hex2bin('102300064d514973647003c2000a000b') . self::CLIENT_ID . hex2bin('0003') . 'foo' . hex2bin('0003') . 'bar',
+            ],
+
+            // Last Will Topic, Last Will Message and Clean Session
+            [
+                (new ConnectionSettings())
+                    ->setLastWillTopic('test/foo')
+                    ->setLastWillMessage('bar')
+                    ->setLastWillQualityOfService(1),
+                true,
+                hex2bin('102800064d5149736470030e000a000b') . self::CLIENT_ID . hex2bin('0008') . 'test/foo' . hex2bin('0003') . 'bar',
+            ],
+
+            // Last Will Topic, Last Will Message, Retain Last Will, Username, Password and Clean Session
+            [
+                (new ConnectionSettings())
+                    ->setLastWillTopic('test/foo')
+                    ->setLastWillMessage('bar')
+                    ->setLastWillQualityOfService(2)
+                    ->setRetainLastWill(true)
+                    ->setUsername('blub')
+                    ->setPassword('blubber'),
+                true,
+                hex2bin('103700064d514973647003f6000a000b') . self::CLIENT_ID . hex2bin('0008') . 'test/foo' . hex2bin('0003') . 'bar'
+                    . hex2bin('0004') . 'blub' . hex2bin('0007') . 'blubber',
+            ],
+        ];
+    }
+
+    /**
+     * @dataProvider buildConnectMessage_testDataProvider
+     *
+     * @param ConnectionSettings $connectionSettings
+     * @param bool               $useCleanSession
+     * @param string             $expectedResult
+     */
+    public function test_buildConnectMessage_builds_correct_message(
+        ConnectionSettings $connectionSettings,
+        bool $useCleanSession,
+        string $expectedResult
+    ): void
+    {
+        $result = $this->messageProcessor->buildConnectMessage($connectionSettings, $useCleanSession);
+
+        $this->assertEquals($expectedResult, $result);
     }
 }
