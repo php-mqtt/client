@@ -41,7 +41,7 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Install composer dependencies
-        run: composer install --prefer-dist
+        run: composer install --prefer-dist --ignore-platform-reqs
 
       - name: Start Mosquitto message broker
         uses: Namoshek/mosquitto-github-action@v0.1.0
