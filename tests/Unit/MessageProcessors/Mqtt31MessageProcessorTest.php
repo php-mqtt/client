@@ -135,4 +135,40 @@ class Mqtt31MessageProcessorTest extends TestCase
 
         $this->assertEquals($expectedResult, $result);
     }
+
+    public function buildSubscribeMessage_testDataProvider(): array
+    {
+        $longTopic = random_bytes(58372);
+
+        return [
+            // Simple QoS 0 subscription
+            [42, 'test/foo', 0, hex2bin('820d002a0008') . 'test/foo' . hex2bin('00')],
+
+            // Wildcard QoS 2 subscription with high message id
+            [43764, 'test/foo/bar/baz/#', 2, hex2bin('8217aaf40012') . 'test/foo/bar/baz/#' . hex2bin('02')],
+
+            // Long QoS 1 subscription with high message id
+            [62304, $longTopic, 1, hex2bin('8289c803f360e404') . $longTopic . hex2bin('01')],
+        ];
+    }
+
+    /**
+     * @dataProvider buildSubscribeMessage_testDataProvider
+     *
+     * @param int    $messageId
+     * @param string $topic
+     * @param int    $qualityOfService
+     * @param string $expectedResult
+     */
+    public function test_buildSubscribeMessage_builds_correct_message(
+        int $messageId,
+        string $topic,
+        int $qualityOfService,
+        string $expectedResult
+    ): void
+    {
+        $result = $this->messageProcessor->buildSubscribeMessage($messageId, $topic, $qualityOfService);
+
+        $this->assertEquals($expectedResult, $result);
+    }
 }
