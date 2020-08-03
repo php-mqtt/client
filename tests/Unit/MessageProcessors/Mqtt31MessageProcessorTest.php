@@ -74,6 +74,14 @@ class Mqtt31MessageProcessorTest extends TestCase
         }
     }
 
+    /**
+     * Message format:
+     *
+     *   <fixed header><protocol name><protocol version><flags><keep alive><client id><will topic><will message><username><password>
+     *
+     * @return array[]
+     * @throws \Exception
+     */
     public function buildConnectMessage_testDataProvider(): array
     {
         return [
@@ -136,19 +144,27 @@ class Mqtt31MessageProcessorTest extends TestCase
         $this->assertEquals($expectedResult, $result);
     }
 
+    /**
+     * Message format:
+     *
+     *   <fixed header><message id><topic><QoS>
+     *
+     * @return array[]
+     * @throws \Exception
+     */
     public function buildSubscribeMessage_testDataProvider(): array
     {
-        $longTopic = random_bytes(58372);
+        $longTopic = random_bytes(130);
 
         return [
             // Simple QoS 0 subscription
-            [42, 'test/foo', 0, hex2bin('820d002a0008') . 'test/foo' . hex2bin('00')],
+            [42, 'test/foo', 0, hex2bin('82'.'0d00'.'2a00'.'08') . 'test/foo' . hex2bin('00')],
 
             // Wildcard QoS 2 subscription with high message id
-            [43764, 'test/foo/bar/baz/#', 2, hex2bin('8217aaf40012') . 'test/foo/bar/baz/#' . hex2bin('02')],
+            [43764, 'test/foo/bar/baz/#', 2, hex2bin('82'.'17aa'.'f400'.'12') . 'test/foo/bar/baz/#' . hex2bin('02')],
 
             // Long QoS 1 subscription with high message id
-            [62304, $longTopic, 1, hex2bin('8289c803f360e404') . $longTopic . hex2bin('01')],
+            [62304, $longTopic, 1, hex2bin('82'.'8701'.'f360'.'0082') . $longTopic . hex2bin('01')],
         ];
     }
 
@@ -168,6 +184,200 @@ class Mqtt31MessageProcessorTest extends TestCase
     ): void
     {
         $result = $this->messageProcessor->buildSubscribeMessage($messageId, $topic, $qualityOfService);
+
+        $this->assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Message format:
+     *
+     *   <fixed header><message id><topic>
+     *
+     * @return array[]
+     * @throws \Exception
+     */
+    public function buildUnsubscribeMessage_testDataProvider(): array
+    {
+        $longTopic = random_bytes(130);
+
+        return [
+            // Simple unsubscribe without duplicate
+            [42, 'test/foo', false, hex2bin('a2'.'0c00'.'2a00'.'08') . 'test/foo'],
+
+            // Wildcard unsubscribe with high message id as duplicate
+            [43764, 'test/foo/bar/baz/#', true, hex2bin('aa'.'16aa'.'f400'.'12') . 'test/foo/bar/baz/#'],
+
+            // Long unsubscribe with high message id as duplicate
+            [62304, $longTopic, true, hex2bin('aa'.'8601'.'f360'.'0082') . $longTopic],
+        ];
+    }
+
+    /**
+     * @dataProvider buildUnsubscribeMessage_testDataProvider
+     *
+     * @param int    $messageId
+     * @param string $topic
+     * @param bool   $isDuplicate
+     * @param string $expectedResult
+     */
+    public function test_buildUnsubscribeMessage_builds_correct_message(
+        int $messageId,
+        string $topic,
+        bool $isDuplicate,
+        string $expectedResult
+    ): void
+    {
+        $result = $this->messageProcessor->buildUnsubscribeMessage($messageId, $topic, $isDuplicate);
+
+        $this->assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Message format:
+     *
+     *   <fixed header><topic><message id><payload>
+     *
+     * @return array[]
+     * @throws \Exception
+     */
+    public function buildPublishMessage_testDataProvider(): array
+    {
+        $longMessage = random_bytes(424242);
+
+        return [
+            // Simple QoS 0 publish
+            ['test/foo', 'hello world', 0, false, 42, false, hex2bin('30'.'17'.'0008') . 'test/foo' . hex2bin('002a') . 'hello world'],
+
+            // Retained duplicate QoS 2 publish with long data and high message id
+            ['test/foo', $longMessage, 2, true, 4242, true, hex2bin('3d'.'bef219'.'0008') . 'test/foo' . hex2bin('1092') . $longMessage],
+        ];
+    }
+
+    /**
+     * @dataProvider buildPublishMessage_testDataProvider
+     *
+     * @param string $topic
+     * @param string $message
+     * @param int    $qualityOfService
+     * @param bool   $retain
+     * @param int    $messageId
+     * @param bool   $isDuplicate
+     * @param string $expectedResult
+     */
+    public function test_buildPublishMessage_builds_correct_message(
+        string $topic,
+        string $message,
+        int $qualityOfService,
+        bool $retain,
+        int $messageId,
+        bool $isDuplicate,
+        string $expectedResult
+    ): void
+    {
+        $result = $this->messageProcessor->buildPublishMessage(
+            $topic,
+            $message,
+            $qualityOfService,
+            $retain,
+            $messageId,
+            $isDuplicate
+        );
+
+        $this->assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Message format:
+     *
+     *   <fixed header><message id>
+     *
+     * @return array[]
+     * @throws \Exception
+     */
+    public function buildPublishAcknowledgementMessage_testDataProvider(): array
+    {
+        return [
+            // Simple acknowledgement using small message id
+            [42, hex2bin('40'.'02'.'002a')],
+
+            // Simple acknowledgement using large message id
+            [4242, hex2bin('40'.'02'.'1092')],
+        ];
+    }
+
+    /**
+     * @dataProvider buildPublishAcknowledgementMessage_testDataProvider
+     *
+     * @param int    $messageId
+     * @param string $expectedResult
+     */
+    public function test_buildPublishAcknowledgementMessage_builds_correct_message(int $messageId, string $expectedResult): void
+    {
+        $result = $this->messageProcessor->buildPublishAcknowledgementMessage($messageId);
+
+        $this->assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Message format:
+     *
+     *   <fixed header><message id>
+     *
+     * @return array[]
+     * @throws \Exception
+     */
+    public function buildPublishReceivedMessage_testDataProvider(): array
+    {
+        return [
+            // Simple acknowledgement using small message id
+            [42, hex2bin('50'.'02'.'002a')],
+
+            // Simple acknowledgement using large message id
+            [4242, hex2bin('50'.'02'.'1092')],
+        ];
+    }
+
+    /**
+     * @dataProvider buildPublishReceivedMessage_testDataProvider
+     *
+     * @param int    $messageId
+     * @param string $expectedResult
+     */
+    public function test_buildPublishReceivedMessage_builds_correct_message(int $messageId, string $expectedResult): void
+    {
+        $result = $this->messageProcessor->buildPublishReceivedMessage($messageId);
+
+        $this->assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Message format:
+     *
+     *   <fixed header><message id>
+     *
+     * @return array[]
+     * @throws \Exception
+     */
+    public function buildPublishCompleteMessage_testDataProvider(): array
+    {
+        return [
+            // Simple acknowledgement using small message id
+            [42, hex2bin('70'.'02'.'002a')],
+
+            // Simple acknowledgement using large message id
+            [4242, hex2bin('70'.'02'.'1092')],
+        ];
+    }
+
+    /**
+     * @dataProvider buildPublishCompleteMessage_testDataProvider
+     *
+     * @param int    $messageId
+     * @param string $expectedResult
+     */
+    public function test_buildPublishCompleteMessage_builds_correct_message(int $messageId, string $expectedResult): void
+    {
+        $result = $this->messageProcessor->buildPublishCompleteMessage($messageId);
 
         $this->assertEquals($expectedResult, $result);
     }
