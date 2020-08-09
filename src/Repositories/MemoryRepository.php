@@ -18,7 +18,7 @@ use SplObjectStorage;
  *
  * @package PhpMqtt\Client\Repositories
  */
-class MemoryRepository implements Repository
+class MemoryRepository extends BaseRepository implements Repository
 {
     /** @var int */
     private $lastMessageId = 0;
@@ -128,24 +128,6 @@ class MemoryRepository implements Repository
     }
 
     /**
-     * Adds a topic subscription to the repository.
-     *
-     * @param string   $topic
-     * @param callable $callback
-     * @param int      $messageId
-     * @param int      $qualityOfService
-     * @return TopicSubscription
-     */
-    public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): TopicSubscription
-    {
-        $subscription = new TopicSubscription($topic, $callback, $messageId, $qualityOfService);
-
-        $this->addTopicSubscription($subscription);
-
-        return $subscription;
-    }
-
-    /**
      * Get all topic subscriptions with the given message identifier.
      *
      * @param int $messageId
@@ -242,33 +224,6 @@ class MemoryRepository implements Repository
     public function addPendingPublishedMessage(PublishedMessage $message): void
     {
         $this->pendingPublishedMessages->attach($message);
-    }
-
-    /**
-     * Adds a new pending published message with the given settings to the repository.
-     *
-     * @param int           $messageId
-     * @param string        $topic
-     * @param string        $message
-     * @param int           $qualityOfService
-     * @param bool          $retain
-     * @param DateTime|null $sentAt
-     * @return PublishedMessage
-     */
-    public function addNewPendingPublishedMessage(
-        int $messageId,
-        string $topic,
-        string $message,
-        int $qualityOfService,
-        bool $retain,
-        DateTime $sentAt = null
-    ): PublishedMessage
-    {
-        $message = new PublishedMessage($messageId, $topic, $message, $qualityOfService, $retain, $sentAt);
-
-        $this->addPendingPublishedMessage($message);
-
-        return $message;
     }
 
     /**
@@ -371,23 +326,6 @@ class MemoryRepository implements Repository
     }
 
     /**
-     * Adds a new pending unsubscribe request with the given settings to the repository.
-     *
-     * @param int           $messageId
-     * @param string        $topic
-     * @param DateTime|null $sentAt
-     * @return UnsubscribeRequest
-     */
-    public function addNewPendingUnsubscribeRequest(int $messageId, string $topic, DateTime $sentAt = null): UnsubscribeRequest
-    {
-        $request = new UnsubscribeRequest($messageId, $topic, $sentAt);
-
-        $this->addPendingUnsubscribeRequest($request);
-
-        return $request;
-    }
-
-    /**
      * Gets a pending unsubscribe request with the given message identifier, if found.
      *
      * @param int $messageId
@@ -468,24 +406,6 @@ class MemoryRepository implements Repository
         }
 
         $this->pendingPublishConfirmations->attach($message);
-    }
-
-    /**
-     * Adds a new pending publish confirmation with the given settings to the repository.
-     *
-     * @param int    $messageId
-     * @param string $topic
-     * @param string $message
-     * @return PublishedMessage
-     * @throws PendingPublishConfirmationAlreadyExistsException
-     */
-    public function addNewPendingPublishConfirmation(int $messageId, string $topic, string $message): PublishedMessage
-    {
-        $message = new PublishedMessage($messageId, $topic, $message, 2, false);
-
-        $this->addPendingPublishConfirmation($message);
-
-        return $message;
     }
 
     /**

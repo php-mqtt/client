@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
+use Opis\Closure\SerializableClosure;
+
 /**
  * A simple DTO for subscriptions to a topic which need to be stored in a repository.
  *
@@ -17,7 +19,7 @@ class TopicSubscription
     /** @var string */
     private $regexifiedTopic;
 
-    /** @var callable */
+    /** @var SerializableClosure */
     private $callback;
 
     /** @var int */
@@ -33,15 +35,15 @@ class TopicSubscription
      * Creates a new topic subscription object.
      *
      * @param string   $topic
-     * @param callable $callback
+     * @param \Closure $callback
      * @param int      $messageId
      * @param int      $qualityOfService
      */
-    public function __construct(string $topic, callable $callback, int $messageId, int $qualityOfService = 0)
+    public function __construct(string $topic, \Closure $callback, int $messageId, int $qualityOfService = 0)
     {
         $this->topic            = $topic;
         $this->regexifiedTopic  = '/^' . str_replace(['$', '/', '+', '#'], ['\$', '\/', '[^\/]*', '.*'], $topic) . '$/';
-        $this->callback         = $callback;
+        $this->callback         = SerializableClosure::from($callback);
         $this->messageId        = $messageId;
         $this->qualityOfService = $qualityOfService;
     }
@@ -70,11 +72,11 @@ class TopicSubscription
     /**
      * Returns the callback for this subscription.
      *
-     * @return callable
+     * @return \Closure
      */
-    public function getCallback(): callable
+    public function getCallback(): \Closure
     {
-        return $this->callback;
+        return $this->callback->getClosure();
     }
 
     /**
