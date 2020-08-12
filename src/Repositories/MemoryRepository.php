@@ -21,8 +21,14 @@ use SplObjectStorage;
  */
 class MemoryRepository implements Repository
 {
-    /** @var SplObjectStorage|TopicSubscription[] */
-    private $topicSubscriptions;
+    /** @var array<int, TopicSubscription> */
+    private $topicSubscriptions = array();
+
+    /** @var array<int> */
+    private $topicSubscriptionsQueue = array();
+
+    /** @var int */
+    private $topicSubscriptionsPtr = 0;
 
     /** @var SplObjectStorage|PublishedMessage[] */
     private $pendingPublishedMessages;
@@ -38,7 +44,6 @@ class MemoryRepository implements Repository
      */
     public function __construct()
     {
-        $this->topicSubscriptions          = new SplObjectStorage();
         $this->pendingPublishedMessages    = new SplObjectStorage();
         $this->pendingUnsubscribeRequests  = new SplObjectStorage();
         $this->pendingPublishConfirmations = new SplObjectStorage();
@@ -52,7 +57,7 @@ class MemoryRepository implements Repository
      */
     public function countTopicSubscriptions(): int
     {
-        return $this->topicSubscriptions->count();
+        return count($this->topicSubscriptions);
     }
 
     /**
@@ -63,7 +68,13 @@ class MemoryRepository implements Repository
      */
     public function addTopicSubscription(TopicSubscription $subscription): void
     {
-        $this->topicSubscriptions->attach($subscription);
+        // Finds the next available subscription id (FIXME)
+        while (isset($this->topicSubscriptions[$this->topicSubscriptionsPtr])) {
+          $this->topicSubscriptionsPtr++;
+        }
+
+        $this->topicSubscriptions[$this->topicSubscriptionsPtr] = $subscription;
+        $this->topicSubscriptionsQueue[] = $this->topicSubscriptionsPtr;
     }
 
     /**
@@ -113,13 +124,21 @@ class MemoryRepository implements Repository
     {
         $result = [];
 
-        foreach ($this->topicSubscriptions as $subscription) {
+        for ($i = 0; $i < count($this->topicSubscriptionsQueue); $i++) {
+            $subscriptionId = $this->topicSubscriptionsQueue[$i];
+            $subscription = $this->topicSubscriptions[$subscriptionId];
+
             if (preg_match($subscription->getRegexifiedTopic(), $topic)) {
-                $result[] = $subscription;
+                // We have a match! Move this to the bottom
+                $this->topicSubscriptionsQueue[] = $subscriptionId;
+                unset($this->topicSubscriptionsQueue[$i]);
+                $this->topicSubscriptionsQueue = array_values($this->topicSubscriptionsQueue);
+
+                return array($subscription);
             }
         }
 
-        return $result;
+        return array();
     }
 
     /**
@@ -134,10 +153,11 @@ class MemoryRepository implements Repository
     {
         $result = false;
 
-        foreach ($this->topicSubscriptions as $subscription) {
+        foreach ($this->topicSubscriptions as $id => $subscription) {
             if ($subscription->getTopic() === $topic) {
-                $this->topicSubscriptions->detach($subscription);
+                unset($this->topicSubscriptions[$topic]);
                 $result = true;
+                // FIXME: broken
                 break;
             }
         }

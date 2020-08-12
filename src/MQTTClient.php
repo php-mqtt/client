@@ -879,6 +879,8 @@ class MQTTClient implements ClientContract
         $topic       = substr($buffer, 2, $topicLength);
         $message     = substr($buffer, ($topicLength + 2));
 
+        $this->logger->debug("GOT PUBLISH MESSAGE");
+
         if ($qualityOfServiceLevel > 0) {
             if (strlen($message) < 2) {
                 $this->logger->error(sprintf(
@@ -1224,17 +1226,10 @@ class MQTTClient implements ClientContract
         ]);
 
         foreach ($subscribers as $subscriber) {
-            if ($subscriber->getQualityOfServiceLevel() > $qualityOfServiceLevel) {
-                // At this point we need to assume that this subscriber does not want to receive
-                // the message, but maybe there are other subscribers waiting for the message.
-                continue;
-            }
-
-            try {
-                call_user_func($subscriber->getCallback(), $topic, $message, $retained);
-            } catch (\Throwable $e) {
-                // We ignore errors produced by custom callbacks.
-            }
+            // We deliver the message to the first subscriber which matches this topic,
+            // if there are overlapping topics the message will be delivered multiple times by the broker!
+            call_user_func($subscriber->getCallback(), $topic, $message, $retained);
+            break;
         }
     }
 
@@ -1297,10 +1292,6 @@ class MQTTClient implements ClientContract
      */
     protected function republishPendingMessages(): void
     {
-        $this->logger->debug('Re-publishing pending messages to MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
-        ]);
-
         /** @noinspection PhpUnhandledExceptionInspection */
         $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
         $messages = $this->repository->getPendingPublishedMessagesLastSentBefore($dateTime);
@@ -1333,10 +1324,6 @@ class MQTTClient implements ClientContract
      */
     protected function republishPendingUnsubscribeRequests(): void
     {
-        $this->logger->debug('Re-sending pending unsubscribe requests to MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
-        ]);
-
         /** @noinspection PhpUnhandledExceptionInspection */
         $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
         $requests = $this->repository->getPendingUnsubscribeRequestsLastSentBefore($dateTime);
