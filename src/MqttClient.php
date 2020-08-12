@@ -979,12 +979,6 @@ class MqttClient implements ClientContract
         ]);
 
         foreach ($subscribers as $subscriber) {
-            if ($subscriber->getQualityOfServiceLevel() > $qualityOfServiceLevel) {
-                // At this point we need to assume that this subscriber does not want to receive
-                // the message, but maybe there are other subscribers waiting for the message.
-                continue;
-            }
-
             try {
                 call_user_func($subscriber->getCallback(), $topic, $message, $retained);
             } catch (\Throwable $e) {
