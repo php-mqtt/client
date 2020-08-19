@@ -59,7 +59,7 @@ class RedisRepository extends BaseRepository implements Repository
         } else {
             $this->ensureConnectionSettingsAreValid($connectionSettings);
 
-            $redis = new \Redis();
+            $redis  = new \Redis();
             $result = $redis->connect($connectionSettings->getHost(), $connectionSettings->getPort(), $connectionSettings->getConnectTimeout());
 
             if ($result === false) {
@@ -545,7 +545,7 @@ class RedisRepository extends BaseRepository implements Repository
             return false;
         }
 
-        if ($this->redis->sRem(self::KEY_PENDING_PUBLISH_CONFIRMATIONS  , $confirmation) === false) {
+        if ($this->redis->sRem(self::KEY_PENDING_PUBLISH_CONFIRMATIONS, $confirmation) === false) {
             return false;
         }
 

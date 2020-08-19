@@ -23,7 +23,7 @@ abstract class BaseRepository
      * @param TopicSubscription $subscription
      * @return void
      */
-    abstract function addTopicSubscription(TopicSubscription $subscription): void;
+    abstract public function addTopicSubscription(TopicSubscription $subscription): void;
 
     /**
      * Adds a topic subscription to the repository.
@@ -49,7 +49,7 @@ abstract class BaseRepository
      * @param PublishedMessage $message
      * @return void
      */
-    abstract function addPendingPublishedMessage(PublishedMessage $message): void;
+    abstract public function addPendingPublishedMessage(PublishedMessage $message): void;
 
     /**
      * Adds a new pending published message with the given settings to the repository.
@@ -84,7 +84,7 @@ abstract class BaseRepository
      * @param UnsubscribeRequest $request
      * @return void
      */
-    abstract function addPendingUnsubscribeRequest(UnsubscribeRequest $request): void;
+    abstract public function addPendingUnsubscribeRequest(UnsubscribeRequest $request): void;
 
     /**
      * Adds a new pending unsubscribe request with the given settings to the repository.
@@ -110,7 +110,7 @@ abstract class BaseRepository
      * @return void
      * @throws PendingPublishConfirmationAlreadyExistsException
      */
-    abstract function addPendingPublishConfirmation(PublishedMessage $message): void;
+    abstract public function addPendingPublishConfirmation(PublishedMessage $message): void;
 
     /**
      * Adds a new pending publish confirmation with the given settings to the repository.
