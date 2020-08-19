@@ -128,6 +128,14 @@ interface MessageProcessor
     public function buildPublishReceivedMessage(int $messageId): string;
 
     /**
+     * Builds a publish release message for the given message identifier.
+     *
+     * @param int $messageId
+     * @return string
+     */
+    public function buildPublishReleaseMessage(int $messageId): string;
+
+    /**
      * Builds a publish complete message for the given message identifier.
      *
      * @param int $messageId

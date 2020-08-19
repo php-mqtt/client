@@ -377,6 +377,14 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     /**
      * {@inheritDoc}
      */
+    public function buildPublishReleaseMessage(int $messageId): string
+    {
+        return chr(0x60) . chr(0x02) . $this->encodeMessageId($messageId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function buildPublishCompleteMessage(int $messageId): string
     {
         return chr(0x70) . chr(0x02) . $this->encodeMessageId($messageId);

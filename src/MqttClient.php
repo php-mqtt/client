@@ -857,6 +857,8 @@ class MqttClient implements ClientContract
                     'The MQTT broker sent a receipt for a publish that has not been pending anymore.'
                 );
             }
+
+            $this->sendPublishRelease($message->getMessageId());
         }
 
         // PUBREL
@@ -1077,6 +1079,20 @@ class MqttClient implements ClientContract
         $this->logger->debug('Sending publish received message to the broker.', ['message_id' => $messageId]);
 
         $this->writeToSocket($this->messageProcessor->buildPublishReceivedMessage($messageId));
+    }
+
+    /**
+     * Sends a publish release message for the given message identifier.
+     *
+     * @param int $messageId
+     * @return void
+     * @throws DataTransferException
+     */
+    protected function sendPublishRelease(int $messageId): void
+    {
+        $this->logger->debug('Sending publish release message to the broker (message id: {messageId}).', ['messageId' => $messageId]);
+
+        $this->writeToSocket($this->messageProcessor->buildPublishReleaseMessage($messageId));
     }
 
     /**
