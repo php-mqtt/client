@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
-use DateInterval;
-use DateTime;
 use PhpMqtt\Client\Concerns\GeneratesRandomClientIds;
 use PhpMqtt\Client\Concerns\OffersHooks;
 use PhpMqtt\Client\Concerns\ValidatesConfiguration;
@@ -17,10 +15,11 @@ use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
-use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
+use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
+use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
 use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
 use PhpMqtt\Client\Exceptions\TopicNotSubscribedException;
-use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
+use PhpMqtt\Client\Exceptions\ProtocolViolationException;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 use Psr\Log\LoggerInterface;
@@ -537,7 +536,7 @@ class MqttClient implements ClientContract
             $messageId = $this->repository->newMessageId();
 
             $pendingMessage = new PublishedMessage($messageId, $topic, $message, $qualityOfService, $retain);
-            $this->repository->addPendingPublishedMessage($pendingMessage);
+            $this->repository->addPendingOutgoingMessage($pendingMessage);
         }
 
         $this->publishMessage($topic, $message, $qualityOfService, $retain, $messageId);
@@ -611,58 +610,62 @@ class MqttClient implements ClientContract
      * );
      * ```
      *
-     * @param string   $topic
+     * @param string   $topicFilter
      * @param callable $callback
      * @param int      $qualityOfService
      * @return void
      * @throws DataTransferException
      */
-    public function subscribe(string $topic, callable $callback, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
+    public function subscribe(string $topicFilter, callable $callback, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
     {
         $this->ensureConnected();
 
-        $messageId = $this->repository->newMessageId();
-        $data      = $this->messageProcessor->buildSubscribeMessage($messageId, $topic, $qualityOfService);
-
-        $this->logger->debug('Subscribing to topic [{topic}] with QoS [{qos}].', [
-            'topic' => $topic,
+        $this->logger->debug('Subscribing to topic [{topic}] with maximum QoS [{qos}].', [
+            'topic' => $topicFilter,
             'qos' => $qualityOfService,
         ]);
 
-        $pendingMessage = new TopicSubscription($topic, $callback, $messageId, $qualityOfService);
-        $this->repository->addTopicSubscription($pendingMessage);
+        // Create the subscription representation now, but it will become an
+        // actual subscription only upon acknowledgement from the broker.
+        $subscriptions = [
+            new Subscription($topicFilter, null, $callback, $qualityOfService)
+        ];
 
+        $messageId      = $this->repository->newMessageId();
+        $pendingMessage = new SubscribeRequest($messageId, $subscriptions);
+        $this->repository->addPendingOutgoingMessage($pendingMessage);
+
+        $data = $this->messageProcessor->buildSubscribeMessage($messageId, $subscriptions);
         $this->writeToSocket($data);
     }
 
     /**
      * Unsubscribe from the given topic.
      *
-     * @param string $topic
+     * @param string $topicFilter
      * @return void
      * @throws DataTransferException
      * @throws TopicNotSubscribedException
      */
-    public function unsubscribe(string $topic): void
+    public function unsubscribe(string $topicFilter): void
     {
         $this->ensureConnected();
 
-        $subscription = $this->repository->getTopicSubscriptionByTopic($topic);
-        if ($subscription === null) {
-            throw new TopicNotSubscribedException(sprintf('No subscription found for topic [%s].', $topic));
-        }
-
-        $messageId = $this->repository->newMessageId();
-        $data      = $this->messageProcessor->buildUnsubscribeMessage($messageId, $topic);
+        // $subscription = $this->repository->getTopicSubscriptionByTopic($topic);
+        // if ($subscription === null) {
+            // throw new TopicNotSubscribedException(sprintf('No subscription found for topic [%s].', $topic));
+        // }
 
         $this->logger->debug('Unsubscribing from topic [{topic}].', [
-            'messageId' => $messageId,
-            'topic' => $topic,
+            'topic' => $topicFilter,
         ]);
 
-        $pendingMessage = new UnsubscribeRequest($messageId, $topic);
-        $this->repository->addPendingUnsubscribeRequest($pendingMessage);
+        $messageId      = $this->repository->newMessageId();
+        $topicFilters   = [ $topicFilter ];
+        $pendingMessage = new UnsubscribeRequest($messageId, $topicFilters);
+        $this->repository->addPendingOutgoingMessage($pendingMessage);
 
+        $data = $this->messageProcessor->buildUnsubscribeMessage($messageId, $topicFilters);
         $this->writeToSocket($data);
     }
 
@@ -745,11 +748,7 @@ class MqttClient implements ClientContract
 
                     // The result is used by us to perform required actions according to the protocol.
                     if ($message !== null) {
-                        try {
-                            $this->handleMessage($message);
-                        } catch (UnexpectedAcknowledgementException $e) {
-                            $this->logger->warning($e);
-                        }
+                        $this->handleMessage($message);
                     }
                 }
             } else {
@@ -758,23 +757,9 @@ class MqttClient implements ClientContract
                 }
             }
 
-            // Once a second we try to republish messages without confirmation.
-            // This will only trigger the republishing though. If a message really
-            // gets republished depends on the resend timeout and the last time
-            // we sent the message.
-            if (1 < (microtime(true) - $lastRepublishedAt)) {
-                $this->republishPendingMessages();
-                $lastRepublishedAt = microtime(true);
-            }
-
-            // Once a second we try to resend unconfirmed unsubscribe requests.
-            // This will also only trigger the resending process. If an unsubscribe
-            // request really gets resend depends on the resend timeout and the last
-            // time we sent the unsubscribe request.
-            if (1 < (microtime(true) - $lastResendUnsubscribedAt)) {
-                $this->republishPendingUnsubscribeRequests();
-                $lastResendUnsubscribedAt = microtime(true);
-            }
+            // Republish messages expired without confirmation.
+            // This includes published messages, subscribe and unsubscribe requests.
+            $this->resendPendingMessages();
 
             // If the last message of the broker has been received more seconds ago
             // than specified by the keep alive time, we will send a ping to ensure
@@ -786,7 +771,7 @@ class MqttClient implements ClientContract
             // This check will ensure, that, if we want to exit as soon as all queues
             // are empty and they really are empty, we quit.
             if ($exitWhenQueuesEmpty) {
-                if ($this->allQueuesAreEmpty() && $this->repository->countTopicSubscriptions() === 0) {
+                if ($this->allQueuesAreEmpty() && $this->repository->countSubscriptions() === 0) {
                     break;
                 }
 
@@ -794,7 +779,7 @@ class MqttClient implements ClientContract
                 // and we reached the time limit.
                 if ($queueWaitLimit !== null &&
                     (microtime(true) - $loopStartedAt) > $queueWaitLimit &&
-                    $this->repository->countTopicSubscriptions() === 0) {
+                    $this->repository->countSubscriptions() === 0) {
                     break;
                 }
             }
@@ -806,19 +791,19 @@ class MqttClient implements ClientContract
      *
      * @param Message $message
      * @throws DataTransferException
-     * @throws UnexpectedAcknowledgementException
      */
     protected function handleMessage(Message $message): void
     {
-        // PUBLISH
+        // PUBLISH (incoming)
         if ($message->getType()->equals(MessageType::PUBLISH())) {
             if ($message->getQualityOfService() === self::QOS_AT_LEAST_ONCE) {
+                // QoS 1.
                 $this->sendPublishAcknowledgement($message->getMessageId());
             }
 
             if ($message->getQualityOfService() === self::QOS_EXACTLY_ONCE) {
+                // QoS 2, part 1.
                 try {
-                    $this->sendPublishReceived($message->getMessageId());
                     $pendingMessage = new PublishedMessage(
                         $message->getMessageId(),
                         $message->getTopic(),
@@ -826,131 +811,143 @@ class MqttClient implements ClientContract
                         2,
                         false
                     );
-                    $this->repository->addPendingPublishConfirmation($pendingMessage);
-                } catch (PendingPublishConfirmationAlreadyExistsException $e) {
-                    // We already received and processed this message, therefore we do not respond
-                    // with a receipt a second time and wait for the release instead.
+                    $this->repository->addPendingIncomingMessage($pendingMessage);
+                } catch (PendingMessageAlreadyExistsException $e) {
+                    // We already received and processed this message.
                 }
+
+                // Always acknowledge, even if we received it multiple times.
+                $this->sendPublishReceived($message->getMessageId());
+
                 // We only deliver this published message as soon as we receive a publish complete.
                 return;
             }
 
+            // For QoS 0 and QoS 1 we can deliver right away.
             $this->deliverPublishedMessage($message->getTopic(), $message->getContent(), $message->getQualityOfService());
+            return;
         }
 
-        // PUBACK
+        // PUBACK (outgoing, QoS 1)
         if ($message->getType()->equals(MessageType::PUBLISH_ACKNOWLEDGEMENT())) {
-            $result = $this->repository->removePendingPublishedMessage($message->getMessageId());
+            $result = $this->repository->removePendingOutgoingMessage($message->getMessageId());
             if ($result === false) {
-                $this->logger->notice('Received publish acknowledgement from the broker for already acknowledged message.');
-                throw new UnexpectedAcknowledgementException(
-                    UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
-                    'The MQTT broker acknowledged a publish that has not been pending anymore.'
-                );
+                $this->logger->notice('Received publish acknowledgement from the broker for already acknowledged message.', [
+                    'messageId' => $message->getMessageId()
+                ]);
             }
-
-            $this->repository->releaseMessageId($message->getMessageId());
+            return;
         }
 
-        // PUBREC
+        // PUBREC (outgoing, QoS 2, part 1)
         if ($message->getType()->equals(MessageType::PUBLISH_RECEIPT())) {
-            $result = $this->repository->markPendingPublishedMessageAsReceived($message->getMessageId());
+            try {
+                $result = $this->repository->markPendingOutgoingPublishedMessageAsReceived($message->getMessageId());
+            } catch (PendingMessageNotFoundException $e) {
+                // This should never happen as we should have received all
+                // PUBRECs before we we see the first PUBCOMP which actually
+                // remove the message, but better staying on the safe side.
+                $result = false;
+            }
             if ($result === false) {
-                $this->logger->notice('Received publish receipt from the broker for already acknowledged message.');
-                throw new UnexpectedAcknowledgementException(
-                    UnexpectedAcknowledgementException::EXCEPTION_ACK_RECEIVE,
-                    'The MQTT broker sent a receipt for a publish that has not been pending anymore.'
-                );
+                $this->logger->notice('Received publish receipt from the broker for already acknowledged message.', [
+                    'messageId' => $message->getMessageId()
+                ]);
             }
 
+            // We always reply blindly to keep the flow moving.
             $this->sendPublishRelease($message->getMessageId());
+            return;
         }
 
-        // PUBREL
+        // PUBREL (incoming, QoS 2, part 2)
         if ($message->getType()->equals(MessageType::PUBLISH_RELEASE())) {
-            $publishedMessage = $this->repository->getPendingPublishConfirmationWithMessageId($message->getMessageId());
-            $result           = $this->repository->removePendingPublishConfirmation($message->getMessageId());
-            if ($publishedMessage === null || $result === false) {
-                $this->logger->notice('Received publish release from the broker for already released message.');
-                throw new UnexpectedAcknowledgementException(
-                    UnexpectedAcknowledgementException::EXCEPTION_ACK_RELEASE,
-                    'The MQTT broker released a publish that has not been pending anymore.'
+            $pendingMessage = $this->repository->getPendingIncomingMessage($message->getMessageId());
+            if (!$pendingMessage || !$pendingMessage instanceof PublishedMessage) {
+                $this->logger->notice('Received publish release from the broker for already released message.', [
+                    'messageId' => $message->getMessageId(),
+                ]);
+            } else {
+                $this->deliverPublishedMessage(
+                    $pendingMessage->getTopicName(),
+                    $pendingMessage->getMessage(),
+                    $pendingMessage->getQualityOfServiceLevel()
                 );
+
+                $this->repository->removePendingIncomingMessage($message->getMessageId());
             }
 
-            $this->deliverPublishedMessage(
-                $publishedMessage->getTopic(),
-                $publishedMessage->getMessage(),
-                $publishedMessage->getQualityOfServiceLevel()
-            );
-
+            // Always reply with the PUBCOMP packet so it stops resending it.
             $this->sendPublishComplete($message->getMessageId());
+            return;
         }
 
-        // PUBCOMP
+        // PUBCOMP (outgoing, QoS 2 part 3)
         if ($message->getType()->equals(MessageType::PUBLISH_COMPLETE())) {
-            $result = $this->repository->removePendingPublishedMessage($message->getMessageId());
+            $result = $this->repository->removePendingOutgoingMessage($message->getMessageId());
             if ($result === false) {
-                $this->logger->notice('Received publish completion from the broker for already acknowledged message.');
-                throw new UnexpectedAcknowledgementException(
-                    UnexpectedAcknowledgementException::EXCEPTION_ACK_COMPLETE,
-                    'The MQTT broker sent a completion for a publish that has not been pending anymore.'
-                );
+                $this->logger->notice('Received publish completion from the broker for already acknowledged message.', [
+                    'messageId' => $message->getMessageId(),
+                ]);
             }
-
-            $this->repository->releaseMessageId($message->getMessageId());
+            return;
         }
 
         // SUBACK
         if ($message->getType()->equals(MessageType::SUBSCRIBE_ACKNOWLEDGEMENT())) {
-            $subscriptions = $this->repository->getTopicSubscriptionsWithMessageId($message->getMessageId());
-
-            if (count($message->getAcknowledgedQualityOfServices()) !== count($subscriptions)) {
-                $this->logger->notice('Received subscribe acknowledgement from the broker with wrong number of QoS acknowledgements.', [
-                    'required' => count($subscriptions),
-                    'received' => count($message->getAcknowledgedQualityOfServices()),
+            $pendingMessage = $this->repository->getPendingOutgoingMessage($message->getMessageId());
+            if (!$pendingMessage || !$pendingMessage instanceof SubscribeRequest) {
+                $this->logger->notice('Received subscribe acknowledgement from the broker for already acknowledged request.', [
+                    'messageId' => $message->getMessageId(),
                 ]);
-                throw new UnexpectedAcknowledgementException(
-                    UnexpectedAcknowledgementException::EXCEPTION_ACK_SUBSCRIBE,
-                    sprintf(
-                        'The MQTT broker responded with a different amount of QoS acknowledgements as we have subscriptions.'
-                        . ' Subscriptions: %s, QoS Acknowledgements: %s',
-                        count($subscriptions),
-                        count($message->getAcknowledgedQualityOfServices())
-                    )
-                );
+                return;
             }
 
-            foreach ($message->getAcknowledgedQualityOfServices() as $index => $qualityOfServiceLevel) {
-                $subscriptions[$index]->setAcknowledgedQualityOfServiceLevel(intval($qualityOfServiceLevel));
+            $acknowledgedSubscriptions = $pendingMessage->getSubscriptions();
+            if (count($acknowledgedSubscriptions) != count($message->getAcknowledgedQualityOfServices())) {
+                throw new ProtocolViolationException(sprintf(
+                    'The MQTT broker responded with a different amount of QoS acknowledgements (%d) than we expected (%d).',
+                    count($message->getAcknowledgedQualityOfServices()),
+                    count($acknowledgedSubscriptions)
+                ));
             }
 
-            $this->repository->releaseMessageId($message->getMessageId());
+            foreach ($message->getAcknowledgedQualityOfServices() as $index => $qualityOfService) {
+                // It may happen that the server registers our subscription
+                // with a lower quality of service than requested, in this
+                // case this is the one that we will record.
+                $acknowledgedSubscriptions[$index]->setQualityOfServiceLevel($qualityOfService);
+
+                $this->repository->addSubscription($acknowledgedSubscriptions[$index]);
+            }
+
+            $this->repository->removePendingOutgoingMessage($message->getMessageId());
+            return;
         }
 
         // UNSUBACK
         if ($message->getType()->equals(MessageType::UNSUBSCRIBE_ACKNOWLEDGEMENT())) {
-            $unsubscribeRequest = $this->repository->getPendingUnsubscribeRequestWithMessageId($message->getMessageId());
-            $result             = $this->repository->removePendingUnsubscribeRequest($message->getMessageId());
-            if ($result === false) {
-                $this->logger->notice('Received unsubscribe acknowledgement from the broker for already acknowledged request.');
-                throw new UnexpectedAcknowledgementException(
-                    UnexpectedAcknowledgementException::EXCEPTION_ACK_PUBLISH,
-                    'The MQTT broker acknowledged an unsubscribe request that has not been pending anymore.'
-                );
+            $pendingMessage = $this->repository->getPendingOutgoingMessage($message->getMessageId());
+            if (!$pendingMessage || !$pendingMessage instanceof UnsubscribeRequest) {
+                $this->logger->notice('Received unsubscribe acknowledgement from the broker for already acknowledged request.', [
+                    'messageId' => $message->getMessageId(),
+                ]);
+                return;
             }
 
-            if ($unsubscribeRequest !== null) {
-                $this->repository->removeTopicSubscription($unsubscribeRequest->getTopic());
+            foreach ($pendingMessage->getTopicFilters() as $topicFilter) {
+                $this->repository->removeSubscription($topicFilter);
             }
 
-            $this->repository->releaseMessageId($message->getMessageId());
+            $this->repository->removePendingOutgoingMessage($message->getMessageId());
+            return;
         }
 
         // PINGREQ
         if ($message->getType()->equals(MessageType::PING_REQUEST())) {
             // Respond with PINGRESP.
             $this->writeToSocket(chr(0xd0) . chr(0x00));
+            return;
         }
     }
 
@@ -961,9 +958,8 @@ class MqttClient implements ClientContract
      */
     protected function allQueuesAreEmpty(): bool
     {
-        return $this->repository->countPendingPublishMessages() === 0 &&
-               $this->repository->countPendingUnsubscribeRequests() === 0 &&
-               $this->repository->countPendingPublishConfirmations() === 0;
+        return $this->repository->countPendingOutgoingMessages() === 0 &&
+               $this->repository->countPendingIncomingMessages() === 0;
     }
 
     /**
@@ -977,7 +973,7 @@ class MqttClient implements ClientContract
      */
     protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel, bool $retained = false): void
     {
-        $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
+        $subscribers = $this->repository->getMatchingSubscriptions($topic);
 
         $this->logger->debug('Delivering message received on topic [{topic}] from the broker to [{subscribers}] subscribers.', [
             'topic' => $topic,
@@ -1004,57 +1000,46 @@ class MqttClient implements ClientContract
      * @return void
      * @throws DataTransferException
      */
-    protected function republishPendingMessages(): void
+    protected function resendPendingMessages(): void
     {
-        $this->logger->debug('Re-publishing pending messages to the broker.');
-
         /** @noinspection PhpUnhandledExceptionInspection */
-        $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
-        $messages = $this->repository->getPendingPublishedMessagesLastSentBefore($dateTime);
+        $dateTime = (new \DateTime())->sub(new \DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
+        $messages = $this->repository->getPendingOutgoingMessagesLastSentBefore($dateTime);
 
-        foreach ($messages as $message) {
-            $this->logger->debug('Re-publishing pending message to the broker.', ['messageId' => $message->getMessageId()]);
+        foreach ($messages as $pendingMessage) {
+            if ($pendingMessage instanceof PublishedMessage) {
+                $this->logger->debug('Re-publishing pending message to the broker.', [
+                    'messageId' => $pendingMessage->getMessageId(),
+                ]);
 
-            $this->publishMessage(
-                $message->getTopic(),
-                $message->getMessage(),
-                $message->getQualityOfServiceLevel(),
-                $message->wantsToBeRetained(),
-                $message->getMessageId(),
-                true
-            );
+                $this->publishMessage(
+                    $pendingMessage->getTopicName(),
+                    $pendingMessage->getMessage(),
+                    $pendingMessage->getQualityOfServiceLevel(),
+                    $pendingMessage->wantsToBeRetained(),
+                    $pendingMessage->getMessageId(),
+                    true
+                );
+            } elseif ($pendingMessage instanceof SubscribeRequest) {
+                $this->logger->debug('Re-sending pending subscribe request to the broker.', [
+                    'messageId' => $pendingMessage->getMessageId(),
+                ]);
 
-            $message->setLastSentAt(new DateTime());
-            $message->incrementSendingAttempts();
-        }
-    }
+                $data = $this->messageProcessor->buildSubscribeMessage($pendingMessage->getMessageId(), $pendingMessage->getSubscriptions(), true);
+                $this->writeToSocket($data);
+            } elseif ($pendingMessage instanceof UnsubscribeRequest) {
+                $this->logger->debug('Re-sending pending unsubscribe request to the broker.', [
+                    'messageId' => $pendingMessage->getMessageId(),
+                ]);
 
-    /**
-     * Re-sends pending unsubscribe requests.
-     *
-     * @return void
-     * @throws DataTransferException
-     */
-    protected function republishPendingUnsubscribeRequests(): void
-    {
-        $this->logger->debug('Re-sending pending unsubscribe requests to the broker.');
+                $data = $this->messageProcessor->buildUnsubscribeMessage($pendingMessage->getMessageId(), $pendingMessage->getTopicFilters(), true);
+                $this->writeToSocket($data);
+            } else {
+                throw new \RuntimeException('Unexpected pending message type');
+            }
 
-        /** @noinspection PhpUnhandledExceptionInspection */
-        $dateTime = (new DateTime())->sub(new DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
-        $requests = $this->repository->getPendingUnsubscribeRequestsLastSentBefore($dateTime);
-
-        foreach ($requests as $request) {
-            $data = $this->messageProcessor->buildUnsubscribeMessage($request->getMessageId(), $request->getTopic(), true);
-
-            $this->logger->debug('Re-sending pending unsubscribe request to the broker.', [
-                'messageId' => $request->getMessageId(),
-                'topic' => $request->getTopic(),
-            ]);
-
-            $this->writeToSocket($data);
-
-            $request->setLastSentAt(new DateTime());
-            $request->incrementSendingAttempts();
+            $pendingMessage->setLastSentAt(new \DateTime());
+            $pendingMessage->incrementSendingAttempts();
         }
     }
 

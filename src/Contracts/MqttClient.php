@@ -9,7 +9,7 @@ use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\TopicNotSubscribedException;
-use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
+use PhpMqtt\Client\Exceptions\ProtocolViolationException;
 
 /**
  * An interface for the MQTT client.
@@ -137,7 +137,7 @@ interface MqttClient
      * @param int|null $queueWaitLimit
      * @return void
      * @throws DataTransferException
-     * @throws UnexpectedAcknowledgementException
+     * @throws ProtocolViolationException
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void;
 

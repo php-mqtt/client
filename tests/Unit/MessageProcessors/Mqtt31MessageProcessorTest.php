@@ -6,6 +6,7 @@ namespace Tests\Unit\MessageProcessors;
 
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Logger;
+use PhpMqtt\Client\Subscription;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
 use PHPUnit\Framework\TestCase;
 
@@ -158,32 +159,30 @@ class Mqtt31MessageProcessorTest extends TestCase
 
         return [
             // Simple QoS 0 subscription
-            [42, 'test/foo', 0, hex2bin('82'.'0d00'.'2a00'.'08') . 'test/foo' . hex2bin('00')],
+            [42, [new Subscription('test/foo', null, null, 0)], hex2bin('82'.'0d00'.'2a00'.'08') . 'test/foo' . hex2bin('00')],
 
             // Wildcard QoS 2 subscription with high message id
-            [43764, 'test/foo/bar/baz/#', 2, hex2bin('82'.'17aa'.'f400'.'12') . 'test/foo/bar/baz/#' . hex2bin('02')],
+            [43764, [new Subscription('test/foo/bar/baz/#', null, null, 2)], hex2bin('82'.'17aa'.'f400'.'12') . 'test/foo/bar/baz/#' . hex2bin('02')],
 
             // Long QoS 1 subscription with high message id
-            [62304, $longTopic, 1, hex2bin('82'.'8701'.'f360'.'0082') . $longTopic . hex2bin('01')],
+            [62304, [new Subscription($longTopic, null, null, 1)], hex2bin('82'.'8701'.'f360'.'0082') . $longTopic . hex2bin('01')],
         ];
     }
 
     /**
      * @dataProvider buildSubscribeMessage_testDataProvider
      *
-     * @param int    $messageId
-     * @param string $topic
-     * @param int    $qualityOfService
-     * @param string $expectedResult
+     * @param int            $messageId
+     * @param Subscription[] $subscriptions
+     * @param string         $expectedResult
      */
     public function test_buildSubscribeMessage_builds_correct_message(
         int $messageId,
-        string $topic,
-        int $qualityOfService,
+        array $subscriptions,
         string $expectedResult
     ): void
     {
-        $result = $this->messageProcessor->buildSubscribeMessage($messageId, $topic, $qualityOfService);
+        $result = $this->messageProcessor->buildSubscribeMessage($messageId, $subscriptions);
 
         $this->assertEquals($expectedResult, $result);
     }
@@ -202,32 +201,32 @@ class Mqtt31MessageProcessorTest extends TestCase
 
         return [
             // Simple unsubscribe without duplicate
-            [42, 'test/foo', false, hex2bin('a2'.'0c00'.'2a00'.'08') . 'test/foo'],
+            [42, ['test/foo'], false, hex2bin('a2'.'0c00'.'2a00'.'08') . 'test/foo'],
 
             // Wildcard unsubscribe with high message id as duplicate
-            [43764, 'test/foo/bar/baz/#', true, hex2bin('aa'.'16aa'.'f400'.'12') . 'test/foo/bar/baz/#'],
+            [43764, ['test/foo/bar/baz/#'], true, hex2bin('aa'.'16aa'.'f400'.'12') . 'test/foo/bar/baz/#'],
 
             // Long unsubscribe with high message id as duplicate
-            [62304, $longTopic, true, hex2bin('aa'.'8601'.'f360'.'0082') . $longTopic],
+            [62304, [$longTopic], true, hex2bin('aa'.'8601'.'f360'.'0082') . $longTopic],
         ];
     }
 
     /**
      * @dataProvider buildUnsubscribeMessage_testDataProvider
      *
-     * @param int    $messageId
-     * @param string $topic
-     * @param bool   $isDuplicate
-     * @param string $expectedResult
+     * @param int      $messageId
+     * @param string[] $topics
+     * @param bool     $isDuplicate
+     * @param string   $expectedResult
      */
     public function test_buildUnsubscribeMessage_builds_correct_message(
         int $messageId,
-        string $topic,
+        array $topics,
         bool $isDuplicate,
         string $expectedResult
     ): void
     {
-        $result = $this->messageProcessor->buildUnsubscribeMessage($messageId, $topic, $isDuplicate);
+        $result = $this->messageProcessor->buildUnsubscribeMessage($messageId, $topics, $isDuplicate);
 
         $this->assertEquals($expectedResult, $result);
     }

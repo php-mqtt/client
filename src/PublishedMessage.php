@@ -12,81 +12,55 @@ use DateTime;
  *
  * @package PhpMqtt\Client
  */
-class PublishedMessage
+class PublishedMessage extends PendingMessage
 {
-    /** @var int */
-    private $messageId;
+    /** @var string */
+    protected $topicName;
 
     /** @var string */
-    private $topic;
-
-    /** @var string */
-    private $message;
+    protected $message;
 
     /** @var int */
-    private $qualityOfService;
+    protected $qualityOfService;
 
     /** @var bool */
-    private $retain;
-
-    /** @var DateTime */
-    private $lastSentAt;
-
-    /** @var int */
-    private $sendingAttempts = 1;
+    protected $retain;
 
     /** @var bool */
-    private $received = false;
+    protected $received = false;
 
     /**
      * Creates a new published message object.
      *
      * @param int           $messageId
-     * @param string        $topic
+     * @param string        $topicName
      * @param string        $message
      * @param int           $qualityOfService
      * @param bool          $retain
-     * @param DateTime|null $sentAt
      */
     public function __construct(
         int $messageId,
-        string $topic,
+        string $topicName,
         string $message,
         int $qualityOfService,
-        bool $retain,
-        DateTime $sentAt = null
+        bool $retain
     )
     {
-        if ($sentAt === null) {
-            $sentAt = new DateTime();
-        }
-
-        $this->messageId        = $messageId;
-        $this->topic            = $topic;
+        parent::__construct($messageId);
+        $this->topicName        = $topicName;
         $this->message          = $message;
         $this->qualityOfService = $qualityOfService;
         $this->retain           = $retain;
-        $this->lastSentAt       = $sentAt;
     }
 
     /**
-     * Returns the message identifier.
-     *
-     * @return int
-     */
-    public function getMessageId(): int
-    {
-        return $this->messageId;
-    }
-
-    /**
-     * Returns the topic of the published message.
+     * Returns the topic name of the published message.
      *
      * @return string
      */
-    public function getTopic(): string
+    public function getTopicName(): string
     {
-        return $this->topic;
+        return $this->topicName;
     }
 
     /**
@@ -120,26 +94,6 @@ class PublishedMessage
     }
 
     /**
-     * Returns the date time when the message was last attempted to be sent.
-     *
-     * @return DateTime
-     */
-    public function getLastSentAt(): DateTime
-    {
-        return $this->lastSentAt;
-    }
-
-    /**
-     * Returns the number of times the message has been attempted to be sent.
-     *
-     * @return int
-     */
-    public function getSendingAttempts(): int
-    {
-        return $this->sendingAttempts;
-    }
-
-    /**
      * Determines whether the message has been confirmed as received.
      *
      * @return bool
@@ -150,40 +104,19 @@ class PublishedMessage
     }
 
     /**
-     * Sets the date time when the message was last attempted to be sent.
+     * Marks the published message as received (QoS level 2).
      *
-     * @param DateTime $value
-     * @return static
-     */
-    public function setLastSentAt(DateTime $value): self
-    {
-        $this->lastSentAt = $value;
-
-        return $this;
-    }
-
-    /**
-     * Increments the sending attempts by one.
+     * Returns `true` if the message was not previously received. Otherwise
+     * `false` will be returned.
      *
-     * @return static
+     * @return bool
      */
-    public function incrementSendingAttempts(): self
+    public function markAsReceived(): bool
     {
-        $this->sendingAttempts++;
+        $result = !$this->received;
 
-        return $this;
-    }
+        $this->received = true;
 
-    /**
-     * Sets the received state.
-     *
-     * @param bool $value
-     * @return static
-     */
-    public function setReceived(bool $value): self
-    {
-        $this->received = $value;
-
-        return $this;
+        return $result;
     }
 }

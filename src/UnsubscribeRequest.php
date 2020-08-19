@@ -4,105 +4,35 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
-use DateTime;
-
 /**
- * Represents an unsubscribe request. Is used to store pending unsubscribe requests.
- * If an unsubscribe request is not acknowledged by the broker, having one of these
- * objects allows the client to resend the request.
+ * Represents an unsubscribe request.
  *
  * @package PhpMqtt\Client
  */
-class UnsubscribeRequest
+class UnsubscribeRequest extends PendingMessage
 {
-    /** @var int */
-    private $messageId;
-
-    /** @var string */
-    private $topic;
-
-    /** @var DateTime */
-    private $lastSentAt;
-
-    /** @var int */
-    private $sendingAttempts = 1;
+    /** @var string[] */
+    protected $topicFilters;
 
     /**
      * Creates a new unsubscribe request object.
      *
-     * @param int           $messageId
-     * @param string        $topic
-     * @param DateTime|null $sentAt
+     * @param int      $messageId
+     * @param string[] $topicFilters
      */
-    public function __construct(int $messageId, string $topic, DateTime $sentAt = null)
+    public function __construct(int $messageId, array $topicFilters)
     {
-        $this->messageId  = $messageId;
-        $this->topic      = $topic;
-        $this->lastSentAt = $sentAt ?? new DateTime();
+        parent::__construct($messageId);
+        $this->topicFilters = array_values($topicFilters);
     }
 
     /**
-     * Returns the message identifier.
+     * Returns the topic filters in this request.
      *
-     * @return int
+     * @return string[]
      */
-    public function getMessageId(): int
+    public function getTopicFilters(): array
     {
-        return $this->messageId;
-    }
-
-    /**
-     * Returns the topic of the subscription.
-     *
-     * @return string
-     */
-    public function getTopic(): string
-    {
-        return $this->topic;
-    }
-
-    /**
-     * Returns the date time when the message was last attempted to be sent.
-     *
-     * @return DateTime
-     */
-    public function getLastSentAt(): DateTime
-    {
-        return $this->lastSentAt;
-    }
-
-    /**
-     * Returns the number of times the message has been attempted to be sent.
-     *
-     * @return int
-     */
-    public function getSendingAttempts(): int
-    {
-        return $this->sendingAttempts;
-    }
-
-    /**
-     * Sets the date time when the message was last attempted to be sent.
-     *
-     * @param DateTime $value
-     * @return static
-     */
-    public function setLastSentAt(DateTime $value): self
-    {
-        $this->lastSentAt = $value;
-
-        return $this;
-    }
-
-    /**
-     * Increments the sending attempts by one.
-     *
-     * @return static
-     */
-    public function incrementSendingAttempts(): self
-    {
-        $this->sendingAttempts++;
-
-        return $this;
+        return $this->topicFilters;
     }
 }
