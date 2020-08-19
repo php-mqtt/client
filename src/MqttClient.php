@@ -285,12 +285,10 @@ class MqttClient implements ClientContract
                 // Before returning an exception, we need to close the already opened socket.
                 @fclose($socket);
 
-                $this->logger->error(sprintf(
-                    'Enabling TLS on the connection with the MQTT broker [%s] failed: %s (code %s).',
-                    $connectionString,
-                    $tlsErrorMessage,
-                    $tlsErrorCode
-                ));
+                $this->logger->error('Enabling TLS on the connection with the MQTT broker failed (code {errorCode}): {errorMessage}', [
+                    'errorMessage' => $tlsErrorMessage,
+                    'errorCode' => $tlsErrorCode,
+                ]);
 
                 throw new ConnectingToBrokerFailedException(
                     ConnectingToBrokerFailedException::EXCEPTION_CONNECTION_TLS_ERROR,
@@ -570,8 +568,8 @@ class MqttClient implements ClientContract
             'message' => $message,
             'qos' => $qualityOfService,
             'retain' => $retain,
-            'message_id' => $messageId,
-            'is_duplicate' => $isDuplicate,
+            'messageId' => $messageId,
+            'isDuplicate' => $isDuplicate,
         ]);
 
         foreach ($this->publishEventHandlers as $handler) {
@@ -1062,7 +1060,7 @@ class MqttClient implements ClientContract
      */
     protected function sendPublishAcknowledgement(int $messageId): void
     {
-        $this->logger->debug('Sending publish acknowledgement to the broker.', ['message_id' => $messageId]);
+        $this->logger->debug('Sending publish acknowledgement to the broker (message id: {messageId}).', ['messageId' => $messageId]);
 
         $this->writeToSocket($this->messageProcessor->buildPublishAcknowledgementMessage($messageId));
     }
@@ -1076,7 +1074,7 @@ class MqttClient implements ClientContract
      */
     protected function sendPublishReceived(int $messageId): void
     {
-        $this->logger->debug('Sending publish received message to the broker.', ['message_id' => $messageId]);
+        $this->logger->debug('Sending publish received message to the broker (message id: {messageId}).', ['messageId' => $messageId]);
 
         $this->writeToSocket($this->messageProcessor->buildPublishReceivedMessage($messageId));
     }
@@ -1104,7 +1102,7 @@ class MqttClient implements ClientContract
      */
     protected function sendPublishComplete(int $messageId): void
     {
-        $this->logger->debug('Sending publish complete message to the broker.', ['message_id' => $messageId]);
+        $this->logger->debug('Sending publish complete message to the broker (message id: {messageId}).', ['messageId' => $messageId]);
 
         $this->writeToSocket($this->messageProcessor->buildPublishCompleteMessage($messageId));
     }
