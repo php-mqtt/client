@@ -21,7 +21,7 @@ use PhpMqtt\Client\UnsubscribeRequest;
  *
  * @package PhpMqtt\Client\Repositories
  */
-class RedisRepository extends BaseRepository implements Repository
+class RedisRepository implements Repository
 {
     private const KEY_LAST_MESSAGE_ID               = 'last_message_id';
     private const KEY_RESERVED_MESSAGE_IDS          = 'reserved_message_ids';
