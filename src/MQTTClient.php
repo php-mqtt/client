@@ -991,6 +991,8 @@ class MQTTClient implements ClientContract
                 'The MQTT broker sent a receipt for a publish that has not been pending anymore.'
             );
         }
+
+        $this->sendPublishRelease($messageId);
     }
 
     /**
@@ -1270,6 +1272,23 @@ class MQTTClient implements ClientContract
         ]);
 
         $this->writeToSocket(chr(0x50) . chr(0x02) . $this->encodeMessageId($messageId));
+    }
+
+    /**
+     * Sends a publish release message for the given message identifier.
+     *
+     * @param int $messageId
+     * @return void
+     * @throws DataTransferException
+     */
+    protected function sendPublishRelease(int $messageId): void
+    {
+        $this->logger->debug('Sending publish release message to an MQTT broker.', [
+            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'message_id' => $messageId,
+        ]);
+
+        $this->writeToSocket(chr(0x62) . chr(0x02) . $this->encodeMessageId($messageId));
     }
 
     /**
