@@ -535,7 +535,9 @@ class MqttClient implements ClientContract
 
         if ($qualityOfService > self::QOS_AT_MOST_ONCE) {
             $messageId = $this->repository->newMessageId();
-            $this->repository->addNewPendingPublishedMessage($messageId, $topic, $message, $qualityOfService, $retain);
+
+            $pendingMessage = new PublishedMessage($messageId, $topic, $message, $qualityOfService, $retain);
+            $this->repository->addPendingPublishedMessage($pendingMessage);
         }
 
         $this->publishMessage($topic, $message, $qualityOfService, $retain, $messageId);
@@ -627,7 +629,8 @@ class MqttClient implements ClientContract
             'qos' => $qualityOfService,
         ]);
 
-        $this->repository->addNewTopicSubscription($topic, $callback, $messageId, $qualityOfService);
+        $pendingMessage = new TopicSubscription($topic, $callback, $messageId, $qualityOfService);
+        $this->repository->addTopicSubscription($pendingMessage);
 
         $this->writeToSocket($data);
     }
@@ -657,7 +660,8 @@ class MqttClient implements ClientContract
             'topic' => $topic,
         ]);
 
-        $this->repository->addNewPendingUnsubscribeRequest($messageId, $topic);
+        $pendingMessage = new UnsubscribeRequest($messageId, $topic);
+        $this->repository->addPendingUnsubscribeRequest($pendingMessage);
 
         $this->writeToSocket($data);
     }
@@ -815,11 +819,14 @@ class MqttClient implements ClientContract
             if ($message->getQualityOfService() === self::QOS_EXACTLY_ONCE) {
                 try {
                     $this->sendPublishReceived($message->getMessageId());
-                    $this->repository->addNewPendingPublishConfirmation(
+                    $pendingMessage = new PublishedMessage(
                         $message->getMessageId(),
                         $message->getTopic(),
-                        $message->getContent()
+                        $message->getContent(),
+                        2,
+                        false
                     );
+                    $this->repository->addPendingPublishConfirmation($pendingMessage);
                 } catch (PendingPublishConfirmationAlreadyExistsException $e) {
                     // We already received and processed this message, therefore we do not respond
                     // with a receipt a second time and wait for the release instead.
