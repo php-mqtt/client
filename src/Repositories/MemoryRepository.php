@@ -18,7 +18,7 @@ use SplObjectStorage;
  *
  * @package PhpMqtt\Client\Repositories
  */
-class MemoryRepository extends BaseRepository implements Repository
+class MemoryRepository implements Repository
 {
     /** @var int */
     private $lastMessageId = 0;
