@@ -59,17 +59,6 @@ interface Repository
     public function addTopicSubscription(TopicSubscription $subscription): void;
 
     /**
-     * Adds a new topic subscription with the given settings to the repository.
-     *
-     * @param string   $topic
-     * @param callable $callback
-     * @param int      $messageId
-     * @param int      $qualityOfService
-     * @return TopicSubscription
-     */
-    public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): TopicSubscription;
-
-    /**
      * Get all topic subscriptions with the given message identifier.
      *
      * @param int $messageId
@@ -117,26 +106,6 @@ interface Repository
      * @return void
      */
     public function addPendingPublishedMessage(PublishedMessage $message): void;
-
-    /**
-     * Adds a new pending published message with the given settings to the repository.
-     *
-     * @param int           $messageId
-     * @param string        $topic
-     * @param string        $message
-     * @param int           $qualityOfService
-     * @param bool          $retain
-     * @param DateTime|null $sentAt
-     * @return PublishedMessage
-     */
-    public function addNewPendingPublishedMessage(
-        int $messageId,
-        string $topic,
-        string $message,
-        int $qualityOfService,
-        bool $retain,
-        DateTime $sentAt = null
-    ): PublishedMessage;
 
     /**
      * Gets a pending published message with the given message identifier, if found.
@@ -190,16 +159,6 @@ interface Repository
     public function addPendingUnsubscribeRequest(UnsubscribeRequest $request): void;
 
     /**
-     * Adds a new pending unsubscribe request with the given settings to the repository.
-     *
-     * @param int           $messageId
-     * @param string        $topic
-     * @param DateTime|null $sentAt
-     * @return UnsubscribeRequest
-     */
-    public function addNewPendingUnsubscribeRequest(int $messageId, string $topic, DateTime $sentAt = null): UnsubscribeRequest;
-
-    /**
      * Gets a pending unsubscribe request with the given message identifier, if found.
      *
      * @param int $messageId
@@ -240,17 +199,6 @@ interface Repository
      * @throws PendingPublishConfirmationAlreadyExistsException
      */
     public function addPendingPublishConfirmation(PublishedMessage $message): void;
-
-    /**
-     * Adds a new pending publish confirmation with the given settings to the repository.
-     *
-     * @param int    $messageId
-     * @param string $topic
-     * @param string $message
-     * @return PublishedMessage
-     * @throws PendingPublishConfirmationAlreadyExistsException
-     */
-    public function addNewPendingPublishConfirmation(int $messageId, string $topic, string $message): PublishedMessage;
 
     /**
      * Gets a pending publish confirmation with the given message identifier, if found.
