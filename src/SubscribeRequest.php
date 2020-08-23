@@ -23,6 +23,7 @@ class SubscribeRequest extends PendingMessage
     public function __construct(int $messageId, array $subscriptions)
     {
         parent::__construct($messageId);
+
         $this->subscriptions = array_values($subscriptions);
     }
 
