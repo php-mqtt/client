@@ -684,14 +684,11 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         $messageId = $this->decodeMessageId($this->pop($data, 2));
 
         // Parse and validate the QoS acknowledgements.
-        $datalen          = strlen($data);
-        $acknowledgements = [];
-        for ($i = 0; $i < $datalen; $i++) {
-            $acknowledgement = ord(substr($data, $i, 1));
+        $acknowledgements = array_map('ord', str_split($data));
+        foreach ($acknowledgements as $acknowledgement) {
             if (!in_array($acknowledgement, [0, 1, 2])) {
                 throw new InvalidMessageException('Received subscribe acknowledgement with invalid QoS values from the broker.');
             }
-            $acknowledgements[] = $acknowledgement;
         }
 
         return (new Message(MessageType::SUBSCRIBE_ACKNOWLEDGEMENT()))
