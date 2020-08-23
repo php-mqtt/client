@@ -9,21 +9,24 @@ use DateTime;
 /**
  * Represents a pending message.
  *
- * If the message is not acknowledged by the broker, having one of these
- * objects allows the client to resend the request.
+ * For messages with QoS 1 and 2 the client is responsible to resend the message if no
+ * acknowledgement is received from the broker within a given time period.
+ *
+ * This class serves as common base for message objects which need to be resent if no
+ * acknowledgement is received.
  *
  * @package PhpMqtt\Client
  */
 abstract class PendingMessage
 {
     /** @var int */
-    protected $messageId;
+    private $messageId;
 
     /** @var int */
-    protected $sendingAttempts = 1;
+    private $sendingAttempts = 1;
 
     /** @var DateTime */
-    protected $lastSentAt;
+    private $lastSentAt;
 
     /**
      * Creates a new pending message object.
@@ -48,7 +51,7 @@ abstract class PendingMessage
     }
 
     /**
-     * Returns the date time when the message was last attempted to be sent.
+     * Returns the date time when the message was last sent.
      *
      * @return DateTime
      */
@@ -58,7 +61,7 @@ abstract class PendingMessage
     }
 
     /**
-     * Returns the number of times the message has been attempted to be sent.
+     * Returns the number of times the message has been sent.
      *
      * @return int
      */
@@ -68,7 +71,7 @@ abstract class PendingMessage
     }
 
     /**
-     * Sets the date time when the message was last attempted to be sent.
+     * Sets the date time when the message was last sent.
      *
      * @param DateTime|null $value
      * @return static

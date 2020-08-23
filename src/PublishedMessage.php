@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
-use DateTime;
-
 /**
  * A simple DTO for published messages which need to be stored in a repository
  * while waiting for the confirmation to be deliverable.
@@ -15,28 +13,28 @@ use DateTime;
 class PublishedMessage extends PendingMessage
 {
     /** @var string */
-    protected $topicName;
+    private $topicName;
 
     /** @var string */
-    protected $message;
+    private $message;
 
     /** @var int */
-    protected $qualityOfService;
+    private $qualityOfService;
 
     /** @var bool */
-    protected $retain;
+    private $retain;
 
     /** @var bool */
-    protected $received = false;
+    private $received = false;
 
     /**
      * Creates a new published message object.
      *
-     * @param int           $messageId
-     * @param string        $topicName
-     * @param string        $message
-     * @param int           $qualityOfService
-     * @param bool          $retain
+     * @param int    $messageId
+     * @param string $topicName
+     * @param string $message
+     * @param int    $qualityOfService
+     * @param bool   $retain
      */
     public function __construct(
         int $messageId,
