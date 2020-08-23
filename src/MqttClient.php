@@ -629,13 +629,12 @@ class MqttClient implements ClientContract
             'qos' => $qualityOfService,
         ]);
 
+        $messageId = $this->repository->newMessageId();
+
         // Create the subscription representation now, but it will become an
         // actual subscription only upon acknowledgement from the broker.
-        $subscriptions = [
-            new Subscription($topicFilter, null, $callback, $qualityOfService)
-        ];
+        $subscriptions = [new Subscription($topicFilter, null, $callback, $qualityOfService)];
 
-        $messageId      = $this->repository->newMessageId();
         $pendingMessage = new SubscribeRequest($messageId, $subscriptions);
         $this->repository->addPendingOutgoingMessage($pendingMessage);
 
@@ -655,12 +654,11 @@ class MqttClient implements ClientContract
     {
         $this->ensureConnected();
 
-        $this->logger->debug('Unsubscribing from topic [{topic}].', [
-            'topic' => $topicFilter,
-        ]);
+        $this->logger->debug('Unsubscribing from topic [{topic}].', ['topic' => $topicFilter]);
 
-        $messageId      = $this->repository->newMessageId();
-        $topicFilters   = [ $topicFilter ];
+        $messageId    = $this->repository->newMessageId();
+        $topicFilters = [$topicFilter];
+
         $pendingMessage = new UnsubscribeRequest($messageId, $topicFilters);
         $this->repository->addPendingOutgoingMessage($pendingMessage);
 
