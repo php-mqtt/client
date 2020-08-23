@@ -9,7 +9,7 @@ namespace PhpMqtt\Client\Exceptions;
  *
  * @package PhpMqtt\Client\Exceptions
  */
-class PendingMessageAlreadyExistsException extends MqttClientException
+class PendingMessageAlreadyExistsException extends RepositoryException
 {
     /**
      * PendingMessageAlreadyExistsException constructor.

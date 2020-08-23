@@ -256,14 +256,25 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     }
 
     /**
-     * Builds a ping message.
+     * Builds a ping request message.
      *
      * @return string
      */
-    public function buildPingMessage(): string
+    public function buildPingRequestMessage(): string
     {
         // The message consists of the command 0xc0 and the length 0.
         return chr(0xc0) . chr(0x00);
+    }
+
+    /**
+     * Builds a ping response message.
+     *
+     * @return string
+     */
+    public function buildPingResponseMessage(): string
+    {
+        // The message consists of the command 0xd0 and the length 0.
+        return chr(0xd0) . chr(0x00);
     }
 
     /**

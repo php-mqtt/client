@@ -383,7 +383,7 @@ class Mqtt31MessageProcessorTest extends TestCase
 
     public function test_buildPingMessage_builds_correct_message(): void
     {
-        $this->assertEquals(hex2bin('c000'), $this->messageProcessor->buildPingMessage());
+        $this->assertEquals(hex2bin('c000'), $this->messageProcessor->buildPingRequestMessage());
     }
 
     public function test_buildDisconnectMessage_builds_correct_message(): void

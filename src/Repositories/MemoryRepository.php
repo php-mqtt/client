@@ -7,6 +7,7 @@ namespace PhpMqtt\Client\Repositories;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
+use PhpMqtt\Client\Exceptions\RepositoryException;
 use PhpMqtt\Client\PendingMessage;
 use PhpMqtt\Client\PublishedMessage;
 use PhpMqtt\Client\Subscription;
@@ -53,7 +54,7 @@ class MemoryRepository implements Repository
             // receive queue size (mosquitto for example has 20 by default),
             // so the client has to implement the logic to honor this
             // restriction and fallback to the protocol limit.
-            throw new \RuntimeException("No more message IDs available");
+            throw new RepositoryException('No more message identifiers available. The queue is full.');
         }
 
         while (isset($this->pendingOutgoingMessages[$this->nextMessageId])) {

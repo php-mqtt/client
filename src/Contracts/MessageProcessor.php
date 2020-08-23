@@ -59,11 +59,18 @@ interface MessageProcessor
     public function buildConnectMessage(ConnectionSettings $connectionSettings, bool $useCleanSession = false): string;
 
     /**
-     * Builds a ping message.
+     * Builds a ping request message.
      *
      * @return string
      */
-    public function buildPingMessage(): string;
+    public function buildPingRequestMessage(): string;
+
+    /**
+     * Builds a ping response message.
+     *
+     * @return string
+     */
+    public function buildPingResponseMessage(): string;
 
     /**
      * Builds a disconnect message.

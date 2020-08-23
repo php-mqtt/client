@@ -9,7 +9,7 @@ namespace PhpMqtt\Client\Exceptions;
  *
  * @package PhpMqtt\Client\Exceptions
  */
-class PendingMessageNotFoundException extends MqttClientException
+class PendingMessageNotFoundException extends RepositoryException
 {
     /**
      * PendingMessageNotFoundException constructor.

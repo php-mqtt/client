@@ -14,12 +14,13 @@ use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
 use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
+use PhpMqtt\Client\Exceptions\InvalidMessageException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
 use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
-use PhpMqtt\Client\Exceptions\TopicNotSubscribedException;
 use PhpMqtt\Client\Exceptions\ProtocolViolationException;
+use PhpMqtt\Client\Exceptions\RepositoryException;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 use Psr\Log\LoggerInterface;
@@ -311,12 +312,12 @@ class MqttClient implements ClientContract
     /**
      * Internal parser for SSL-related PHP error messages.
      *
-     * @param array       $phpError
+     * @param array|null  $phpError
      * @param string|null $tlsErrorCode
      * @param string|null $tlsErrorMessage
      * @return void
      */
-    private function parseTlsErrorMessage($phpError, ?string &$tlsErrorCode = null, ?string &$tlsErrorMessage = null): void
+    private function parseTlsErrorMessage(?array $phpError, ?string &$tlsErrorCode = null, ?string &$tlsErrorMessage = null): void
     {
         if (!$phpError || !isset($phpError['message'])) {
             $tlsErrorCode    = "UNKNOWN:1";
@@ -525,6 +526,8 @@ class MqttClient implements ClientContract
      * @param bool   $retain
      * @return void
      * @throws DataTransferException
+     * @throws PendingMessageAlreadyExistsException
+     * @throws RepositoryException
      */
     public function publish(string $topic, string $message, int $qualityOfService = 0, bool $retain = false): void
     {
@@ -615,6 +618,7 @@ class MqttClient implements ClientContract
      * @param int      $qualityOfService
      * @return void
      * @throws DataTransferException
+     * @throws RepositoryException
      */
     public function subscribe(string $topicFilter, callable $callback, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
     {
@@ -645,16 +649,11 @@ class MqttClient implements ClientContract
      * @param string $topicFilter
      * @return void
      * @throws DataTransferException
-     * @throws TopicNotSubscribedException
+     * @throws RepositoryException
      */
     public function unsubscribe(string $topicFilter): void
     {
         $this->ensureConnected();
-
-        // $subscription = $this->repository->getTopicSubscriptionByTopic($topic);
-        // if ($subscription === null) {
-            // throw new TopicNotSubscribedException(sprintf('No subscription found for topic [%s].', $topic));
-        // }
 
         $this->logger->debug('Unsubscribing from topic [{topic}].', [
             'topic' => $topicFilter,
@@ -704,9 +703,7 @@ class MqttClient implements ClientContract
     {
         $this->logger->debug('Starting client loop to process incoming messages and the resend queue.');
 
-        $loopStartedAt            = microtime(true);
-        $lastRepublishedAt        = microtime(true);
-        $lastResendUnsubscribedAt = microtime(true);
+        $loopStartedAt = microtime(true);
 
         while (true) {
             if ($this->interrupted) {
@@ -791,6 +788,7 @@ class MqttClient implements ClientContract
      *
      * @param Message $message
      * @throws DataTransferException
+     * @throws ProtocolViolationException
      */
     protected function handleMessage(Message $message): void
     {
@@ -829,6 +827,7 @@ class MqttClient implements ClientContract
         }
 
         // PUBACK (outgoing, QoS 1)
+        // Receiving an acknowledgement allows us to remove the published message from the retry queue.
         if ($message->getType()->equals(MessageType::PUBLISH_ACKNOWLEDGEMENT())) {
             $result = $this->repository->removePendingOutgoingMessage($message->getMessageId());
             if ($result === false) {
@@ -840,13 +839,13 @@ class MqttClient implements ClientContract
         }
 
         // PUBREC (outgoing, QoS 2, part 1)
+        // Receiving a receipt allows us to mark the published message as received.
         if ($message->getType()->equals(MessageType::PUBLISH_RECEIPT())) {
             try {
                 $result = $this->repository->markPendingOutgoingPublishedMessageAsReceived($message->getMessageId());
             } catch (PendingMessageNotFoundException $e) {
-                // This should never happen as we should have received all
-                // PUBRECs before we we see the first PUBCOMP which actually
-                // remove the message, but better staying on the safe side.
+                // This should never happen as we should have received all PUBREC messages before we see the first
+                // PUBCOMP which actually remove the message. So we do this for safety only.
                 $result = false;
             }
             if ($result === false) {
@@ -861,6 +860,7 @@ class MqttClient implements ClientContract
         }
 
         // PUBREL (incoming, QoS 2, part 2)
+        // When the broker tells us we can release the received published message, we deliver it to subscribed callbacks.
         if ($message->getType()->equals(MessageType::PUBLISH_RELEASE())) {
             $pendingMessage = $this->repository->getPendingIncomingMessage($message->getMessageId());
             if (!$pendingMessage || !$pendingMessage instanceof PublishedMessage) {
@@ -883,6 +883,8 @@ class MqttClient implements ClientContract
         }
 
         // PUBCOMP (outgoing, QoS 2 part 3)
+        // Receiving a completion allows us to remove a published message from the retry queue.
+        // At this point, the publish process is complete.
         if ($message->getType()->equals(MessageType::PUBLISH_COMPLETE())) {
             $result = $this->repository->removePendingOutgoingMessage($message->getMessageId());
             if ($result === false) {
@@ -946,7 +948,7 @@ class MqttClient implements ClientContract
         // PINGREQ
         if ($message->getType()->equals(MessageType::PING_REQUEST())) {
             // Respond with PINGRESP.
-            $this->writeToSocket(chr(0xd0) . chr(0x00));
+            $this->writeToSocket($this->messageProcessor->buildPingResponseMessage());
             return;
         }
     }
@@ -975,9 +977,10 @@ class MqttClient implements ClientContract
     {
         $subscribers = $this->repository->getMatchingSubscriptions($topic);
 
-        $this->logger->debug('Delivering message received on topic [{topic}] from the broker to [{subscribers}] subscribers.', [
+        $this->logger->debug('Delivering message received on topic [{topic}] with QoS [{qos}] from the broker to [{subscribers}] subscribers.', [
             'topic' => $topic,
             'message' => $message,
+            'qos' => $qualityOfServiceLevel,
             'subscribers' => count($subscribers),
         ]);
 
@@ -999,6 +1002,7 @@ class MqttClient implements ClientContract
      *
      * @return void
      * @throws DataTransferException
+     * @throws InvalidMessageException
      */
     protected function resendPendingMessages(): void
     {
@@ -1035,7 +1039,7 @@ class MqttClient implements ClientContract
                 $data = $this->messageProcessor->buildUnsubscribeMessage($pendingMessage->getMessageId(), $pendingMessage->getTopicFilters(), true);
                 $this->writeToSocket($data);
             } else {
-                throw new \RuntimeException('Unexpected pending message type');
+                throw new InvalidMessageException('Unexpected message type encountered while resending pending messages.');
             }
 
             $pendingMessage->setLastSentAt(new \DateTime());
@@ -1108,7 +1112,7 @@ class MqttClient implements ClientContract
     {
         $this->logger->debug('Sending ping to the broker to keep the connection alive.');
 
-        $this->writeToSocket($this->messageProcessor->buildPingMessage());
+        $this->writeToSocket($this->messageProcessor->buildPingRequestMessage());
     }
 
     /**

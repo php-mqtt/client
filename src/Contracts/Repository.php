@@ -7,6 +7,7 @@ namespace PhpMqtt\Client\Contracts;
 use DateTime;
 use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
+use PhpMqtt\Client\Exceptions\RepositoryException;
 use PhpMqtt\Client\PendingMessage;
 use PhpMqtt\Client\Subscription;
 
@@ -31,6 +32,7 @@ interface Repository
      * but it is currently not being used (i.e. in a resend queue).
      *
      * @return int
+     * @throws RepositoryException
      */
     public function newMessageId(): int;
 
@@ -149,8 +151,8 @@ interface Repository
     /**
      * Gets all subscriptions matching the given criteria.
      *
-     * @param string $topicName
-     * @param int $subscriptionId
+     * @param string|null $topicName
+     * @param int|null    $subscriptionId
      * @return Subscription[]
      */
     public function getMatchingSubscriptions(string $topicName = null, int $subscriptionId = null): array;

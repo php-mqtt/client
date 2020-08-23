@@ -8,8 +8,8 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
-use PhpMqtt\Client\Exceptions\TopicNotSubscribedException;
 use PhpMqtt\Client\Exceptions\ProtocolViolationException;
+use PhpMqtt\Client\Exceptions\RepositoryException;
 
 /**
  * An interface for the MQTT client.
@@ -57,6 +57,7 @@ interface MqttClient
      * @param bool   $retain
      * @return void
      * @throws DataTransferException
+     * @throws RepositoryException
      */
     public function publish(string $topic, string $message, int $qualityOfService = 0, bool $retain = false): void;
 
@@ -86,6 +87,7 @@ interface MqttClient
      * @param int      $qualityOfService
      * @return void
      * @throws DataTransferException
+     * @throws RepositoryException
      */
     public function subscribe(string $topic, callable $callback, int $qualityOfService = 0): void;
 
@@ -95,7 +97,6 @@ interface MqttClient
      * @param string $topic
      * @return void
      * @throws DataTransferException
-     * @throws TopicNotSubscribedException
      */
     public function unsubscribe(string $topic): void;
 
