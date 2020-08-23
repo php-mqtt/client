@@ -8,8 +8,9 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\InvalidMessageException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
-use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
+use PhpMqtt\Client\Exceptions\ProtocolViolationException;
 use PhpMqtt\Client\Message;
+use PhpMqtt\Client\Subscription;
 
 /**
  * Implementations of this interface provide message parsing capabilities.
@@ -42,7 +43,7 @@ interface MessageProcessor
      * @param string $message
      * @return Message|null
      * @throws InvalidMessageException
-     * @throws UnexpectedAcknowledgementException
+     * @throws ProtocolViolationException
      * @throws MqttClientException
      */
     public function parseAndValidateMessage(string $message): ?Message;
@@ -58,11 +59,18 @@ interface MessageProcessor
     public function buildConnectMessage(ConnectionSettings $connectionSettings, bool $useCleanSession = false): string;
 
     /**
-     * Builds a ping message.
+     * Builds a ping request message.
      *
      * @return string
      */
-    public function buildPingMessage(): string;
+    public function buildPingRequestMessage(): string;
+
+    /**
+     * Builds a ping response message.
+     *
+     * @return string
+     */
+    public function buildPingResponseMessage(): string;
 
     /**
      * Builds a disconnect message.
@@ -74,22 +82,22 @@ interface MessageProcessor
     /**
      * Builds a subscribe message from the given parameters.
      *
-     * @param int    $messageId
-     * @param string $topic
-     * @param int    $qualityOfService
+     * @param int            $messageId
+     * @param Subscription[] $subscriptions
+     * @param bool           $isDuplicate
      * @return string
      */
-    public function buildSubscribeMessage(int $messageId, string $topic, int $qualityOfService): string;
+    public function buildSubscribeMessage(int $messageId, array $subscriptions, bool $isDuplicate = false): string;
 
     /**
      * Builds an unsubscribe message from the given parameters.
      *
-     * @param int    $messageId
-     * @param string $topic
-     * @param bool   $isDuplicate
+     * @param int      $messageId
+     * @param string[] $topics
+     * @param bool     $isDuplicate
      * @return string
      */
-    public function buildUnsubscribeMessage(int $messageId, string $topic, bool $isDuplicate = false): string;
+    public function buildUnsubscribeMessage(int $messageId, array $topics, bool $isDuplicate = false): string;
 
     /**
      * Builds a publish message based on the given parameters.

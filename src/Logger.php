@@ -14,13 +14,13 @@ use Psr\Log\LogLevel;
  */
 class Logger implements LoggerInterface
 {
-    /** @var */
+    /** @var string */
     private $host;
 
-    /** @var */
+    /** @var int */
     private $port;
 
-    /** @var */
+    /** @var string */
     private $clientId;
 
     /** @var LoggerInterface|null */

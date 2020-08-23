@@ -8,7 +8,7 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\InvalidMessageException;
-use PhpMqtt\Client\Exceptions\UnexpectedAcknowledgementException;
+use PhpMqtt\Client\Exceptions\ProtocolViolationException;
 use PhpMqtt\Client\Message;
 use PhpMqtt\Client\MessageType;
 use Psr\Log\LoggerInterface;
@@ -256,14 +256,25 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     }
 
     /**
-     * Builds a ping message.
+     * Builds a ping request message.
      *
      * @return string
      */
-    public function buildPingMessage(): string
+    public function buildPingRequestMessage(): string
     {
         // The message consists of the command 0xc0 and the length 0.
         return chr(0xc0) . chr(0x00);
+    }
+
+    /**
+     * Builds a ping response message.
+     *
+     * @return string
+     */
+    public function buildPingResponseMessage(): string
+    {
+        // The message consists of the command 0xd0 and the length 0.
+        return chr(0xd0) . chr(0x00);
     }
 
     /**
@@ -280,16 +291,18 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     /**
      * {@inheritDoc}
      */
-    public function buildSubscribeMessage(int $messageId, string $topic, int $qualityOfService): string
+    public function buildSubscribeMessage(int $messageId, array $subscriptions, bool $isDuplicate = false): string
     {
         // Encode the message id, it always consists of two bytes.
         $buffer = $this->encodeMessageId($messageId);
 
-        // Encode the topic as length prefixed string.
-        $buffer .= $this->buildLengthPrefixedString($topic);
+        foreach ($subscriptions as $subscription) {
+            // Encode the topic as length prefixed string.
+            $buffer .= $this->buildLengthPrefixedString($subscription->getTopicFilter());
 
-        // Encode the quality of service level.
-        $buffer .= chr($qualityOfService);
+            // Encode the quality of service level.
+            $buffer .= chr($subscription->getQualityOfServiceLevel());
+        }
 
         // The header consists of the message type 0x82 and the length.
         $header = chr(0x82) . $this->encodeMessageLength(strlen($buffer));
@@ -300,13 +313,15 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     /**
      * {@inheritDoc}
      */
-    public function buildUnsubscribeMessage(int $messageId, string $topic, bool $isDuplicate = false): string
+    public function buildUnsubscribeMessage(int $messageId, array $topics, bool $isDuplicate = false): string
     {
         // Encode the message id, it always consists of two bytes.
         $buffer = $this->encodeMessageId($messageId);
 
-        // Encode the topic as length prefixed string.
-        $buffer .= $this->buildLengthPrefixedString($topic);
+        foreach ($topics as $topic) {
+            // Encode the topic as length prefixed string.
+            $buffer .= $this->buildLengthPrefixedString($topic);
+        }
 
         // The header consists of the message type 0xa2 and the length.
         // Additionally, the first byte may contain the duplicate flag.
@@ -412,12 +427,9 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         }
 
         // Then handle the command accordingly.
-        switch ($command){
+        switch ($command) {
             case 0x02:
-                throw new UnexpectedAcknowledgementException(
-                    UnexpectedAcknowledgementException::EXCEPTION_ACK_CONNECT,
-                    'We unexpectedly received a connection acknowledgement.'
-                );
+                throw new ProtocolViolationException('Unexpected connection acknowledgement.');
 
             case 0x03:
                 return $this->parseAndValidatePublishMessage($data, $qualityOfService);
@@ -672,7 +684,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         $messageId = $this->decodeMessageId($this->pop($data, 2));
 
         // Parse and validate the QoS acknowledgements.
-        $acknowledgements = str_split($data);
+        $acknowledgements = array_map('ord', str_split($data));
         foreach ($acknowledgements as $acknowledgement) {
             if (!in_array($acknowledgement, [0, 1, 2])) {
                 throw new InvalidMessageException('Received subscribe acknowledgement with invalid QoS values from the broker.');
