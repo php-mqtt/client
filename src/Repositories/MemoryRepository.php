@@ -44,6 +44,7 @@ class MemoryRepository implements Repository
      * but it is currently not being used (i.e. in a resend queue).
      *
      * @return int
+     * @throws RepositoryException
      */
     public function newMessageId(): int
     {
@@ -202,11 +203,11 @@ class MemoryRepository implements Repository
         $result = [];
 
         foreach ($this->subscriptions as $subscription) {
-            if (($topicName !== null) && !$subscription->matchTopicFilter($topicName)) {
+            if ($topicName !== null && !$subscription->matchTopicFilter($topicName)) {
                 continue;
             }
 
-            if (($subscriptionId !== null) && ($subscription->getSubscriptionId() !== $subscriptionId)) {
+            if ($subscriptionId !== null && $subscription->getSubscriptionId() !== $subscriptionId) {
                 continue;
             }
 
