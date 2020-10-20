@@ -186,11 +186,11 @@ class MQTTClient implements ClientContract
             }
             
             if ($sslLocalCert !== null) {
-              $contextOptions['ssl']['local_cert'] = $sslLocalCert;
+                $contextOptions['ssl']['local_cert'] = $sslLocalCert;
             }
             
             if ($sslLocalPk !== null) {
-              $contextOptions['ssl']['local_pk'] = $sslLocalPk;
+                $contextOptions['ssl']['local_pk'] = $sslLocalPk;
             }
         }
 
