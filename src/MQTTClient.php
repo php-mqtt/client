@@ -125,6 +125,8 @@ class MQTTClient implements ClientContract
      * @param string|null             $password
      * @param ConnectionSettings|null $settings
      * @param bool                    $sendCleanSessionFlag
+     * @param string|null             $sslLocalCert
+     * @param string|null             $sslLocalPk
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
@@ -132,7 +134,9 @@ class MQTTClient implements ClientContract
         string $username = null,
         string $password = null,
         ConnectionSettings $settings = null,
-        bool $sendCleanSessionFlag = false
+        bool $sendCleanSessionFlag = false,
+        string $sslLocalCert = null,
+        string $sslLocalPk = null
     ): void
     {
         // Always abruptly close any previous connection if we are opening a new one.
@@ -143,17 +147,19 @@ class MQTTClient implements ClientContract
 
         $this->settings = $settings ?? new ConnectionSettings();
 
-        $this->establishSocketConnection();
+        $this->establishSocketConnection($sslLocalCert, $sslLocalPk);
         $this->performConnectionHandshake($username, $password, $sendCleanSessionFlag);
     }
 
     /**
      * Opens a socket that connects to the host and port set on the object.
      *
+     * @param string|null $sslLocalCert
+     * @param string|null $sslLocalPk
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
-    protected function establishSocketConnection(): void
+    protected function establishSocketConnection($sslLocalCert = null, $sslLocalPk = null): void
     {
         $useTls = ($this->settings->shouldUseTls() || $this->hasCertificateAuthorityFile());
 
@@ -177,6 +183,14 @@ class MQTTClient implements ClientContract
             if ($this->hasCertificateAuthorityFile()) {
                 $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->getCertificateAuthorityFile()));
                 $contextOptions['ssl']['cafile'] = $this->getCertificateAuthorityFile();
+            }
+            
+            if ($sslLocalCert !== null) {
+              $contextOptions['ssl']['local_cert'] = $sslLocalCert;
+            }
+            
+            if ($sslLocalPk !== null) {
+              $contextOptions['ssl']['local_pk'] = $sslLocalPk;
             }
         }
 
