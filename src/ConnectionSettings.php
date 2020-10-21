@@ -237,6 +237,12 @@ class ConnectionSettings
     }
     
     /**
+     * Returns the full path to the configured client certificate file,
+     * or null if none is configured.
+     * 
+     * The client certificate can be of any format supported by the `local_cert`
+     * option described by https://www.php.net/manual/en/context.ssl.php.
+     * 
      * @return string|null
      */
     public function getTlsClientCertificateFile(): ?string
@@ -245,6 +251,12 @@ class ConnectionSettings
     }
 
     /**
+     * Returns the full path to the configured client certificate key file,
+     * or null if none is configured.
+     * 
+     * The client certificate key can be of any format supported by the `local_pk`
+     * option described by https://www.php.net/manual/en/context.ssl.php.
+     * 
      * @return string|null
      */
     public function getTlsClientCertificateKeyFile(): ?string
@@ -253,41 +265,13 @@ class ConnectionSettings
     }
 
     /**
+     * Returns the passphrase for the configured client certificate key,
+     * or null if none is configured.
+     * 
      * @return string|null
      */
     public function getTlsClientCertificatePassphrase(): ?string
     {
         return $this->tlsClientCertificatePassphrase;
-    }
-
-    /**
-     * Checks if the configuration of the client certificate file, key file and
-     * passphrase is valid.
-     * This method returns null if the configuration is valid or an array of errors
-     * if the configuration is invalid.
-     *
-     * @return string[]|null
-     */
-    public function validateTlsClientCertificate(): ?array
-    {
-        $errors = [];
-
-        if ($this->tlsClientCertificateFile !== null && !is_file($this->tlsClientCertificateFile)) {
-            $errors[] = 'The client certificate file setting must contain the path to a regular file.';
-        }
-
-        if ($this->tlsClientCertificateKeyFile !== null && !is_file($this->tlsClientCertificateKeyFile)) {
-            $errors[] = 'The client certificate key file setting must contain the path to a regular file.';
-        }
-
-        if ($this->tlsClientCertificateKeyFile !== null && $this->tlsClientCertificateFile === null) {
-            $errors[] = 'Using a client certificate key file without certificate does not work.';
-        }
-
-        if ($this->tlsClientCertificatePassphrase !== null && $this->tlsClientCertificateFile === null) {
-            $errors[] = 'Using a client certificate passphrase without certificate does not work.';
-        }
-
-        return count($errors) === 0 ? null : $errors;
     }
 }
