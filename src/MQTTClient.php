@@ -265,9 +265,9 @@ class MQTTClient implements ClientContract
      * Validates the TLS configuration of the client certificate. The configuration is considered valid
      * if the path to a valid certificate file, a valid key file and, if required, a passphrase is given.
      * A combined file with the client certificate and its key is not supported.
-     * 
+     *
      * If no configuration for a client certificate is given at all, the configuration is also valid.
-     * 
+     *
      * Warnings will be written to the log in case of an invalid configuration.
      *
      * @param ConnectionSettings $settings

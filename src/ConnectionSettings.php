@@ -239,10 +239,10 @@ class ConnectionSettings
     /**
      * Returns the full path to the configured client certificate file,
      * or null if none is configured.
-     * 
+     *
      * The client certificate can be of any format supported by the `local_cert`
      * option described by https://www.php.net/manual/en/context.ssl.php.
-     * 
+     *
      * @return string|null
      */
     public function getTlsClientCertificateFile(): ?string
@@ -253,10 +253,10 @@ class ConnectionSettings
     /**
      * Returns the full path to the configured client certificate key file,
      * or null if none is configured.
-     * 
+     *
      * The client certificate key can be of any format supported by the `local_pk`
      * option described by https://www.php.net/manual/en/context.ssl.php.
-     * 
+     *
      * @return string|null
      */
     public function getTlsClientCertificateKeyFile(): ?string
@@ -267,7 +267,7 @@ class ConnectionSettings
     /**
      * Returns the passphrase for the configured client certificate key,
      * or null if none is configured.
-     * 
+     *
      * @return string|null
      */
     public function getTlsClientCertificatePassphrase(): ?string
