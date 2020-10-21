@@ -101,15 +101,13 @@ The `connect()` method of the `MQTTClient` takes four optional parameters:
 2. Password
 3. A `ConnectionSettings` instance
 4. A `boolean` flag indicating whether a clean session should be requested (a random client id does this implicitly)
-5. A path to a client certificate .pem file to be used for TLS, optionally also including a private key (will be passed as PHP SSL context option 'local_cert')
-6. A path to a private key file to be used for TLS (will be passed as PHP SSL context option 'local_pk')
 
 Example:
 ```php
 $mqtt = new \PhpMqtt\Client\MQTTClient($server, $port, $clientId);
 
 $connectionSettings = new \PhpMqtt\Client\ConnectionSettings();
-$mqtt->connect($username, $password, $connectionSettings, true, '/home/user/cert.pem', '/home/user/private.key');
+$mqtt->connect($username, $password, $connectionSettings, true);
 ```
 
 The `ConnectionSettings` class has the following constructor and defaults:
@@ -125,7 +123,10 @@ public function __construct(
     string $lastWillMessage = null,
     bool $useTls = false,
     bool $tlsVerifyPeer = true,
-    bool $tlsVerifyName = true
+    bool $tlsVerifyName = true,
+    string $tlsClientCertificateFile = null,
+    string $tlsClientCertificateKeyFile = null,
+    string $tlsClientCertificatePassphrase = null
 ) { ... }
 ```
 

@@ -44,6 +44,15 @@ class ConnectionSettings
     /** @var bool */
     private $tlsVerifyName;
 
+    /** @var string|null */
+    private $tlsClientCertificateFile;
+
+    /** @var string|null */
+    private $tlsClientCertificateKeyFile;
+
+    /** @var string|null */
+    private $tlsClientCertificatePassphrase;
+
     /**
      * Constructs a new settings object.
      *
@@ -58,6 +67,9 @@ class ConnectionSettings
      * @param bool        $useTls
      * @param bool        $tlsVerifyPeer
      * @param bool        $tlsVerifyName
+     * @param string|null $tlsClientCertificateFile
+     * @param string|null $tlsClientCertificateKeyFile
+     * @param string|null $tlsClientCertificatePassphrase
      */
     public function __construct(
         int $qualityOfService = 0,
@@ -70,20 +82,26 @@ class ConnectionSettings
         string $lastWillMessage = null,
         bool $useTls = false,
         bool $tlsVerifyPeer = true,
-        bool $tlsVerifyName = true
+        bool $tlsVerifyName = true,
+        string $tlsClientCertificateFile = null,
+        string $tlsClientCertificateKeyFile = null,
+        string $tlsClientCertificatePassphrase = null
     )
     {
-        $this->qualityOfService = $qualityOfService;
-        $this->retain           = $retain;
-        $this->blockSocket      = $blockSocket;
-        $this->socketTimeout    = $socketTimeout;
-        $this->keepAlive        = $keepAlive;
-        $this->resendTimeout    = $resendTimeout;
-        $this->lastWillTopic    = $lastWillTopic;
-        $this->lastWillMessage  = $lastWillMessage;
-        $this->useTls           = $useTls;
-        $this->tlsVerifyPeer    = $tlsVerifyPeer;
-        $this->tlsVerifyName    = $tlsVerifyName;
+        $this->qualityOfService               = $qualityOfService;
+        $this->retain                         = $retain;
+        $this->blockSocket                    = $blockSocket;
+        $this->socketTimeout                  = $socketTimeout;
+        $this->keepAlive                      = $keepAlive;
+        $this->resendTimeout                  = $resendTimeout;
+        $this->lastWillTopic                  = $lastWillTopic;
+        $this->lastWillMessage                = $lastWillMessage;
+        $this->useTls                         = $useTls;
+        $this->tlsVerifyPeer                  = $tlsVerifyPeer;
+        $this->tlsVerifyName                  = $tlsVerifyName;
+        $this->tlsClientCertificateFile       = $tlsClientCertificateFile;
+        $this->tlsClientCertificateKeyFile    = $tlsClientCertificateKeyFile;
+        $this->tlsClientCertificatePassphrase = $tlsClientCertificatePassphrase;
     }
 
     /**
@@ -216,5 +234,60 @@ class ConnectionSettings
     public function shouldTlsVerifyPeerName(): bool
     {
         return $this->tlsVerifyName;
+    }
+    
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificateFile(): ?string
+    {
+        return $this->tlsClientCertificateFile;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificateKeyFile(): ?string
+    {
+        return $this->tlsClientCertificateKeyFile;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificatePassphrase(): ?string
+    {
+        return $this->tlsClientCertificatePassphrase;
+    }
+
+    /**
+     * Checks if the configuration of the client certificate file, key file and
+     * passphrase is valid.
+     * This method returns null if the configuration is valid or an array of errors
+     * if the configuration is invalid.
+     * 
+     * @return string[]|null
+     */
+    public function validateTlsClientCertificate(): ?array
+    {
+        $errors = [];
+
+        if ($this->tlsClientCertificateFile !== null && !is_file($this->tlsClientCertificateFile)) {
+            $errors[] = 'The client certificate file setting must contain the path to a regular file.';
+        }
+
+        if ($this->tlsClientCertificateKeyFile !== null && !is_file($this->tlsClientCertificateKeyFile)) {
+            $errors[] = 'The client certificate key file setting must contain the path to a regular file.';
+        }
+
+        if ($this->tlsClientCertificateKeyFile !== null && $this->tlsClientCertificateFile === null) {
+            $errors[] = 'Using a client certificate key file without certificate does not work.';
+        }
+
+        if ($this->tlsClientCertificatePassphrase !== null && $this->tlsClientCertificateFile === null) {
+            $errors[] = 'Using a client certificate passphrase without certificate does not work.';
+        }
+
+        return count($errors) === 0 ? null : $errors;
     }
 }

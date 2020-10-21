@@ -125,8 +125,6 @@ class MQTTClient implements ClientContract
      * @param string|null             $password
      * @param ConnectionSettings|null $settings
      * @param bool                    $sendCleanSessionFlag
-     * @param string|null             $sslLocalCert
-     * @param string|null             $sslLocalPk
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
@@ -134,9 +132,7 @@ class MQTTClient implements ClientContract
         string $username = null,
         string $password = null,
         ConnectionSettings $settings = null,
-        bool $sendCleanSessionFlag = false,
-        string $sslLocalCert = null,
-        string $sslLocalPk = null
+        bool $sendCleanSessionFlag = false
     ): void
     {
         // Always abruptly close any previous connection if we are opening a new one.
@@ -147,19 +143,17 @@ class MQTTClient implements ClientContract
 
         $this->settings = $settings ?? new ConnectionSettings();
 
-        $this->establishSocketConnection($sslLocalCert, $sslLocalPk);
+        $this->establishSocketConnection();
         $this->performConnectionHandshake($username, $password, $sendCleanSessionFlag);
     }
 
     /**
      * Opens a socket that connects to the host and port set on the object.
      *
-     * @param string|null $sslLocalCert
-     * @param string|null $sslLocalPk
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
-    protected function establishSocketConnection($sslLocalCert = null, $sslLocalPk = null): void
+    protected function establishSocketConnection(): void
     {
         $useTls = ($this->settings->shouldUseTls() || $this->hasCertificateAuthorityFile());
 
@@ -185,12 +179,24 @@ class MQTTClient implements ClientContract
                 $contextOptions['ssl']['cafile'] = $this->getCertificateAuthorityFile();
             }
             
-            if ($sslLocalCert !== null) {
-                $contextOptions['ssl']['local_cert'] = $sslLocalCert;
-            }
-            
-            if ($sslLocalPk !== null) {
-                $contextOptions['ssl']['local_pk'] = $sslLocalPk;
+            $clientCertificateErrors = $this->settings->validateTlsClientCertificate();
+            if ($clientCertificateErrors === null) {
+                if ($this->settings->getTlsClientCertificateFile() !== null) {
+                    $contextOptions['ssl']['local_cert'] = $this->settings->getTlsClientCertificateFile();
+                }
+
+                if ($this->settings->getTlsClientCertificateKeyFile() !== null) {
+                    $contextOptions['ssl']['local_pk'] = $this->settings->getTlsClientCertificateKeyFile();
+                }
+
+                if ($this->settings->getTlsClientCertificatePassphrase() !== null) {
+                    $contextOptions['ssl']['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
+                }
+            } else {
+              $this->logger->warning('Cannot use client certificate due to the following errors:');
+              foreach ($clientCertificateErrors as $validationError) {
+                  $this->logger->warning($validationError);
+              }
             }
         }
 
