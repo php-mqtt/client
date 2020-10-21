@@ -265,7 +265,7 @@ class ConnectionSettings
      * passphrase is valid.
      * This method returns null if the configuration is valid or an array of errors
      * if the configuration is invalid.
-     * 
+     *
      * @return string[]|null
      */
     public function validateTlsClientCertificate(): ?array

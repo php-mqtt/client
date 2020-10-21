@@ -193,10 +193,10 @@ class MQTTClient implements ClientContract
                     $contextOptions['ssl']['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
                 }
             } else {
-              $this->logger->warning('Cannot use client certificate due to the following errors:');
-              foreach ($clientCertificateErrors as $validationError) {
-                  $this->logger->warning($validationError);
-              }
+                $this->logger->warning('Cannot use client certificate due to the following errors:');
+                foreach ($clientCertificateErrors as $validationError) {
+                    $this->logger->warning($validationError);
+                }
             }
         }
 
