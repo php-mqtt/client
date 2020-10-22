@@ -44,6 +44,15 @@ class ConnectionSettings
     /** @var bool */
     private $tlsVerifyName;
 
+    /** @var string|null */
+    private $tlsClientCertificateFile;
+
+    /** @var string|null */
+    private $tlsClientCertificateKeyFile;
+
+    /** @var string|null */
+    private $tlsClientCertificatePassphrase;
+
     /**
      * Constructs a new settings object.
      *
@@ -58,6 +67,9 @@ class ConnectionSettings
      * @param bool        $useTls
      * @param bool        $tlsVerifyPeer
      * @param bool        $tlsVerifyName
+     * @param string|null $tlsClientCertificateFile
+     * @param string|null $tlsClientCertificateKeyFile
+     * @param string|null $tlsClientCertificatePassphrase
      */
     public function __construct(
         int $qualityOfService = 0,
@@ -70,20 +82,26 @@ class ConnectionSettings
         string $lastWillMessage = null,
         bool $useTls = false,
         bool $tlsVerifyPeer = true,
-        bool $tlsVerifyName = true
+        bool $tlsVerifyName = true,
+        string $tlsClientCertificateFile = null,
+        string $tlsClientCertificateKeyFile = null,
+        string $tlsClientCertificatePassphrase = null
     )
     {
-        $this->qualityOfService = $qualityOfService;
-        $this->retain           = $retain;
-        $this->blockSocket      = $blockSocket;
-        $this->socketTimeout    = $socketTimeout;
-        $this->keepAlive        = $keepAlive;
-        $this->resendTimeout    = $resendTimeout;
-        $this->lastWillTopic    = $lastWillTopic;
-        $this->lastWillMessage  = $lastWillMessage;
-        $this->useTls           = $useTls;
-        $this->tlsVerifyPeer    = $tlsVerifyPeer;
-        $this->tlsVerifyName    = $tlsVerifyName;
+        $this->qualityOfService               = $qualityOfService;
+        $this->retain                         = $retain;
+        $this->blockSocket                    = $blockSocket;
+        $this->socketTimeout                  = $socketTimeout;
+        $this->keepAlive                      = $keepAlive;
+        $this->resendTimeout                  = $resendTimeout;
+        $this->lastWillTopic                  = $lastWillTopic;
+        $this->lastWillMessage                = $lastWillMessage;
+        $this->useTls                         = $useTls;
+        $this->tlsVerifyPeer                  = $tlsVerifyPeer;
+        $this->tlsVerifyName                  = $tlsVerifyName;
+        $this->tlsClientCertificateFile       = $tlsClientCertificateFile;
+        $this->tlsClientCertificateKeyFile    = $tlsClientCertificateKeyFile;
+        $this->tlsClientCertificatePassphrase = $tlsClientCertificatePassphrase;
     }
 
     /**
@@ -216,5 +234,44 @@ class ConnectionSettings
     public function shouldTlsVerifyPeerName(): bool
     {
         return $this->tlsVerifyName;
+    }
+    
+    /**
+     * Returns the full path to the configured client certificate file,
+     * or null if none is configured.
+     *
+     * The client certificate can be of any format supported by the `local_cert`
+     * option described by https://www.php.net/manual/en/context.ssl.php.
+     *
+     * @return string|null
+     */
+    public function getTlsClientCertificateFile(): ?string
+    {
+        return $this->tlsClientCertificateFile;
+    }
+
+    /**
+     * Returns the full path to the configured client certificate key file,
+     * or null if none is configured.
+     *
+     * The client certificate key can be of any format supported by the `local_pk`
+     * option described by https://www.php.net/manual/en/context.ssl.php.
+     *
+     * @return string|null
+     */
+    public function getTlsClientCertificateKeyFile(): ?string
+    {
+        return $this->tlsClientCertificateKeyFile;
+    }
+
+    /**
+     * Returns the passphrase for the configured client certificate key,
+     * or null if none is configured.
+     *
+     * @return string|null
+     */
+    public function getTlsClientCertificatePassphrase(): ?string
+    {
+        return $this->tlsClientCertificatePassphrase;
     }
 }

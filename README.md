@@ -123,7 +123,10 @@ public function __construct(
     string $lastWillMessage = null,
     bool $useTls = false,
     bool $tlsVerifyPeer = true,
-    bool $tlsVerifyName = true
+    bool $tlsVerifyName = true,
+    string $tlsClientCertificateFile = null,
+    string $tlsClientCertificateKeyFile = null,
+    string $tlsClientCertificatePassphrase = null
 ) { ... }
 ```
 

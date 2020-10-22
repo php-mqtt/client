@@ -178,6 +178,20 @@ class MQTTClient implements ClientContract
                 $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->getCertificateAuthorityFile()));
                 $contextOptions['ssl']['cafile'] = $this->getCertificateAuthorityFile();
             }
+            
+            if ($this->isTlsClientCertificateConfigurationValid($this->settings)) {
+                if ($this->settings->getTlsClientCertificateFile() !== null) {
+                    $contextOptions['ssl']['local_cert'] = $this->settings->getTlsClientCertificateFile();
+                }
+
+                if ($this->settings->getTlsClientCertificateKeyFile() !== null) {
+                    $contextOptions['ssl']['local_pk'] = $this->settings->getTlsClientCertificateKeyFile();
+                }
+
+                if ($this->settings->getTlsClientCertificatePassphrase() !== null) {
+                    $contextOptions['ssl']['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
+                }
+            }
         }
 
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
@@ -245,6 +259,54 @@ class MQTTClient implements ClientContract
         stream_set_blocking($socket, $this->settings->wantsToBlockSocket());
 
         $this->socket = $socket;
+    }
+
+    /**
+     * Validates the TLS configuration of the client certificate. The configuration is considered valid
+     * if the path to a valid certificate file, a valid key file and, if required, a passphrase is given.
+     * A combined file with the client certificate and its key is not supported.
+     *
+     * If no configuration for a client certificate is given at all, the configuration is also valid.
+     *
+     * Warnings will be written to the log in case of an invalid configuration.
+     *
+     * @param ConnectionSettings $settings
+     * @return bool
+     */
+    private function isTlsClientCertificateConfigurationValid(ConnectionSettings $settings): bool
+    {
+        $certificateFile = $settings->getTlsClientCertificateFile();
+        $keyFile         = $settings->getTlsClientCertificateKeyFile();
+
+        // No certificate and key files given, the configuration is valid.
+        if ($certificateFile === null && $keyFile === null) {
+            return true;
+        }
+
+        // The given client certificate file path is invalid.
+        if ($certificateFile === null || !is_file($certificateFile)) {
+            $this->logger->warning('The client certificate file setting must contain the path to a regular file.');
+            return false;
+        }
+
+        // The given client certificate key file path is invalid.
+        if ($keyFile === null || !is_file($keyFile)) {
+            $this->logger->warning('The client certificate key file setting must contain the path to a regular file.');
+            return false;
+        }
+
+        // If the openssl extension is available, we can actually verify if the key matches the certificate.
+        if (function_exists('openssl_x509_check_private_key')) {
+            $certificate = file_get_contents($certificateFile);
+            $key         = file_get_contents($keyFile);
+            $passphrase  = $settings->getTlsClientCertificatePassphrase();
+
+            if (!openssl_x509_check_private_key($certificate, ($passphrase !== null) ? [$key, $passphrase] : $key)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
