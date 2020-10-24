@@ -127,15 +127,15 @@ class RedisRepository implements Repository
             throw new RepositoryException('No more message identifiers available. The queue is full.');
         }
 
-        $nextMessageId = $this->redis->get(static::KEY_NEXT_MESSAGE_ID);
-        while ($this->redis->hExists(static::KEY_PENDING_OUTGOING_MESSAGES, $nextMessageId)) {
+        $nextMessageId = (int) $this->redis->get(static::KEY_NEXT_MESSAGE_ID);
+        while ($this->redis->hExists(static::KEY_PENDING_OUTGOING_MESSAGES, (string) $nextMessageId)) {
             $nextMessageId++;
             if ($nextMessageId > 65535) {
                 $nextMessageId = 1;
             }
         }
 
-        $this->redis->set(static::KEY_NEXT_MESSAGE_ID, $nextMessageId);
+        $this->redis->set(static::KEY_NEXT_MESSAGE_ID, (string) $nextMessageId);
 
         return $nextMessageId;
     }
@@ -165,7 +165,7 @@ class RedisRepository implements Repository
     public function getPendingOutgoingMessage(int $messageId): ?PendingMessage
     {
         /** @var PendingMessage|false $pendingMessage */
-        $pendingMessage = $this->redis->hGet(static::KEY_PENDING_OUTGOING_MESSAGES, $messageId);
+        $pendingMessage = $this->redis->hGet(static::KEY_PENDING_OUTGOING_MESSAGES, (string) $messageId);
 
         if ($pendingMessage === false) {
             return null;
@@ -210,7 +210,7 @@ class RedisRepository implements Repository
      */
     public function addPendingOutgoingMessage(PendingMessage $message): void
     {
-        $added = $this->redis->hSetNx(static::KEY_PENDING_OUTGOING_MESSAGES, $message->getMessageId(), $message);
+        $added = $this->redis->hSetNx(static::KEY_PENDING_OUTGOING_MESSAGES, (string) $message->getMessageId(), $message);
 
         if ($added === false) {
             throw new PendingMessageAlreadyExistsException($message->getMessageId());
@@ -238,7 +238,7 @@ class RedisRepository implements Repository
 
         $result = $message->markAsReceived();
 
-        $this->redis->hSet(static::KEY_PENDING_OUTGOING_MESSAGES, $messageId, $message);
+        $this->redis->hSet(static::KEY_PENDING_OUTGOING_MESSAGES, (string) $messageId, $message);
 
         return $result;
     }
@@ -255,7 +255,7 @@ class RedisRepository implements Repository
      */
     public function removePendingOutgoingMessage(int $messageId): bool
     {
-        $result = $this->redis->hDel(static::KEY_PENDING_OUTGOING_MESSAGES, $messageId);
+        $result = $this->redis->hDel(static::KEY_PENDING_OUTGOING_MESSAGES, (string) $messageId);
 
         if ($result === false) {
             return false;
@@ -289,7 +289,7 @@ class RedisRepository implements Repository
     public function getPendingIncomingMessage(int $messageId): ?PendingMessage
     {
         /** @var PendingMessage|false $pendingMessage */
-        $pendingMessage = $this->redis->hGet(static::KEY_PENDING_INCOMING_MESSAGES, $messageId);
+        $pendingMessage = $this->redis->hGet(static::KEY_PENDING_INCOMING_MESSAGES, (string) $messageId);
 
         if ($pendingMessage === false) {
             return null;
@@ -307,7 +307,7 @@ class RedisRepository implements Repository
      */
     public function addPendingIncomingMessage(PendingMessage $message): void
     {
-        $added = $this->redis->hSetNx(static::KEY_PENDING_INCOMING_MESSAGES, $message->getMessageId(), $message);
+        $added = $this->redis->hSetNx(static::KEY_PENDING_INCOMING_MESSAGES, (string) $message->getMessageId(), $message);
 
         if ($added === false) {
             throw new PendingMessageAlreadyExistsException($message->getMessageId());
@@ -326,7 +326,7 @@ class RedisRepository implements Repository
      */
     public function removePendingIncomingMessage(int $messageId): bool
     {
-        $result = $this->redis->hDel(static::KEY_PENDING_INCOMING_MESSAGES, $messageId);
+        $result = $this->redis->hDel(static::KEY_PENDING_INCOMING_MESSAGES, (string) $messageId);
 
         if ($result === false) {
             return false;
