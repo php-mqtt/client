@@ -160,38 +160,7 @@ class MQTTClient implements ClientContract
         $contextOptions = [];
 
         if ($useTls) {
-            $contextOptions['ssl'] = [];
-
-            if ($this->settings->shouldTlsVerifyPeer() || $this->hasCertificateAuthorityFile()) {
-                // As it does not make any sense to specify a certificate file without
-                // enabling peer verification, we automatically enable it in that case.
-                $contextOptions['ssl']['verify_peer'] = true;
-            } else {
-                // You get a warning output for free, on every connection.
-                $this->logger->warning('TLS encryption without peer verification enabled - POTENTIAL SECURITY ISSUE.');
-                $contextOptions['ssl']['verify_peer'] = false;
-            }
-
-            $contextOptions['ssl']['verify_peer_name'] = $this->settings->shouldTlsVerifyPeerName();
-
-            if ($this->hasCertificateAuthorityFile()) {
-                $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->getCertificateAuthorityFile()));
-                $contextOptions['ssl']['cafile'] = $this->getCertificateAuthorityFile();
-            }
-            
-            if ($this->isTlsClientCertificateConfigurationValid($this->settings)) {
-                if ($this->settings->getTlsClientCertificateFile() !== null) {
-                    $contextOptions['ssl']['local_cert'] = $this->settings->getTlsClientCertificateFile();
-                }
-
-                if ($this->settings->getTlsClientCertificateKeyFile() !== null) {
-                    $contextOptions['ssl']['local_pk'] = $this->settings->getTlsClientCertificateKeyFile();
-                }
-
-                if ($this->settings->getTlsClientCertificatePassphrase() !== null) {
-                    $contextOptions['ssl']['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
-                }
-            }
+            $contextOptions['ssl'] = $this->buildTlsContextOptions();
         }
 
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
@@ -259,6 +228,49 @@ class MQTTClient implements ClientContract
         stream_set_blocking($socket, $this->settings->wantsToBlockSocket());
 
         $this->socket = $socket;
+    }
+
+    /**
+     * Builds an array with the TLS context options used by {@see stream_context_create()}.
+     *
+     * @return array
+     */
+    private function buildTlsContextOptions(): array
+    {
+        $result = [];
+
+        if ($this->settings->shouldTlsVerifyPeer() || $this->hasCertificateAuthorityFile()) {
+            // As it does not make any sense to specify a certificate file without
+            // enabling peer verification, we automatically enable it in that case.
+            $result['verify_peer'] = true;
+        } else {
+            // You get a warning output for free, on every connection.
+            $this->logger->warning('TLS encryption without peer verification enabled - POTENTIAL SECURITY ISSUE.');
+            $result['verify_peer'] = false;
+        }
+
+        $result['verify_peer_name'] = $this->settings->shouldTlsVerifyPeerName();
+
+        if ($this->hasCertificateAuthorityFile()) {
+            $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->getCertificateAuthorityFile()));
+            $result['cafile'] = $this->getCertificateAuthorityFile();
+        }
+
+        if ($this->isTlsClientCertificateConfigurationValid($this->settings)) {
+            if ($this->settings->getTlsClientCertificateFile() !== null) {
+                $result['local_cert'] = $this->settings->getTlsClientCertificateFile();
+            }
+
+            if ($this->settings->getTlsClientCertificateKeyFile() !== null) {
+                $result['local_pk'] = $this->settings->getTlsClientCertificateKeyFile();
+            }
+
+            if ($this->settings->getTlsClientCertificatePassphrase() !== null) {
+                $result['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -523,7 +535,7 @@ class MQTTClient implements ClientContract
     protected function ping(): void
     {
         $this->logger->debug('Sending ping to the MQTT broker to keep the connection alive.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         $this->writeToSocket(chr(0xc0) . chr(0x00));
@@ -554,7 +566,7 @@ class MQTTClient implements ClientContract
      */
     protected function disconnect(): void
     {
-        $this->logger->debug('Sending disconnect package to the MQTT broker.', ['broker' => sprintf('%s:%s', $this->host, $this->port)]);
+        $this->logger->debug('Sending disconnect package to the MQTT broker.', ['broker' => $this->getBrokerForLogging()]);
 
         $this->writeToSocket(chr(0xe0) . chr(0x00));
     }
@@ -604,7 +616,7 @@ class MQTTClient implements ClientContract
     ): void
     {
         $this->logger->debug('Publishing an MQTT message.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
             'topic' => $topic,
             'message' => $message,
             'qos' => $qualityOfService,
@@ -673,7 +685,7 @@ class MQTTClient implements ClientContract
     public function subscribe(string $topic, callable $callback, int $qualityOfService = 0): void
     {
         $this->logger->debug('Subscribing to an MQTT topic.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
             'topic' => $topic,
             'qos' => $qualityOfService,
         ]);
@@ -722,7 +734,7 @@ class MQTTClient implements ClientContract
     protected function sendUnsubscribeRequest(int $messageId, string $topic, bool $isDuplicate = false): void
     {
         $this->logger->debug('Unsubscribing from an MQTT topic.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
             'message_id' => $messageId,
             'topic' => $topic,
             'is_duplicate' => $isDuplicate,
@@ -862,7 +874,7 @@ class MQTTClient implements ClientContract
                     }
                 } else {
                     $this->logger->error('A reserved command has been received from an MQTT broker. Supported are commands (including) 1-14.', [
-                        'broker' => sprintf('%s:%s', $this->host, $this->port),
+                        'broker' => $this->getBrokerForLogging(),
                         'command' => $command,
                     ]);
                 }
@@ -988,12 +1000,12 @@ class MQTTClient implements ClientContract
     protected function handlePublishAcknowledgement(string $buffer): void
     {
         $this->logger->debug('Handling publish acknowledgement received from an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         if (strlen($buffer) !== 2) {
             $this->logger->notice('Received invalid publish acknowledgement from an MQTT broker.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_PUBLISH,
@@ -1006,7 +1018,7 @@ class MQTTClient implements ClientContract
         $result = $this->repository->removePendingPublishedMessage($messageId);
         if ($result === false) {
             $this->logger->notice('Received publish acknowledgement from an MQTT broker for already acknowledged message.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_PUBLISH,
@@ -1028,12 +1040,12 @@ class MQTTClient implements ClientContract
     protected function handlePublishReceipt(string $buffer): void
     {
         $this->logger->debug('Handling publish receipt from an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         if (strlen($buffer) !== 2) {
             $this->logger->notice('Received invalid publish receipt from an MQTT broker.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_RECEIVE,
@@ -1046,7 +1058,7 @@ class MQTTClient implements ClientContract
         $result = $this->repository->markPendingPublishedMessageAsReceived($messageId);
         if ($result === false) {
             $this->logger->notice('Received publish receipt from an MQTT broker for already acknowledged message.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_RECEIVE,
@@ -1071,12 +1083,12 @@ class MQTTClient implements ClientContract
     protected function handlePublishRelease(string $buffer): void
     {
         $this->logger->debug('Handling publish release received from an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         if (strlen($buffer) !== 2) {
             $this->logger->notice('Received invalid publish release from an MQTT broker.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_RELEASE,
@@ -1091,7 +1103,7 @@ class MQTTClient implements ClientContract
         $result = $this->repository->removePendingPublishConfirmation($messageId);
         if ($message === null || $result === false) {
             $this->logger->notice('Received publish release from an MQTT broker for already released message.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_RELEASE,
@@ -1116,12 +1128,12 @@ class MQTTClient implements ClientContract
     protected function handlePublishCompletion(string $buffer): void
     {
         $this->logger->debug('Handling publish completion from an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         if (strlen($buffer) !== 2) {
             $this->logger->notice('Received invalid publish completion from an MQTT broker.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_COMPLETE,
@@ -1134,7 +1146,7 @@ class MQTTClient implements ClientContract
         $result = $this->repository->removePendingPublishedMessage($messageId);
         if ($result === false) {
             $this->logger->notice('Received publish completion from an MQTT broker for already acknowledged message.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_COMPLETE,
@@ -1158,12 +1170,12 @@ class MQTTClient implements ClientContract
     protected function handleSubscribeAcknowledgement(string $buffer): void
     {
         $this->logger->debug('Handling subscribe acknowledgement received from an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         if (strlen($buffer) < 3) {
             $this->logger->notice('Received invalid subscribe acknowledgement from an MQTT broker.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_SUBSCRIBE,
@@ -1177,7 +1189,7 @@ class MQTTClient implements ClientContract
 
         if (count($acknowledgements) !== count($subscriptions)) {
             $this->logger->notice('Received subscribe acknowledgement from an MQTT broker with wrong number of QoS acknowledgements.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
                 'required' => count($subscriptions),
                 'received' => count($acknowledgements),
             ]);
@@ -1210,12 +1222,12 @@ class MQTTClient implements ClientContract
     protected function handleUnsubscribeAcknowledgement(string $buffer): void
     {
         $this->logger->debug('Handling unsubscribe acknowledgement received from an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         if (strlen($buffer) !== 2) {
             $this->logger->notice('Received invalid unsubscribe acknowledgement from an MQTT broker.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_PUBLISH,
@@ -1229,7 +1241,7 @@ class MQTTClient implements ClientContract
         $result             = $this->repository->removePendingUnsubscribeRequest($messageId);
         if ($result === false) {
             $this->logger->notice('Received unsubscribe acknowledgement from an MQTT broker for already acknowledged unsubscribe request.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new UnexpectedAcknowledgementException(
                 self::EXCEPTION_ACK_PUBLISH,
@@ -1251,7 +1263,7 @@ class MQTTClient implements ClientContract
     protected function handlePingRequest(): void
     {
         $this->logger->debug('Received ping request from an MQTT broker. Sending response.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         $this->writeToSocket(chr(0xd0) . chr(0x00));
@@ -1264,7 +1276,7 @@ class MQTTClient implements ClientContract
      */
     protected function handlePingAcknowledgement(): void
     {
-        $this->logger->debug('Received ping acknowledgement from an MQTT broker.', ['broker' => sprintf('%s:%s', $this->host, $this->port)]);
+        $this->logger->debug('Received ping acknowledgement from an MQTT broker.', ['broker' => $this->getBrokerForLogging()]);
     }
 
     /**
@@ -1281,7 +1293,7 @@ class MQTTClient implements ClientContract
         $subscribers = $this->repository->getTopicSubscriptionsMatchingTopic($topic);
 
         $this->logger->debug('Delivering published message received from an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
             'topic' => $topic,
             'message' => $message,
             'subscribers' => count($subscribers),
@@ -1312,7 +1324,7 @@ class MQTTClient implements ClientContract
     protected function sendPublishAcknowledgement(int $messageId): void
     {
         $this->logger->debug('Sending publish acknowledgement to an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
             'message_id' => $messageId,
         ]);
 
@@ -1329,7 +1341,7 @@ class MQTTClient implements ClientContract
     protected function sendPublishReceived(int $messageId): void
     {
         $this->logger->debug('Sending publish received message to an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
             'message_id' => $messageId,
         ]);
 
@@ -1346,7 +1358,7 @@ class MQTTClient implements ClientContract
     protected function sendPublishRelease(int $messageId): void
     {
         $this->logger->debug('Sending publish release message to an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
             'message_id' => $messageId,
         ]);
 
@@ -1363,7 +1375,7 @@ class MQTTClient implements ClientContract
     protected function sendPublishComplete(int $messageId): void
     {
         $this->logger->debug('Sending publish received message to an MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
             'message_id' => $messageId,
         ]);
 
@@ -1379,7 +1391,7 @@ class MQTTClient implements ClientContract
     protected function republishPendingMessages(): void
     {
         $this->logger->debug('Re-publishing pending messages to MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         /** @noinspection PhpUnhandledExceptionInspection */
@@ -1388,7 +1400,7 @@ class MQTTClient implements ClientContract
 
         foreach ($messages as $message) {
             $this->logger->debug('Re-publishing pending message to MQTT broker.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
                 'message_id' => $message->getMessageId(),
             ]);
 
@@ -1415,7 +1427,7 @@ class MQTTClient implements ClientContract
     protected function republishPendingUnsubscribeRequests(): void
     {
         $this->logger->debug('Re-sending pending unsubscribe requests to MQTT broker.', [
-            'broker' => sprintf('%s:%s', $this->host, $this->port),
+            'broker' => $this->getBrokerForLogging(),
         ]);
 
         /** @noinspection PhpUnhandledExceptionInspection */
@@ -1424,7 +1436,7 @@ class MQTTClient implements ClientContract
 
         foreach ($requests as $request) {
             $this->logger->debug('Re-sending pending unsubscribe request to MQTT broker.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
                 'message_id' => $request->getMessageId(),
             ]);
 
@@ -1526,7 +1538,7 @@ class MQTTClient implements ClientContract
 
         if ($result === false || $result !== $length) {
             $this->logger->error('Sending data over the socket to an MQTT broker failed.', [
-                'broker' => sprintf('%s:%s', $this->host, $this->port),
+                'broker' => $this->getBrokerForLogging(),
             ]);
             throw new DataTransferException(self::EXCEPTION_TX_DATA, 'Sending data over the socket failed. Has it been closed?');
         }
@@ -1555,7 +1567,7 @@ class MQTTClient implements ClientContract
             $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
                 $this->logger->error('Reading data from the socket from an MQTT broker failed.', [
-                    'broker' => sprintf('%s:%s', $this->host, $this->port),
+                    'broker' => $this->getBrokerForLogging(),
                 ]);
                 throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket failed. Has it been closed?');
             }
@@ -1572,7 +1584,7 @@ class MQTTClient implements ClientContract
             $receivedData = fread($this->socket, $remaining);
             if ($receivedData === false) {
                 $this->logger->error('Reading data from the socket from an MQTT broker failed.', [
-                    'broker' => sprintf('%s:%s', $this->host, $this->port),
+                    'broker' => $this->getBrokerForLogging(),
                 ]);
                 throw new DataTransferException(self::EXCEPTION_RX_DATA, 'Reading data from the socket failed. Has it been closed?');
             }
@@ -1734,5 +1746,15 @@ class MQTTClient implements ClientContract
     protected function generateRandomClientId(): string
     {
         return substr(md5(uniqid((string) mt_rand(), true)), 0, 20);
+    }
+
+    /**
+     * Returns a string with the host and port of the connected (or configured) broker.
+     *
+     * @return string
+     */
+    private function getBrokerForLogging(): string
+    {
+        return sprintf('%s:%s', $this->host, $this->port);
     }
 }
