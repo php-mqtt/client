@@ -160,38 +160,7 @@ class MQTTClient implements ClientContract
         $contextOptions = [];
 
         if ($useTls) {
-            $contextOptions['ssl'] = [];
-
-            if ($this->settings->shouldTlsVerifyPeer() || $this->hasCertificateAuthorityFile()) {
-                // As it does not make any sense to specify a certificate file without
-                // enabling peer verification, we automatically enable it in that case.
-                $contextOptions['ssl']['verify_peer'] = true;
-            } else {
-                // You get a warning output for free, on every connection.
-                $this->logger->warning('TLS encryption without peer verification enabled - POTENTIAL SECURITY ISSUE.');
-                $contextOptions['ssl']['verify_peer'] = false;
-            }
-
-            $contextOptions['ssl']['verify_peer_name'] = $this->settings->shouldTlsVerifyPeerName();
-
-            if ($this->hasCertificateAuthorityFile()) {
-                $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->getCertificateAuthorityFile()));
-                $contextOptions['ssl']['cafile'] = $this->getCertificateAuthorityFile();
-            }
-            
-            if ($this->isTlsClientCertificateConfigurationValid($this->settings)) {
-                if ($this->settings->getTlsClientCertificateFile() !== null) {
-                    $contextOptions['ssl']['local_cert'] = $this->settings->getTlsClientCertificateFile();
-                }
-
-                if ($this->settings->getTlsClientCertificateKeyFile() !== null) {
-                    $contextOptions['ssl']['local_pk'] = $this->settings->getTlsClientCertificateKeyFile();
-                }
-
-                if ($this->settings->getTlsClientCertificatePassphrase() !== null) {
-                    $contextOptions['ssl']['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
-                }
-            }
+            $contextOptions['ssl'] = $this->buildTlsContextOptions();
         }
 
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
@@ -259,6 +228,49 @@ class MQTTClient implements ClientContract
         stream_set_blocking($socket, $this->settings->wantsToBlockSocket());
 
         $this->socket = $socket;
+    }
+
+    /**
+     * Builds an array with the TLS context options used by {@see stream_context_create()}.
+     *
+     * @return array
+     */
+    private function buildTlsContextOptions(): array
+    {
+        $result = [];
+
+        if ($this->settings->shouldTlsVerifyPeer() || $this->hasCertificateAuthorityFile()) {
+            // As it does not make any sense to specify a certificate file without
+            // enabling peer verification, we automatically enable it in that case.
+            $result['verify_peer'] = true;
+        } else {
+            // You get a warning output for free, on every connection.
+            $this->logger->warning('TLS encryption without peer verification enabled - POTENTIAL SECURITY ISSUE.');
+            $result['verify_peer'] = false;
+        }
+
+        $result['verify_peer_name'] = $this->settings->shouldTlsVerifyPeerName();
+
+        if ($this->hasCertificateAuthorityFile()) {
+            $this->logger->info(sprintf('Using certificate authority file [%s] to verify peer name.', $this->getCertificateAuthorityFile()));
+            $result['cafile'] = $this->getCertificateAuthorityFile();
+        }
+
+        if ($this->isTlsClientCertificateConfigurationValid($this->settings)) {
+            if ($this->settings->getTlsClientCertificateFile() !== null) {
+                $result['local_cert'] = $this->settings->getTlsClientCertificateFile();
+            }
+
+            if ($this->settings->getTlsClientCertificateKeyFile() !== null) {
+                $result['local_pk'] = $this->settings->getTlsClientCertificateKeyFile();
+            }
+
+            if ($this->settings->getTlsClientCertificatePassphrase() !== null) {
+                $result['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
+            }
+        }
+
+        return $result;
     }
 
     /**
