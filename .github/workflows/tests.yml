@@ -73,7 +73,7 @@ jobs:
           port: 1883
 
       - name: Wait a bit until MQTT broker has started
-        run: sleep 15
+        run: sleep 30
 
       - name: Run phpunit tests
         run: composer test
