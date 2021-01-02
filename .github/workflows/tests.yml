@@ -76,6 +76,7 @@ jobs:
         uses: ifaxity/wait-on-action@v1
         with:
           resource: tcp:127.0.0.1:1883
+          delay: 5000
           timeout: 30000
 
       - name: Run phpunit tests
