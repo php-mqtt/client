@@ -15,8 +15,8 @@ jobs:
 
     strategy:
       matrix:
-        php-version: ['8.0']
-        mqtt-broker: ['mosquitto', 'hivemq']
+        php-version: ['7.4', '8.0']
+        mqtt-broker: ['mosquitto', 'hivemq', 'emqx']
 
     steps:
       - uses: actions/checkout@v2
@@ -72,12 +72,8 @@ jobs:
           version: '4.2.5'
           port: 1883
 
-      - name: Ensure MQTT broker is listening
-        uses: ifaxity/wait-on-action@v1
-        with:
-          resource: tcp:127.0.0.1:1883
-          delay: 5000
-          timeout: 30000
+      - name: Wait a bit until MQTT broker has started
+        run: sleep 15
 
       - name: Run phpunit tests
         run: composer test
