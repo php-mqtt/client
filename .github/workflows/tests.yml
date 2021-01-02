@@ -15,8 +15,8 @@ jobs:
 
     strategy:
       matrix:
-        php-version: ['7.4', '8.0']
-        mqtt-broker: ['mosquitto', 'hivemq', 'emqx']
+        php-version: ['8.0']
+        mqtt-broker: ['mosquitto', 'hivemq']
 
     steps:
       - uses: actions/checkout@v2
