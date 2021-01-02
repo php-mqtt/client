@@ -82,14 +82,14 @@ jobs:
           MQTT_BROKER_PORT: 1883
 
       - name: Prepare paths for SonarQube analysis
-        if: matrix.php-version == '8.0'
+        if: matrix.php-version == '8.0' && matrix.mqtt-broker == 'mosquitto'
         run: |
           sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.coverage-clover.xml
           sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.report-junit.xml
 
       - name: Run SonarQube analysis
         uses: sonarsource/sonarcloud-github-action@master
-        if: matrix.php-version == '8.0'
+        if: matrix.php-version == '8.0' && matrix.mqtt-broker == 'mosquitto'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
