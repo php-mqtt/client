@@ -3,6 +3,11 @@
 [![Latest Stable Version](https://poser.pugx.org/php-mqtt/client/v)](https://packagist.org/packages/php-mqtt/client)
 [![Total Downloads](https://poser.pugx.org/php-mqtt/client/downloads)](https://packagist.org/packages/php-mqtt/client)
 [![Tests](https://github.com/php-mqtt/client/workflows/Tests/badge.svg)](https://github.com/php-mqtt/client/actions?query=workflow%3ATests)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=php-mqtt_client&metric=alert_status)](https://sonarcloud.io/dashboard?id=php-mqtt_client)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=php-mqtt_client&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=php-mqtt_client)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=php-mqtt_client&metric=reliability_rating)](https://sonarcloud.io/dashboard?id=php-mqtt_client)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=php-mqtt_client&metric=security_rating)](https://sonarcloud.io/dashboard?id=php-mqtt_client)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=php-mqtt_client&metric=vulnerabilities)](https://sonarcloud.io/dashboard?id=php-mqtt_client)
 [![License](https://poser.pugx.org/php-mqtt/client/license)](https://packagist.org/packages/php-mqtt/client)
 
 [`php-mqtt/client`](https://packagist.org/packages/php-mqtt/client) was created by, and is maintained
