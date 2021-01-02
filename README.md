@@ -1,8 +1,9 @@
 # php-mqtt/client
 
-[![Latest Stable Version](https://poser.pugx.org/php-mqtt/client/v)](//packagist.org/packages/php-mqtt/client)
-[![Total Downloads](https://poser.pugx.org/php-mqtt/client/downloads)](//packagist.org/packages/php-mqtt/client)
-[![License](https://poser.pugx.org/php-mqtt/client/license)](//packagist.org/packages/php-mqtt/client)
+[![Latest Stable Version](https://poser.pugx.org/php-mqtt/client/v)](https://packagist.org/packages/php-mqtt/client)
+[![Total Downloads](https://poser.pugx.org/php-mqtt/client/downloads)](https://packagist.org/packages/php-mqtt/client)
+[![Tests](https://github.com/php-mqtt/client/workflows/Tests/badge.svg)](https://github.com/php-mqtt/client/actions?query=workflow%3ATests)
+[![License](https://poser.pugx.org/php-mqtt/client/license)](https://packagist.org/packages/php-mqtt/client)
 
 [`php-mqtt/client`](https://packagist.org/packages/php-mqtt/client) was created by, and is maintained
 by [Namoshek](https://github.com/namoshek).
@@ -24,6 +25,8 @@ This library requires PHP version 7.2 or higher.
 A very basic publish example requires only three steps: connect, publish and close
 
 ```php
+$server   = 'some-broker.example.com';
+$port     = 1883;
 $clientId = 'test-publisher';
 
 $mqtt = new \PhpMqtt\Client\MqttClient($server, $port, $clientId);
