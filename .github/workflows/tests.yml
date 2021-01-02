@@ -1,6 +1,11 @@
 name: Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   test-all:
@@ -47,4 +52,4 @@ jobs:
         uses: Namoshek/mosquitto-github-action@v0.1.0
 
       - name: Run phpunit tests
-        run: phpunit
+        run: composer test
