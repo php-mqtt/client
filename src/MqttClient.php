@@ -710,46 +710,16 @@ class MqttClient implements ClientContract
             }
 
             $elapsedTime = microtime(true) - $loopStartedAt;
-
-            foreach ($this->loopEventHandlers as $handler) {
-                try {
-                    call_user_func($handler, $this, $elapsedTime);
-                } catch (\Throwable $e) {
-                    $this->logger->error('Loop hook callback threw exception.', ['exception' => $e]);
-                }
-            }
+            $this->runLoopEventHandlers($elapsedTime);
 
             // Read data from the socket - as much as available.
             $this->buffer .= $this->readAllAvailableDataFromSocket();
 
             // Try to parse a message from the buffer and handle it, as long as messages can be parsed.
             if (strlen($this->buffer) > 0) {
-                while (true) {
-                    $data          = '';
-                    $requiredBytes = -1;
-                    $hasMessage    = $this->messageProcessor->tryFindMessageInBuffer($this->buffer, strlen($this->buffer), $data, $requiredBytes);
-
-                    // When there is no full message in the buffer, we stop processing for now and go on
-                    // with the next iteration.
-                    if ($hasMessage === false) {
-                        break;
-                    }
-
-                    // If we found a message, the buffer needs to be reduced by the message length.
-                    $this->buffer = substr($this->buffer, strlen($data));
-
-                    // We then pass the message over to the message processor to parse and validate it.
-                    $message = $this->messageProcessor->parseAndValidateMessage($data);
-
-                    // The result is used by us to perform required actions according to the protocol.
-                    if ($message !== null) {
-                        $this->handleMessage($message);
-                    }
-                }
-            } else {
-                if ($allowSleep) {
-                    usleep(100000); // 100ms
-                }
+                $this->processMessageBuffer();
+            } elseif ($allowSleep) {
+                usleep(100000); // 100ms
             }
 
             // Republish messages expired without confirmation.
@@ -777,6 +747,41 @@ class MqttClient implements ClientContract
                     $this->repository->countSubscriptions() === 0) {
                     break;
                 }
+            }
+        }
+    }
+
+    /**
+     * Processes the incoming message buffer by parsing and handling the messages, until the buffer is empty.
+     *
+     * @return void
+     * @throws DataTransferException
+     * @throws InvalidMessageException
+     * @throws MqttClientException
+     * @throws ProtocolViolationException
+     */
+    private function processMessageBuffer(): void
+    {
+        while (true) {
+            $data          = '';
+            $requiredBytes = -1;
+            $hasMessage    = $this->messageProcessor->tryFindMessageInBuffer($this->buffer, strlen($this->buffer), $data, $requiredBytes);
+
+            // When there is no full message in the buffer, we stop processing for now and go on
+            // with the next iteration.
+            if ($hasMessage === false) {
+                break;
+            }
+
+            // If we found a message, the buffer needs to be reduced by the message length.
+            $this->buffer = substr($this->buffer, strlen($data));
+
+            // We then pass the message over to the message processor to parse and validate it.
+            $message = $this->messageProcessor->parseAndValidateMessage($data);
+
+            // The result is used by us to perform required actions according to the protocol.
+            if ($message !== null) {
+                $this->handleMessage($message);
             }
         }
     }

@@ -13,10 +13,10 @@ use PhpMqtt\Client\Contracts\MqttClient;
  */
 trait OffersHooks
 {
-    /** @var \SplObjectStorage|\Closure[] */
+    /** @var \SplObjectStorage|array<\Closure> */
     protected $loopEventHandlers;
 
-    /** @var \SplObjectStorage|\Closure[] */
+    /** @var \SplObjectStorage|array<\Closure> */
     protected $publishEventHandlers;
 
     /**
@@ -82,6 +82,23 @@ trait OffersHooks
 
         /** @var MqttClient $this */
         return $this;
+    }
+
+    /**
+     * Runs all registered loop event handlers with the given parameters.
+     *
+     * @param float $elapsedTime
+     * @return void
+     */
+    private function runLoopEventHandlers(float $elapsedTime): void
+    {
+        foreach ($this->loopEventHandlers as $handler) {
+            try {
+                call_user_func($handler, $this, $elapsedTime);
+            } catch (\Throwable $e) {
+                $this->logger->error('Loop hook callback threw exception.', ['exception' => $e]);
+            }
+        }
     }
 
     /**
