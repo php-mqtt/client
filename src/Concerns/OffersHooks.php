@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client\Concerns;
 
-use PhpMqtt\Client\Contracts\MQTTClient;
+use PhpMqtt\Client\Contracts\MqttClient;
 
 /**
  * Contains common methods and properties necessary to offer hooks.
@@ -13,10 +13,10 @@ use PhpMqtt\Client\Contracts\MQTTClient;
  */
 trait OffersHooks
 {
-    /** @var \SplObjectStorage|\Closure[] */
+    /** @var \SplObjectStorage|array<\Closure> */
     protected $loopEventHandlers;
 
-    /** @var \SplObjectStorage|\Closure[] */
+    /** @var \SplObjectStorage|array<\Closure> */
     protected $publishEventHandlers;
 
     /**
@@ -39,16 +39,26 @@ trait OffersHooks
      * the elapsed time which the loop is already running for as second
      * parameter. The elapsed time is a float containing seconds.
      *
+     * Example:
+     * ```php
+     * $mqtt->registerLoopEventHandler(function (
+     *     MqttClient $mqtt,
+     *     float $elapsedTime
+     * ) use ($logger) {
+     *     $logger->info("Running for [{$elapsedTime}] seconds already.");
+     * });
+     * ```
+     *
      * Multiple event handlers can be registered at the same time.
      *
      * @param \Closure $callback
-     * @return MQTTClient
+     * @return MqttClient
      */
-    public function registerLoopEventHandler(\Closure $callback): MQTTClient
+    public function registerLoopEventHandler(\Closure $callback): MqttClient
     {
         $this->loopEventHandlers->attach($callback);
 
-        /** @var MQTTClient $this */
+        /** @var MqttClient $this */
         return $this;
     }
 
@@ -60,9 +70,9 @@ trait OffersHooks
      * to unregister all registered event handlers by passing null as callback.
      *
      * @param \Closure|null $callback
-     * @return MQTTClient
+     * @return MqttClient
      */
-    public function unregisterLoopEventHandler(\Closure $callback = null): MQTTClient
+    public function unregisterLoopEventHandler(\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
             $this->loopEventHandlers->removeAll($this->loopEventHandlers);
@@ -70,8 +80,25 @@ trait OffersHooks
             $this->loopEventHandlers->detach($callback);
         }
 
-        /** @var MQTTClient $this */
+        /** @var MqttClient $this */
         return $this;
+    }
+
+    /**
+     * Runs all registered loop event handlers with the given parameters.
+     *
+     * @param float $elapsedTime
+     * @return void
+     */
+    private function runLoopEventHandlers(float $elapsedTime): void
+    {
+        foreach ($this->loopEventHandlers as $handler) {
+            try {
+                call_user_func($handler, $this, $elapsedTime);
+            } catch (\Throwable $e) {
+                $this->logger->error('Loop hook callback threw exception.', ['exception' => $e]);
+            }
+        }
     }
 
     /**
@@ -82,16 +109,30 @@ trait OffersHooks
      * message identifier will be passed. The QoS level as well as the retained
      * flag will also be passed as fifth and sixth parameters.
      *
+     * Example:
+     * ```php
+     * $mqtt->registerPublishEventHandler(function (
+     *     MqttClient $mqtt,
+     *     string $topic,
+     *     string $message,
+     *     int $messageId,
+     *     int $qualityOfService,
+     *     bool $retain
+     * ) use ($logger) {
+     *     $logger->info("Received message on topic [{$topic}]: {$message}");
+     * });
+     * ```
+     *
      * Multiple event handlers can be registered at the same time.
      *
      * @param \Closure $callback
-     * @return MQTTClient
+     * @return MqttClient
      */
-    public function registerPublishEventHandler(\Closure $callback): MQTTClient
+    public function registerPublishEventHandler(\Closure $callback): MqttClient
     {
         $this->publishEventHandlers->attach($callback);
 
-        /** @var MQTTClient $this */
+        /** @var MqttClient $this */
         return $this;
     }
 
@@ -103,9 +144,9 @@ trait OffersHooks
      * to unregister all registered event handlers by passing null as callback.
      *
      * @param \Closure|null $callback
-     * @return MQTTClient
+     * @return MqttClient
      */
-    public function unregisterPublishEventHandler(\Closure $callback = null): MQTTClient
+    public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
             $this->publishEventHandlers->removeAll($this->publishEventHandlers);
@@ -113,7 +154,7 @@ trait OffersHooks
             $this->publishEventHandlers->detach($callback);
         }
 
-        /** @var MQTTClient $this */
+        /** @var MqttClient $this */
         return $this;
     }
 }

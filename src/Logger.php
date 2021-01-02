@@ -14,17 +14,37 @@ use Psr\Log\LogLevel;
  */
 class Logger implements LoggerInterface
 {
+    /** @var string */
+    private $host;
+
+    /** @var int */
+    private $port;
+
+    /** @var string */
+    private $clientId;
+
     /** @var LoggerInterface|null */
     private $logger;
 
     /**
      * Logger constructor.
      *
+     * @param string               $host
+     * @param int                  $port
+     * @param string               $clientId
      * @param LoggerInterface|null $logger
      */
-    public function __construct(LoggerInterface $logger = null)
+    public function __construct(
+        string $host,
+        int $port,
+        string $clientId,
+        LoggerInterface $logger = null
+    )
     {
-        $this->logger = $logger;
+        $this->host     = $host;
+        $this->port     = $port;
+        $this->clientId = $clientId;
+        $this->logger   = $logger;
     }
 
     /**
@@ -148,6 +168,32 @@ class Logger implements LoggerInterface
             return;
         }
 
-        $this->logger->log($level, $message, $context);
+        $this->logger->log($level, $this->wrapLogMessage($message), $this->mergeContext($context));
+    }
+
+    /**
+     * Wraps the given log message by prepending the client id and broker.
+     *
+     * @param string $message
+     * @return string
+     */
+    protected function wrapLogMessage(string $message): string
+    {
+        return 'MQTT [{host}:{port}] [{clientId}] ' . $message;
+    }
+
+    /**
+     * Adds global context like host, port and client id to the log context.
+     *
+     * @param array $context
+     * @return array
+     */
+    protected function mergeContext(array $context): array
+    {
+        return array_merge([
+            'host' => $this->host,
+            'port' => $this->port,
+            'clientId' => $this->clientId,
+        ], $context);
     }
 }

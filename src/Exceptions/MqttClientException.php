@@ -9,8 +9,15 @@ namespace PhpMqtt\Client\Exceptions;
  *
  * @package PhpMqtt\Client\Exceptions
  */
-class MQTTClientException extends \Exception
+class MqttClientException extends \Exception
 {
+    /**
+     * MqttClientException constructor.
+     *
+     * @param string          $message
+     * @param int             $code
+     * @param \Throwable|null $parentException
+     */
     public function __construct(string $message = '', int $code = 0, \Throwable $parentException = null)
     {
         if (empty($message)) {

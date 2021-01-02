@@ -81,7 +81,6 @@
     <rule ref="Zend.Files.ClosingTag"/>
 
     <file>src</file>
-    <file>tests</file>
 
     <arg name="colors"/>
     <arg value="sp"/>

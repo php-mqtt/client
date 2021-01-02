@@ -5,236 +5,166 @@ declare(strict_types=1);
 namespace PhpMqtt\Client\Contracts;
 
 use DateTime;
-use PhpMqtt\Client\Exceptions\PendingPublishConfirmationAlreadyExistsException;
-use PhpMqtt\Client\PublishedMessage;
-use PhpMqtt\Client\TopicSubscription;
-use PhpMqtt\Client\UnsubscribeRequest;
+use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
+use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
+use PhpMqtt\Client\Exceptions\RepositoryException;
+use PhpMqtt\Client\PendingMessage;
+use PhpMqtt\Client\Subscription;
 
 /**
- * A repository is a storage backend for the MQTT client where topic subscriptions
- * and published messages are stored until they are used or delivered.
+ * Implementations of this interface provide storage capabilities to an MQTT client.
+ *
+ * Services of this type have three primary goals:
+ *   1. Providing and keeping track of message identifiers, since they must be unique
+ *      within the message flow (i.e. there may not be duplicates of different messages
+ *      at the same time).
+ *   2. Storing and keeping track of subscriptions, which is especially necessary in case
+ *      of persisted sessions.
+ *   3. Storing and keeping track of pending messages (i.e. sent messages, which have not
+ *      been acknowledged yet by the broker).
  *
  * @package PhpMqtt\Client\Contracts
  */
 interface Repository
 {
     /**
-     * Returns the number of registered topic subscriptions. The method does
-     * not differentiate between pending and acknowledged subscriptions.
+     * Returns a new message id. The message id might have been used before,
+     * but it is currently not being used (i.e. in a resend queue).
+     *
+     * @return int
+     * @throws RepositoryException
+     */
+    public function newMessageId(): int;
+
+    /**
+     * Returns the number of pending outgoing messages.
      *
      * @return int
      */
-    public function countTopicSubscriptions(): int;
+    public function countPendingOutgoingMessages(): int;
 
     /**
-     * Adds a topic subscription to the repository.
-     *
-     * @param TopicSubscription $subscription
-     * @return void
-     */
-    public function addTopicSubscription(TopicSubscription $subscription): void;
-
-    /**
-     * Adds a new topic subscription with the given settings to the repository.
-     *
-     * @param string   $topic
-     * @param callable $callback
-     * @param int      $messageId
-     * @param int      $qualityOfService
-     * @return TopicSubscription
-     */
-    public function addNewTopicSubscription(string $topic, callable $callback, int $messageId, int $qualityOfService): TopicSubscription;
-
-    /**
-     * Get all topic subscriptions with the given message identifier.
+     * Gets a pending outgoing message with the given message identifier, if found.
      *
      * @param int $messageId
-     * @return TopicSubscription[]
+     * @return PendingMessage|null
      */
-    public function getTopicSubscriptionsWithMessageId(int $messageId): array;
+    public function getPendingOutgoingMessage(int $messageId): ?PendingMessage;
 
     /**
-     * Get all topic subscriptions matching the given topic.
+     * Gets a list of pending outgoing messages last sent before the given date time.
      *
-     * @param string $topic
-     * @return TopicSubscription[]
+     * If date time is `null`, all pending messages are returned.
+     *
+     * The messages are returned in the same order they were added to the repository.
+     *
+     * @param DateTime|null $dateTime
+     * @return PendingMessage[]
      */
-    public function getTopicSubscriptionsMatchingTopic(string $topic): array;
+    public function getPendingOutgoingMessagesLastSentBefore(DateTime $dateTime = null): array;
 
     /**
-     * Removes the topic subscription with the given topic from the repository.
-     * Returns true if a topic subscription existed and has been removed.
-     * Otherwise, false is returned.
+     * Adds a pending outgoing message to the repository.
      *
-     * @param string $topic
+     * @param PendingMessage $message
+     * @return void
+     * @throws PendingMessageAlreadyExistsException
+     */
+    public function addPendingOutgoingMessage(PendingMessage $message): void;
+
+    /**
+     * Marks an existing pending outgoing published message as received in the repository.
+     *
+     * If the message does not exists, an exception is thrown,
+     * otherwise `true` is returned if the message was marked as received, and `false`
+     * in case it was already marked as received.
+     *
+     * @param int $messageId
+     * @return bool
+     * @throws PendingMessageNotFoundException
+     */
+    public function markPendingOutgoingPublishedMessageAsReceived(int $messageId): bool;
+
+    /**
+     * Removes a pending outgoing message from the repository.
+     *
+     * If a pending message with the given identifier is found and
+     * successfully removed from the repository, `true` is returned.
+     * Otherwise `false` will be returned.
+     *
+     * @param int $messageId
      * @return bool
      */
-    public function removeTopicSubscription(string $topic): bool;
+    public function removePendingOutgoingMessage(int $messageId): bool;
 
     /**
-     * Returns the number of pending publish messages.
+     * Returns the number of pending incoming messages.
      *
      * @return int
      */
-    public function countPendingPublishMessages(): int;
+    public function countPendingIncomingMessages(): int;
 
     /**
-     * Adds a pending published message to the repository.
+     * Gets a pending incoming message with the given message identifier, if found.
      *
-     * @param PublishedMessage $message
+     * @param int $messageId
+     * @return PendingMessage|null
+     */
+    public function getPendingIncomingMessage(int $messageId): ?PendingMessage;
+
+    /**
+     * Adds a pending outgoing message to the repository.
+     *
+     * @param PendingMessage $message
      * @return void
+     * @throws PendingMessageAlreadyExistsException
      */
-    public function addPendingPublishedMessage(PublishedMessage $message): void;
+    public function addPendingIncomingMessage(PendingMessage $message): void;
 
     /**
-     * Adds a new pending published message with the given settings to the repository.
+     * Removes a pending incoming message from the repository.
      *
-     * @param int           $messageId
-     * @param string        $topic
-     * @param string        $message
-     * @param int           $qualityOfService
-     * @param bool          $retain
-     * @param DateTime|null $sentAt
-     * @return PublishedMessage
-     */
-    public function addNewPendingPublishedMessage(
-        int $messageId,
-        string $topic,
-        string $message,
-        int $qualityOfService,
-        bool $retain,
-        DateTime $sentAt = null
-    ): PublishedMessage;
-
-    /**
-     * Gets a pending published message with the given message identifier, if found.
-     *
-     * @param int $messageId
-     * @return PublishedMessage|null
-     */
-    public function getPendingPublishedMessageWithMessageId(int $messageId): ?PublishedMessage;
-
-    /**
-     * Gets a list of pending published messages last sent before the given date time.
-     *
-     * @param DateTime $dateTime
-     * @return PublishedMessage[]
-     */
-    public function getPendingPublishedMessagesLastSentBefore(DateTime $dateTime): array;
-
-    /**
-     * Marks the pending published message with the given message identifier as received.
-     * If the message has no QoS level of 2, is not found or has already been received,
-     * false is returned. Otherwise the result will be true.
+     * If a pending message with the given identifier is found and
+     * successfully removed from the repository, `true` is returned.
+     * Otherwise `false` will be returned.
      *
      * @param int $messageId
      * @return bool
      */
-    public function markPendingPublishedMessageAsReceived(int $messageId): bool;
+    public function removePendingIncomingMessage(int $messageId): bool;
 
     /**
-     * Removes a pending published message from the repository. If a pending message
-     * with the given identifier is found and successfully removed from the repository,
-     * `true` is returned. Otherwise `false` will be returned.
-     *
-     * @param int $messageId
-     * @return bool
-     */
-    public function removePendingPublishedMessage(int $messageId): bool;
-
-    /**
-     * Returns the number of pending unsubscribe requests.
+     * Returns the number of registered subscriptions.
      *
      * @return int
      */
-    public function countPendingUnsubscribeRequests(): int;
+    public function countSubscriptions(): int;
 
     /**
-     * Adds a pending unsubscribe request to the repository.
+     * Adds a subscription to the repository.
      *
-     * @param UnsubscribeRequest $request
+     * @param Subscription $subscription
      * @return void
      */
-    public function addPendingUnsubscribeRequest(UnsubscribeRequest $request): void;
+    public function addSubscription(Subscription $subscription): void;
 
     /**
-     * Adds a new pending unsubscribe request with the given settings to the repository.
+     * Gets all subscriptions matching the given criteria.
      *
-     * @param int           $messageId
-     * @param string        $topic
-     * @param DateTime|null $sentAt
-     * @return UnsubscribeRequest
+     * @param string|null $topicName
+     * @param int|null    $subscriptionId
+     * @return Subscription[]
      */
-    public function addNewPendingUnsubscribeRequest(int $messageId, string $topic, DateTime $sentAt = null): UnsubscribeRequest;
+    public function getMatchingSubscriptions(string $topicName = null, int $subscriptionId = null): array;
 
     /**
-     * Gets a pending unsubscribe request with the given message identifier, if found.
+     * Removes the subscription with the given topic filter from the repository.
      *
-     * @param int $messageId
-     * @return UnsubscribeRequest|null
-     */
-    public function getPendingUnsubscribeRequestWithMessageId(int $messageId): ?UnsubscribeRequest;
-
-    /**
-     * Gets a list of pending unsubscribe requests last sent before the given date time.
+     * Returns `true` if a topic subscription existed and has been removed.
+     * Otherwise, `false` is returned.
      *
-     * @param DateTime $dateTime
-     * @return UnsubscribeRequest[]
-     */
-    public function getPendingUnsubscribeRequestsLastSentBefore(DateTime $dateTime): array;
-
-    /**
-     * Removes a pending unsubscribe requests from the repository. If a pending request
-     * with the given identifier is found and successfully removed from the repository,
-     * `true` is returned. Otherwise `false` will be returned.
-     *
-     * @param int $messageId
+     * @param string $topicFilter
      * @return bool
      */
-    public function removePendingUnsubscribeRequest(int $messageId): bool;
-
-    /**
-     * Returns the number of pending publish confirmations.
-     *
-     * @return int
-     */
-    public function countPendingPublishConfirmations(): int;
-
-    /**
-     * Adds a pending publish confirmation to the repository.
-     *
-     * @param PublishedMessage $message
-     * @return void
-     * @throws PendingPublishConfirmationAlreadyExistsException
-     */
-    public function addPendingPublishConfirmation(PublishedMessage $message): void;
-
-    /**
-     * Adds a new pending publish confirmation with the given settings to the repository.
-     *
-     * @param int    $messageId
-     * @param string $topic
-     * @param string $message
-     * @return PublishedMessage
-     * @throws PendingPublishConfirmationAlreadyExistsException
-     */
-    public function addNewPendingPublishConfirmation(int $messageId, string $topic, string $message): PublishedMessage;
-
-    /**
-     * Gets a pending publish confirmation with the given message identifier, if found.
-     *
-     * @param int $messageId
-     * @return PublishedMessage|null
-     */
-    public function getPendingPublishConfirmationWithMessageId(int $messageId): ?PublishedMessage;
-
-    /**
-     * Removes the pending publish confirmation with the given message identifier
-     * from the repository. This is normally done as soon as a transaction has been
-     * successfully finished by the publisher.
-     *
-     * @param int $messageId
-     * @return bool
-     */
-    public function removePendingPublishConfirmation(int $messageId): bool;
+    public function removeSubscription(string $topicFilter): bool;
 }

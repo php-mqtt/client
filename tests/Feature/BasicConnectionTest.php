@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Feature;
+namespace Tests\Feature;
 
-use PhpMqtt\Client\MQTTClient;
-use PHPUnit\Framework\TestCase;
+use PhpMqtt\Client\MqttClient;
+use Tests\TestCase;
 
 /**
  * Tests that connecting to an MQTT broker works.
  *
- * @package Feature
+ * @package Tests\Feature
  */
 class BasicConnectionTest extends TestCase
 {
@@ -19,7 +19,7 @@ class BasicConnectionTest extends TestCase
      */
     public function test_connecting_to_broker_using_v3_1_works_correctly(): void
     {
-        $client = new MQTTClient('localhost', 1883, 'test-client');
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-client');
 
         $client->connect();
     }

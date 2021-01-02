@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Feature;
+namespace Tests\Feature;
 
-use PhpMqtt\Client\MQTTClient;
-use PHPUnit\Framework\TestCase;
+use PhpMqtt\Client\MqttClient;
+use Tests\TestCase;
 
 /**
  * Tests that publishing messages and subscribing to topics using an MQTT broker works.
  *
- * @package Feature
+ * @package Tests\Feature
  */
 class PublishSubscribeTest extends TestCase
 {
@@ -19,26 +19,26 @@ class PublishSubscribeTest extends TestCase
      */
     public function test_publish_and_subscribing_using_quality_of_service_0_with_exact_topic_match_works(): void
     {
-        // We publish a retained message, which allows us to disconnect this client and read the message
-        // from another client, if everything works as expected.
-        $publisher = new MQTTClient('localhost', 1883);
-        $publisher->connect();
-
-        $publisher->publish('test/foo/bar/baz', 'hello world', 0, true);
-
-        // Here we connect and read the retained message using a second client.
-        $subscriber = new MQTTClient('localhost', 1883);
+        // We connect and subscribe to a topic using the first client.
+        $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
         $subscriber->connect();
 
         $subscriber->subscribe('test/foo/bar/baz', function (string $topic, string $message, bool $retained) use ($subscriber) {
             // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
             $this->assertEquals('test/foo/bar/baz', $topic);
             $this->assertEquals('hello world', $message);
-            $this->assertTrue($retained);
+            $this->assertFalse($retained);
 
             $subscriber->interrupt(); // This allows us to exit the test as soon as possible.
         }, 0);
 
+        // We publish a message from a second client on the same topic.
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
+        $publisher->connect();
+
+        $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
+
+        // Finally, we loop on the subscriber to (hopefully) receive the published message.
         $subscriber->loop();
     }
     /**
@@ -46,26 +46,26 @@ class PublishSubscribeTest extends TestCase
      */
     public function test_publish_and_subscribing_using_quality_of_service_0_with_wildcard_topic_match_works(): void
     {
-        // We publish a retained message, which allows us to disconnect this client and read the message
-        // from another client, if everything works as expected.
-        $publisher = new MQTTClient('localhost', 1883);
-        $publisher->connect();
-
-        $publisher->publish('test/foo/bar/baz', 'hello world', 0, true);
-
-        // Here we connect and read the retained message using a second client.
-        $subscriber = new MQTTClient('localhost', 1883);
+        // We connect and subscribe to a topic using the first client.
+        $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
         $subscriber->connect();
 
         $subscriber->subscribe('test/foo/bar/+', function (string $topic, string $message, bool $retained) use ($subscriber) {
             // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
             $this->assertEquals('test/foo/bar/baz', $topic);
             $this->assertEquals('hello world', $message);
-            $this->assertTrue($retained);
+            $this->assertFalse($retained);
 
             $subscriber->interrupt(); // This allows us to exit the test as soon as possible.
         }, 0);
 
+        // We publish a message from a second client on the same topic.
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
+        $publisher->connect();
+
+        $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
+
+        // Finally, we loop on the subscriber to (hopefully) receive the published message.
         $subscriber->loop();
     }
 }

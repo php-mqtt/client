@@ -1,24 +1,29 @@
 name: Tests
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   test-all:
+    name: Test PHP ${{ matrix.php-version }} on ${{ matrix.operating-system }}
+
     runs-on: ${{ matrix.operating-system }}
 
     strategy:
       matrix:
         operating-system: [ubuntu-latest]
-        php-versions: [7.2, 7.3, 7.4]
-
-    name: PHP ${{ matrix.php-versions }} tests on ${{ matrix.operating-system }}
+        php-version: ['7.2', '7.3', '7.4']
 
     steps:
       - uses: actions/checkout@v2
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php-versions }}
+          php-version: ${{ matrix.php-version }}
           tools: phpunit:8.5.8
           coverage: pcov
 
@@ -47,4 +52,4 @@ jobs:
         uses: Namoshek/mosquitto-github-action@v0.1.0
 
       - name: Run phpunit tests
-        run: phpunit
+        run: composer test

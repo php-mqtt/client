@@ -1,6 +1,6 @@
-name: 'PR: Verify Code Style'
+name: 'Verify Code Style'
 
-on: pull_request
+on: [push, pull_request]
 
 jobs:
   phpcs:

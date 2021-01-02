@@ -21,17 +21,34 @@
             "PhpMqtt\\Client\\": "src"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
     "require": {
         "php": "^7.2",
-        "psr/log": "^1.1"
+        "psr/log": "^1.1",
+        "myclabs/php-enum": "^1.7",
+        "opis/closure": "^3.5"
     },
     "require-dev": {
+        "phpunit/php-invoker": "^3.0",
         "phpunit/phpunit": "^8.0",
-        "squizlabs/php_codesniffer": "^3.5",
-        "phpunit/php-invoker": "^3.0"
+        "squizlabs/php_codesniffer": "^3.5"
+    },
+    "suggest": {
+        "ext-redis": "Required for the RedisRepository"
     },
     "scripts": {
-        "test:cs": "vendor/bin/phpcs src tests",
-        "fix:cs": "vendor/bin/phpcbf src tests"
+        "fix:cs": "vendor/bin/phpcbf",
+        "test": [
+            "@test:cs",
+            "@test:unit",
+            "@test:feature"
+        ],
+        "test:cs": "vendor/bin/phpcs",
+        "test:feature": "vendor/bin/phpunit --testdox --testsuite Feature",
+        "test:unit": "vendor/bin/phpunit --testdox --testsuite Unit"
     }
 }

@@ -11,104 +11,151 @@ namespace PhpMqtt\Client;
  */
 class ConnectionSettings
 {
-    /** @var int */
-    private $qualityOfService;
+    /** @var string|null */
+    private $username = null;
 
-    /** @var bool */
-    private $retain;
-
-    /** @var bool */
-    private $blockSocket;
+    /** @var string|null */
+    private $password = null;
 
     /** @var int */
-    private $socketTimeout;
+    private $connectTimeout = 60;
 
     /** @var int */
-    private $keepAlive;
+    private $socketTimeout = 5;
 
     /** @var int */
-    private $resendTimeout;
+    private $resendTimeout = 10;
 
-    /** @var string */
-    private $lastWillTopic;
+    /** @var int */
+    private $keepAliveInterval = 10;
 
-    /** @var string */
-    private $lastWillMessage;
+    /** @var string|null */
+    private $lastWillTopic = null;
+
+    /** @var string|null */
+    private $lastWillMessage = null;
+
+    /** @var int */
+    private $lastWillQualityOfService = 0;
 
     /** @var bool */
-    private $useTls;
+    private $lastWillRetain = false;
 
     /** @var bool */
-    private $tlsVerifyPeer;
+    private $useTls = false;
 
     /** @var bool */
-    private $tlsVerifyName;
+    private $tlsVerifyPeer = true;
+
+    /** @var bool */
+    private $tlsVerifyPeerName = true;
+
+    /** @var bool */
+    private $tlsSelfSignedAllowed = false;
+
+    /** @var string|null */
+    private $tlsCertificateAuthorityFile = null;
+
+    /** @var string|null */
+    private $tlsCertificateAuthorityPath = null;
+
+    /** @var string|null */
+    private $tlsClientCertificateFile = null;
+
+    /** @var string|null */
+    private $tlsClientCertificateKeyFile = null;
+
+    /** @var string|null */
+    private $tlsClientCertificatePassphrase = null;
 
     /**
-     * Constructs a new settings object.
+     * The username used for authentication when connecting to the broker.
      *
-     * @param int         $qualityOfService
-     * @param bool        $retain
-     * @param bool        $blockSocket
-     * @param int         $socketTimeout
-     * @param int         $keepAlive
-     * @param int         $resendTimeout
-     * @param string|null $lastWillTopic
-     * @param string|null $lastWillMessage
-     * @param bool        $useTls
-     * @param bool        $tlsVerifyPeer
-     * @param bool        $tlsVerifyName
+     * @param string|null $username
+     * @return ConnectionSettings
      */
-    public function __construct(
-        int $qualityOfService = 0,
-        bool $retain = false,
-        bool $blockSocket = false,
-        int $socketTimeout = 5,
-        int $keepAlive = 10,
-        int $resendTimeout = 10,
-        string $lastWillTopic = null,
-        string $lastWillMessage = null,
-        bool $useTls = false,
-        bool $tlsVerifyPeer = true,
-        bool $tlsVerifyName = true
-    )
+    public function setUsername(?string $username): ConnectionSettings
     {
-        $this->qualityOfService = $qualityOfService;
-        $this->retain           = $retain;
-        $this->blockSocket      = $blockSocket;
-        $this->socketTimeout    = $socketTimeout;
-        $this->keepAlive        = $keepAlive;
-        $this->resendTimeout    = $resendTimeout;
-        $this->lastWillTopic    = $lastWillTopic;
-        $this->lastWillMessage  = $lastWillMessage;
-        $this->useTls           = $useTls;
-        $this->tlsVerifyPeer    = $tlsVerifyPeer;
-        $this->tlsVerifyName    = $tlsVerifyName;
+        $copy = clone $this;
+
+        $copy->username = $username;
+
+        return $copy;
     }
 
     /**
-     * Returns the desired quality of service level of the client.
+     * @return string|null
+     */
+    public function getUsername(): ?string
+    {
+        return $this->username;
+    }
+
+    /**
+     * The password used for authentication when connecting to the broker.
      *
+     * @param string|null $password
+     * @return ConnectionSettings
+     */
+    public function setPassword(?string $password): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->password = $password;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getPassword(): ?string
+    {
+        return $this->password;
+    }
+
+    /**
+     * The connect timeout is the maximum amount of seconds the client will try to establish
+     * a socket connection with the broker. The value cannot be less than 1 second.
+     *
+     * @param int $connectTimeout
+     * @return ConnectionSettings
+     */
+    public function setConnectTimeout(int $connectTimeout): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->connectTimeout = $connectTimeout;
+
+        return $copy;
+    }
+
+    /**
      * @return int
      */
-    public function getQualityOfServiceLevel(): int
+    public function getConnectTimeout(): int
     {
-        return $this->qualityOfService;
+        return $this->connectTimeout;
     }
 
     /**
-     * Determines whether the client is supposed to block the socket.
+     * The socket timeout is the maximum amount of idle time in seconds for the socket connection.
+     * If no data is read or sent for the given amount of seconds, the socket will be closed.
+     * The value cannot be less than 1 second.
      *
-     * @return bool
+     * @param int $socketTimeout
+     * @return ConnectionSettings
      */
-    public function wantsToBlockSocket(): bool
+    public function setSocketTimeout(int $socketTimeout): ConnectionSettings
     {
-        return $this->blockSocket;
+        $copy = clone $this;
+
+        $copy->socketTimeout = $socketTimeout;
+
+        return $copy;
     }
 
     /**
-     * Returns the socket timeout of the client in seconds.
-     *
      * @return int
      */
     public function getSocketTimeout(): int
@@ -117,18 +164,22 @@ class ConnectionSettings
     }
 
     /**
-     * Returns the keep alive interval used by the client in seconds.
+     * The resend timeout is the number of seconds the client will wait before sending a duplicate
+     * of pending messages without acknowledgement. The value cannot be less than 1 second.
      *
-     * @return int
+     * @param int $resendTimeout
+     * @return ConnectionSettings
      */
-    public function getKeepAlive(): int
+    public function setResendTimeout(int $resendTimeout): ConnectionSettings
     {
-        return $this->keepAlive;
+        $copy = clone $this;
+
+        $copy->resendTimeout = $resendTimeout;
+
+        return $copy;
     }
 
     /**
-     * Returns the resend timeout used by the client in seconds.
-     *
      * @return int
      */
     public function getResendTimeout(): int
@@ -137,9 +188,50 @@ class ConnectionSettings
     }
 
     /**
-     * Returns the last will topic of the client. When the client loses connection
-     * to the broker, this topic will be used to publish the last will message.
+     * The keep alive interval is the number of seconds the client will wait without sending a message
+     * until it sends a keep alive signal (ping) to the broker. The value cannot be less than 1 second
+     * and may not be higher than 65536 seconds. A reasonable value is 10 seconds (the default).
      *
+     * @param int $keepAliveInterval
+     * @return ConnectionSettings
+     */
+    public function setKeepAliveInterval(int $keepAliveInterval): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->keepAliveInterval = $keepAliveInterval;
+
+        return $copy;
+    }
+
+    /**
+     * @return int
+     */
+    public function getKeepAliveInterval(): int
+    {
+        return $this->keepAliveInterval;
+    }
+
+    /**
+     * If the broker should publish a last will message in the name of the client when the client
+     * disconnects abruptly, this setting defines the topic on which the message will be published.
+     *
+     * A last will message will only be published if both this setting as well as the last will
+     * message are configured.
+     *
+     * @param string|null $lastWillTopic
+     * @return ConnectionSettings
+     */
+    public function setLastWillTopic(?string $lastWillTopic): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->lastWillTopic = $lastWillTopic;
+
+        return $copy;
+    }
+
+    /**
      * @return string|null
      */
     public function getLastWillTopic(): ?string
@@ -148,34 +240,30 @@ class ConnectionSettings
     }
 
     /**
-     * Returns the last will message of the client. When the client loses connection
-     * to the broker, this message will be published.
+     * If the broker should publish a last will message in the name of the client when the client
+     * disconnects abruptly, this setting defines the message which will be published.
      *
+     * A last will message will only be published if both this setting as well as the last will
+     * topic are configured.
+     *
+     * @param string|null $lastWillMessage
+     * @return ConnectionSettings
+     */
+    public function setLastWillMessage(?string $lastWillMessage): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->lastWillMessage = $lastWillMessage;
+
+        return $copy;
+    }
+
+    /**
      * @return string|null
      */
     public function getLastWillMessage(): ?string
     {
         return $this->lastWillMessage;
-    }
-
-    /**
-     * Determines whether quality of service is required.
-     *
-     * @return bool
-     */
-    public function requiresQualityOfService(): bool
-    {
-        return $this->qualityOfService > 0;
-    }
-
-    /**
-     * Determines whether message retention is required.
-     *
-     * @return bool
-     */
-    public function requiresMessageRetention(): bool
-    {
-        return $this->retain;
     }
 
     /**
@@ -189,8 +277,71 @@ class ConnectionSettings
     }
 
     /**
-     * Determines whether the client wants to use TLS.
+     * The quality of service level the last will message of the client will be published with,
+     * if it gets triggered.
      *
+     * @param int $lastWillQualityOfService
+     * @return ConnectionSettings
+     */
+    public function setLastWillQualityOfService(int $lastWillQualityOfService): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->lastWillQualityOfService = $lastWillQualityOfService;
+
+        return $copy;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLastWillQualityOfService(): int
+    {
+        return $this->lastWillQualityOfService;
+    }
+
+    /**
+     * This flag determines if the last will message of the client will be retained, if it gets
+     * triggered. Using this setting can be handy to signal that a client is offline by publishing
+     * a retained offline state in the last will and an online state as first message on connect.
+     *
+     * @param bool $lastWillRetain
+     * @return ConnectionSettings
+     */
+    public function setRetainLastWill(bool $lastWillRetain): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->lastWillRetain = $lastWillRetain;
+
+        return $copy;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldRetainLastWill(): bool
+    {
+        return $this->lastWillRetain;
+    }
+
+    /**
+     * This flag determines if TLS should be used for the connection. The port which is used to
+     * connect to the broker must support TLS connections.
+     *
+     * @param bool $useTls
+     * @return ConnectionSettings
+     */
+    public function setUseTls(bool $useTls): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->useTls = $useTls;
+
+        return $copy;
+    }
+
+    /**
      * @return bool
      */
     public function shouldUseTls(): bool
@@ -199,8 +350,21 @@ class ConnectionSettings
     }
 
     /**
-     * Determines whether the TLS peer certificate validation must occur.
+     * This flag determines if the peer certificate is verified, if TLS is used.
      *
+     * @param bool $tlsVerifyPeer
+     * @return ConnectionSettings
+     */
+    public function setTlsVerifyPeer(bool $tlsVerifyPeer): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsVerifyPeer = $tlsVerifyPeer;
+
+        return $copy;
+    }
+
+    /**
      * @return bool
      */
     public function shouldTlsVerifyPeer(): bool
@@ -209,12 +373,188 @@ class ConnectionSettings
     }
 
     /**
-     * Determines whether we should check for name match of the certificate.
+     * This flag determines if the peer name is verified, if TLS is used.
      *
+     * @param bool $tlsVerifyPeerName
+     * @return ConnectionSettings
+     */
+    public function setTlsVerifyPeerName(bool $tlsVerifyPeerName): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsVerifyPeerName = $tlsVerifyPeerName;
+
+        return $copy;
+    }
+
+    /**
      * @return bool
      */
     public function shouldTlsVerifyPeerName(): bool
     {
-        return $this->tlsVerifyName;
+        return $this->tlsVerifyPeerName;
+    }
+
+    /**
+     * This flag determines if self signed certificates of the peer should be accepted.
+     * Setting this to TRUE implies a security risk and should be avoided for production
+     * scenarios and public services.
+     *
+     * @param bool $tlsSelfSignedAllowed
+     * @return ConnectionSettings
+     */
+    public function setTlsSelfSignedAllowed(bool $tlsSelfSignedAllowed): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsSelfSignedAllowed = $tlsSelfSignedAllowed;
+
+        return $copy;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isTlsSelfSignedAllowed(): bool
+    {
+        return $this->tlsSelfSignedAllowed;
+    }
+
+    /**
+     * The path to a Certificate Authority certificate which is used to verify the peer
+     * certificate, if TLS is used.
+     *
+     * @param string|null $tlsCertificateAuthorityFile
+     * @return ConnectionSettings
+     */
+    public function setTlsCertificateAuthorityFile(?string $tlsCertificateAuthorityFile): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsCertificateAuthorityFile = $tlsCertificateAuthorityFile;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsCertificateAuthorityFile(): ?string
+    {
+        return $this->tlsCertificateAuthorityFile;
+    }
+
+    /**
+     * The path to a directory containing Certificate Authority certificates which are
+     * used to verify the peer certificate, if TLS is used.
+     *
+     * Certificate files in this directory must be named by the hash of the certificate,
+     * ending with ".0" (without quotes). The certificate hash can be retrieved using the
+     * openssl_x509_parse() function, which returns an array. The hash can be found in the
+     * array under the key "hash".
+     *
+     * @param string|null $tlsCertificateAuthorityPath
+     * @return ConnectionSettings
+     */
+    public function setTlsCertificateAuthorityPath(?string $tlsCertificateAuthorityPath): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsCertificateAuthorityPath = $tlsCertificateAuthorityPath;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsCertificateAuthorityPath(): ?string
+    {
+        return $this->tlsCertificateAuthorityPath;
+    }
+
+    /**
+     * The path to a client certificate file used for authentication, if TLS is used.
+     *
+     * The client certificate must be PEM encoded. It may optionally contain the
+     * certificate chain of issuers. The certificate key can be included in this certificate
+     * file or in a separate file ({@see ConnectionSettings::setTlsClientCertificateKeyFile()}).
+     * A passphrase can be configured using {@see ConnectionSettings::setTlsClientCertificatePassphrase()}.
+     *
+     * @param string|null $tlsClientCertificateFile
+     * @return ConnectionSettings
+     */
+    public function setTlsClientCertificateFile(?string $tlsClientCertificateFile): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsClientCertificateFile = $tlsClientCertificateFile;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificateFile(): ?string
+    {
+        return $this->tlsClientCertificateFile;
+    }
+
+    /**
+     * The path to a client certificate key file used for authentication, if TLS is used.
+     *
+     * This option requires {@see ConnectionSettings::setTlsClientCertificateFile()}
+     * to be used as well.
+     *
+     * @param string|null $tlsClientCertificateKeyFile
+     * @return ConnectionSettings
+     */
+    public function setTlsClientCertificateKeyFile(?string $tlsClientCertificateKeyFile): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsClientCertificateKeyFile = $tlsClientCertificateKeyFile;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificateKeyFile(): ?string
+    {
+        return $this->tlsClientCertificateKeyFile;
+    }
+
+    /**
+     * The passphrase used to decrypt the private key of the client certificate,
+     * which in return is used for authentication, if TLS is used.
+     *
+     * This option requires {@see ConnectionSettings::setTlsClientCertificateFile()}
+     * and potentially {@see ConnectionSettings::setTlsClientCertificateKeyFile()}
+     * to be used as well.
+     *
+     * Please be aware that your passphrase is not stored in secure memory when
+     * using this option.
+     *
+     * @param string|null $tlsClientCertificatePassphrase
+     * @return ConnectionSettings
+     */
+    public function setTlsClientCertificatePassphrase(?string $tlsClientCertificatePassphrase): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsClientCertificatePassphrase = $tlsClientCertificatePassphrase;
+
+        return $copy;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getTlsClientCertificatePassphrase(): ?string
+    {
+        return $this->tlsClientCertificatePassphrase;
     }
 }
