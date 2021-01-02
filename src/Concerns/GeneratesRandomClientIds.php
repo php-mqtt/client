@@ -18,6 +18,6 @@ trait GeneratesRandomClientIds
      */
     protected function generateRandomClientId(): string
     {
-        return substr(md5(uniqid((string) mt_rand(), true)), 0, 20);
+        return substr(md5(uniqid((string) random_int(0, PHP_INT_MAX), true)), 0, 20);
     }
 }
