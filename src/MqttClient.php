@@ -46,15 +46,15 @@ class MqttClient implements ClientContract
     private int $port;
     private string $clientId;
     private ConnectionSettings $settings;
-    private string $buffer = '';
-    private bool $connected = false;
+    private string $buffer     = '';
+    private bool $connected    = false;
     private ?float $lastPingAt = null;
     private MessageProcessor $messageProcessor;
     private Repository $repository;
     private Logger $logger;
-    private bool $interrupted = false;
+    private bool $interrupted  = false;
     private int $bytesReceived = 0;
-    private int $bytesSent = 0;
+    private int $bytesSent     = 0;
 
     /** @var resource|null */
     protected $socket;

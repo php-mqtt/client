@@ -122,8 +122,6 @@ This also prevents changes to the connection settings after a connection has bee
 The following is a complete list of options with their respective default:
 ```php
 $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings())
-
-    // The QoS level 
     ->setUsername(null)
     ->setPassword(null)
     ->setConnectTimeout(60)

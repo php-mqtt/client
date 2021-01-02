@@ -11,24 +11,24 @@ namespace PhpMqtt\Client;
  */
 class ConnectionSettings
 {
-    private ?string $username = null;
-    private ?string $password = null;
-    private int $connectTimeout = 60;
-    private int $socketTimeout = 5;
-    private int $resendTimeout = 10;
-    private int $keepAliveInterval = 10;
-    private ?string $lastWillTopic = null;
-    private ?string $lastWillMessage = null;
-    private int $lastWillQualityOfService = 0;
-    private bool $lastWillRetain = false;
-    private bool $useTls = false;
-    private bool $tlsVerifyPeer = true;
-    private bool $tlsVerifyPeerName = true;
-    private bool $tlsSelfSignedAllowed = false;
-    private ?string $tlsCertificateAuthorityFile = null;
-    private ?string $tlsCertificateAuthorityPath = null;
-    private ?string $tlsClientCertificateFile = null;
-    private ?string $tlsClientCertificateKeyFile = null;
+    private ?string $username                       = null;
+    private ?string $password                       = null;
+    private int $connectTimeout                     = 60;
+    private int $socketTimeout                      = 5;
+    private int $resendTimeout                      = 10;
+    private int $keepAliveInterval                  = 10;
+    private ?string $lastWillTopic                  = null;
+    private ?string $lastWillMessage                = null;
+    private int $lastWillQualityOfService           = 0;
+    private bool $lastWillRetain                    = false;
+    private bool $useTls                            = false;
+    private bool $tlsVerifyPeer                     = true;
+    private bool $tlsVerifyPeerName                 = true;
+    private bool $tlsSelfSignedAllowed              = false;
+    private ?string $tlsCertificateAuthorityFile    = null;
+    private ?string $tlsCertificateAuthorityPath    = null;
+    private ?string $tlsClientCertificateFile       = null;
+    private ?string $tlsClientCertificateKeyFile    = null;
     private ?string $tlsClientCertificatePassphrase = null;
 
     /**

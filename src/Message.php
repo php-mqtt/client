@@ -18,8 +18,8 @@ class Message
 {
     private MessageType $type;
     private int $qualityOfService;
-    private ?int $messageId = null;
-    private ?string $topic = null;
+    private ?int $messageId  = null;
+    private ?string $topic   = null;
     private ?string $content = null;
 
     /** @var int[] */
