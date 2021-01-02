@@ -33,7 +33,7 @@ class PublishSubscribeTest extends TestCase
         }, 0);
 
         // We publish a message from a second client on the same topic.
-        $publisher = new MqttClient('localhost', 1883, 'publisher');
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
         $publisher->connect();
 
         $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
@@ -60,7 +60,7 @@ class PublishSubscribeTest extends TestCase
         }, 0);
 
         // We publish a message from a second client on the same topic.
-        $publisher = new MqttClient('localhost', 1883, 'publisher');
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
         $publisher->connect();
 
         $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);

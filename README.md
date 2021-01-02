@@ -88,7 +88,7 @@ $mqtt = new \PhpMqtt\Client\MQTTClient(
     $server, 
     $port, 
     $clientId,
-    MqttClient::MQTT_3_1,
+    \PhpMqtt\Client\MqttClient::MQTT_3_1,
     new \PhpMqtt\Client\Repositories\MemoryRepository(),
     new Logger()
 );
@@ -143,6 +143,7 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings())
 ## Features
 
 - MQTT Versions
+  - [x] v3 (just don't use v3.1 features like username & password)
   - [x] v3.1
   - [ ] v3.1.1
   - [ ] v5.0
