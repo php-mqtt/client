@@ -21,7 +21,7 @@ The current implementation supports all QoS levels ([with limitations](#limitati
 composer require php-mqtt/client
 ```
 
-This library requires PHP version 7.2 or higher.
+This library requires PHP version 7.4 or higher.
 
 ## Usage
 

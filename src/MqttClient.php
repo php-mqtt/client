@@ -42,44 +42,19 @@ class MqttClient implements ClientContract
     const QOS_AT_LEAST_ONCE = 1;
     const QOS_EXACTLY_ONCE  = 2;
 
-    /** @var string */
-    private $host;
-
-    /** @var int */
-    private $port;
-
-    /** @var string */
-    private $clientId;
-
-    /** @var ConnectionSettings|null */
-    private $settings;
-
-    /** @var string */
-    private $buffer = '';
-
-    /** @var bool */
-    private $connected = false;
-
-    /** @var float */
-    private $lastPingAt;
-
-    /** @var MessageProcessor */
-    private $messageProcessor;
-
-    /** @var Repository */
-    private $repository;
-
-    /** @var LoggerInterface */
-    private $logger;
-
-    /** @var bool */
-    private $interrupted = false;
-
-    /** @var int */
-    private $bytesReceived = 0;
-
-    /** @var int */
-    private $bytesSent = 0;
+    private string $host;
+    private int $port;
+    private string $clientId;
+    private ConnectionSettings $settings;
+    private string $buffer = '';
+    private bool $connected = false;
+    private ?float $lastPingAt = null;
+    private MessageProcessor $messageProcessor;
+    private Repository $repository;
+    private Logger $logger;
+    private bool $interrupted = false;
+    private int $bytesReceived = 0;
+    private int $bytesSent = 0;
 
     /** @var resource|null */
     protected $socket;
@@ -115,14 +90,10 @@ class MqttClient implements ClientContract
             throw new ProtocolNotSupportedException($protocol);
         }
 
-        if ($repository === null) {
-            $repository = new MemoryRepository();
-        }
-
         $this->host       = $host;
         $this->port       = $port;
         $this->clientId   = $clientId ?? $this->generateRandomClientId();
-        $this->repository = $repository;
+        $this->repository = $repository ?? new MemoryRepository();
         $this->logger     = new Logger($this->host, $this->port, $this->clientId, $logger);
 
         switch ($protocol) {

@@ -13,20 +13,11 @@ use Opis\Closure\SerializableClosure;
  */
 class Subscription
 {
-    /** @var string */
-    private $topicFilter;
-
-    /** @var int|null */
-    private $subscriptionId;
-
-    /** @var int */
-    private $qualityOfService;
-
-    /** @var SerializableClosure|null */
-    private $callback;
-
-    /** @var string */
-    private $regexifiedTopicFilter;
+    private string $topicFilter;
+    private ?int $subscriptionId;
+    private int $qualityOfService;
+    private ?SerializableClosure $callback = null;
+    private string $regexifiedTopicFilter;
 
     /**
      * Creates a new subscription object.

@@ -19,14 +19,9 @@ use DateTime;
  */
 abstract class PendingMessage
 {
-    /** @var int */
-    private $messageId;
-
-    /** @var int */
-    private $sendingAttempts = 1;
-
-    /** @var DateTime */
-    private $lastSentAt;
+    private int $messageId;
+    private int $sendingAttempts = 1;
+    private DateTime $lastSentAt;
 
     /**
      * Creates a new pending message object.

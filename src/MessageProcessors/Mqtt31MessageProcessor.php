@@ -20,8 +20,7 @@ use Psr\Log\LoggerInterface;
  */
 class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProcessor
 {
-    /** @var string */
-    private $clientId;
+    private string $clientId;
 
     /**
      * Creates a new message processor instance which supports version 3.1 of the MQTT protocol.

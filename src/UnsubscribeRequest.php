@@ -12,7 +12,7 @@ namespace PhpMqtt\Client;
 class UnsubscribeRequest extends PendingMessage
 {
     /** @var string[] */
-    private $topicFilters;
+    private array $topicFilters;
 
     /**
      * Creates a new unsubscribe request object.

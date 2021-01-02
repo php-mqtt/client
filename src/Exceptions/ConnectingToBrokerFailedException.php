@@ -17,15 +17,11 @@ class ConnectingToBrokerFailedException extends MqttClientException
     const EXCEPTION_CONNECTION_BROKER_UNAVAILABLE  = 0004;
     const EXCEPTION_CONNECTION_INVALID_CREDENTIALS = 0005;
     const EXCEPTION_CONNECTION_UNAUTHORIZED        = 0006;
-    const EXCEPTION_CONNECTION_UNKNOWN_ERROR       = 0400;
     const EXCEPTION_CONNECTION_SOCKET_ERROR        = 1000;
     const EXCEPTION_CONNECTION_TLS_ERROR           = 2000;
 
-    /** @var string|null */
-    private $connectionErrorCode;
-
-    /** @var string|null */
-    private $connectionErrorMessage;
+    private ?string $connectionErrorCode;
+    private ?string $connectionErrorMessage;
 
     /**
      * ConnectingToBrokerFailedException constructor.

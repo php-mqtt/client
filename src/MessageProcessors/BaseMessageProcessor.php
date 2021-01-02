@@ -23,8 +23,7 @@ abstract class BaseMessageProcessor
     const QOS_AT_LEAST_ONCE = 1;
     const QOS_EXACTLY_ONCE  = 2;
 
-    /** @var LoggerInterface */
-    protected $logger;
+    protected LoggerInterface $logger;
 
     /**
      * BaseMessageProcessor constructor.

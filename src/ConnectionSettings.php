@@ -11,62 +11,25 @@ namespace PhpMqtt\Client;
  */
 class ConnectionSettings
 {
-    /** @var string|null */
-    private $username = null;
-
-    /** @var string|null */
-    private $password = null;
-
-    /** @var int */
-    private $connectTimeout = 60;
-
-    /** @var int */
-    private $socketTimeout = 5;
-
-    /** @var int */
-    private $resendTimeout = 10;
-
-    /** @var int */
-    private $keepAliveInterval = 10;
-
-    /** @var string|null */
-    private $lastWillTopic = null;
-
-    /** @var string|null */
-    private $lastWillMessage = null;
-
-    /** @var int */
-    private $lastWillQualityOfService = 0;
-
-    /** @var bool */
-    private $lastWillRetain = false;
-
-    /** @var bool */
-    private $useTls = false;
-
-    /** @var bool */
-    private $tlsVerifyPeer = true;
-
-    /** @var bool */
-    private $tlsVerifyPeerName = true;
-
-    /** @var bool */
-    private $tlsSelfSignedAllowed = false;
-
-    /** @var string|null */
-    private $tlsCertificateAuthorityFile = null;
-
-    /** @var string|null */
-    private $tlsCertificateAuthorityPath = null;
-
-    /** @var string|null */
-    private $tlsClientCertificateFile = null;
-
-    /** @var string|null */
-    private $tlsClientCertificateKeyFile = null;
-
-    /** @var string|null */
-    private $tlsClientCertificatePassphrase = null;
+    private ?string $username = null;
+    private ?string $password = null;
+    private int $connectTimeout = 60;
+    private int $socketTimeout = 5;
+    private int $resendTimeout = 10;
+    private int $keepAliveInterval = 10;
+    private ?string $lastWillTopic = null;
+    private ?string $lastWillMessage = null;
+    private int $lastWillQualityOfService = 0;
+    private bool $lastWillRetain = false;
+    private bool $useTls = false;
+    private bool $tlsVerifyPeer = true;
+    private bool $tlsVerifyPeerName = true;
+    private bool $tlsSelfSignedAllowed = false;
+    private ?string $tlsCertificateAuthorityFile = null;
+    private ?string $tlsCertificateAuthorityPath = null;
+    private ?string $tlsClientCertificateFile = null;
+    private ?string $tlsClientCertificateKeyFile = null;
+    private ?string $tlsClientCertificatePassphrase = null;
 
     /**
      * The username used for authentication when connecting to the broker.
