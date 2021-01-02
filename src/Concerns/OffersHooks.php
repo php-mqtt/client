@@ -14,10 +14,10 @@ use PhpMqtt\Client\Contracts\MqttClient;
 trait OffersHooks
 {
     /** @var \SplObjectStorage|array<\Closure> */
-    protected $loopEventHandlers;
+    protected \SplObjectStorage|array $loopEventHandlers;
 
     /** @var \SplObjectStorage|array<\Closure> */
-    protected $publishEventHandlers;
+    protected \SplObjectStorage|array $publishEventHandlers;
 
     /**
      * Needs to be called in order to initialize the trait.

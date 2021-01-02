@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
+use DateTime;
+
 /**
- * Represents an unsubscribe request.
+ * Represents an unsubscribe request. Is used to store pending unsubscribe requests.
+ * If an unsubscribe request is not acknowledged by the broker, having one of these
+ * objects allows the client to resend the request.
  *
  * @package PhpMqtt\Client
  */
-class UnsubscribeRequest extends PendingMessage
+class UnsubscribeRequest
 {
     /** @var string[] */
-    private $topicFilters;
+    private array $topicFilters;
 
     /**
      * Creates a new unsubscribe request object.

@@ -21,20 +21,17 @@ use PhpMqtt\Client\Subscription;
 class MemoryRepository implements Repository
 {
     /** @var int */
-    private $nextMessageId = 1;
+    private int $nextMessageId = 1;
 
     /** @var array<int, PendingMessage> */
-    private $pendingOutgoingMessages = [];
+    private array $pendingOutgoingMessages = [];
 
     /** @var array<int, PendingMessage> */
-    private $pendingIncomingMessages = [];
+    private array $pendingIncomingMessages = [];
 
     /** @var array<int, Subscription> */
-    private $subscriptions = [];
+    private array $subscriptions = [];
 
-    /**
-     * MemoryRepository constructor.
-     */
     public function __construct()
     {
     }
@@ -44,6 +41,7 @@ class MemoryRepository implements Repository
      * but it is currently not being used (i.e. in a resend queue).
      *
      * @return int
+     * @throws RepositoryException
      */
     public function newMessageId(): int
     {

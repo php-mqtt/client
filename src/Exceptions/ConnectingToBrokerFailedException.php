@@ -11,21 +11,21 @@ namespace PhpMqtt\Client\Exceptions;
  */
 class ConnectingToBrokerFailedException extends MqttClientException
 {
-    const EXCEPTION_CONNECTION_FAILED              = 0001;
-    const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
-    const EXCEPTION_CONNECTION_IDENTIFIER_REJECTED = 0003;
-    const EXCEPTION_CONNECTION_BROKER_UNAVAILABLE  = 0004;
-    const EXCEPTION_CONNECTION_INVALID_CREDENTIALS = 0005;
-    const EXCEPTION_CONNECTION_UNAUTHORIZED        = 0006;
-    const EXCEPTION_CONNECTION_UNKNOWN_ERROR       = 0400;
-    const EXCEPTION_CONNECTION_SOCKET_ERROR        = 1000;
-    const EXCEPTION_CONNECTION_TLS_ERROR           = 2000;
+    public const EXCEPTION_CONNECTION_FAILED              = 0001;
+    public const EXCEPTION_CONNECTION_PROTOCOL_VERSION    = 0002;
+    public const EXCEPTION_CONNECTION_IDENTIFIER_REJECTED = 0003;
+    public const EXCEPTION_CONNECTION_BROKER_UNAVAILABLE  = 0004;
+    public const EXCEPTION_CONNECTION_INVALID_CREDENTIALS = 0005;
+    public const EXCEPTION_CONNECTION_UNAUTHORIZED        = 0006;
+    public const EXCEPTION_CONNECTION_UNKNOWN_ERROR       = 0400;
+    public const EXCEPTION_CONNECTION_SOCKET_ERROR        = 1000;
+    public const EXCEPTION_CONNECTION_TLS_ERROR           = 2000;
 
     /** @var string|null */
-    private $connectionErrorCode;
+    private ?string $connectionErrorCode;
 
     /** @var string|null */
-    private $connectionErrorMessage;
+    private ?string $connectionErrorMessage;
 
     /**
      * ConnectingToBrokerFailedException constructor.

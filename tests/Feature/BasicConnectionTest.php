@@ -10,6 +10,7 @@ use Tests\TestCase;
 /**
  * Tests that connecting to an MQTT broker works.
  *
+ * @codingStandardsIgnoreStart
  * @package Tests\Feature
  */
 class BasicConnectionTest extends TestCase
@@ -24,3 +25,4 @@ class BasicConnectionTest extends TestCase
         $client->connect();
     }
 }
+// @codingStandardsIgnoreEnd

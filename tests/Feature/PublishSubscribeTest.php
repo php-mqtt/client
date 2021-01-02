@@ -10,12 +10,14 @@ use Tests\TestCase;
 /**
  * Tests that publishing messages and subscribing to topics using an MQTT broker works.
  *
+ * @codingStandardsIgnoreStart
  * @package Tests\Feature
  */
 class PublishSubscribeTest extends TestCase
 {
     /**
      * @small
+     * @codeCoverageIgnore
      */
     public function test_publish_and_subscribing_using_quality_of_service_0_with_exact_topic_match_works(): void
     {
@@ -69,3 +71,4 @@ class PublishSubscribeTest extends TestCase
         $subscriber->loop();
     }
 }
+// @codingStandardsIgnoreEnd

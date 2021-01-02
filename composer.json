@@ -27,7 +27,7 @@
         }
     },
     "require": {
-        "php": "^7.2",
+        "php": "^8.0.0",
         "psr/log": "^1.1",
         "myclabs/php-enum": "^1.7",
         "opis/closure": "^3.5"

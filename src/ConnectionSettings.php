@@ -18,55 +18,64 @@ class ConnectionSettings
     private $password = null;
 
     /** @var int */
-    private $connectTimeout = 60;
+    private int $qualityOfService;
 
     /** @var int */
-    private $socketTimeout = 5;
+    private int $connectTimeout = 60;
+
+    /** @var bool */
+    private bool $retain;
+
+    /** @var bool */
+    private bool $blockSocket;
 
     /** @var int */
-    private $resendTimeout = 10;
+    private int $socketTimeout = 5;
 
     /** @var int */
-    private $keepAliveInterval = 10;
-
-    /** @var string|null */
-    private $lastWillTopic = null;
-
-    /** @var string|null */
-    private $lastWillMessage = null;
+    private int $resendTimeout = 10;
 
     /** @var int */
-    private $lastWillQualityOfService = 0;
-
-    /** @var bool */
-    private $lastWillRetain = false;
-
-    /** @var bool */
-    private $useTls = false;
-
-    /** @var bool */
-    private $tlsVerifyPeer = true;
-
-    /** @var bool */
-    private $tlsVerifyPeerName = true;
-
-    /** @var bool */
-    private $tlsSelfSignedAllowed = false;
+    private int $keepAliveInterval = 10;
 
     /** @var string|null */
-    private $tlsCertificateAuthorityFile = null;
+    private ?string $lastWillTopic;
 
     /** @var string|null */
-    private $tlsCertificateAuthorityPath = null;
+    private ?string $lastWillMessage;
+
+    /** @var int */
+    private int $lastWillQualityOfService = 0;
+
+    /** @var bool */
+    private bool $lastWillRetain = false;
+
+    /** @var bool */
+    private bool $useTls = false;
+
+    /** @var bool */
+    private bool $tlsVerifyPeer = true;
+
+    /** @var bool */
+    private bool $tlsVerifyPeerName = true;
+
+    /** @var bool */
+    private bool $tlsSelfSignedAllowed = false;
 
     /** @var string|null */
-    private $tlsClientCertificateFile = null;
+    private ?string $tlsCertificateAuthorityFile;
 
     /** @var string|null */
-    private $tlsClientCertificateKeyFile = null;
+    private ?string $tlsCertificateAuthorityPath;
 
     /** @var string|null */
-    private $tlsClientCertificatePassphrase = null;
+    private ?string $tlsClientCertificateFile;
+
+    /** @var string|null */
+    private ?string $tlsClientCertificateKeyFile;
+
+    /** @var string|null */
+    private ?string $tlsClientCertificatePassphrase;
 
     /**
      * The username used for authentication when connecting to the broker.

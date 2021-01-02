@@ -24,7 +24,7 @@ class Logger implements LoggerInterface
     private $clientId;
 
     /** @var LoggerInterface|null */
-    private $logger;
+    private ?LoggerInterface $logger;
 
     /**
      * Logger constructor.
@@ -39,8 +39,7 @@ class Logger implements LoggerInterface
         int $port,
         string $clientId,
         LoggerInterface $logger = null
-    )
-    {
+    ) {
         $this->host     = $host;
         $this->port     = $port;
         $this->clientId = $clientId;
