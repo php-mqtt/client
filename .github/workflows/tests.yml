@@ -9,14 +9,14 @@ on:
 
 jobs:
   test-all:
-    name: Test PHP ${{ matrix.php-version }} on ${{ matrix.operating-system }}
+    name: Test PHP ${{ matrix.php-version }} using broker [${{ matrix.mqtt-broker }}]
 
-    runs-on: ${{ matrix.operating-system }}
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        operating-system: [ubuntu-latest]
         php-version: ['7.4', '8.0']
+        mqtt-broker: ['mosquitto', 'hivemq', 'emqx']
 
     steps:
       - uses: actions/checkout@v2
@@ -52,10 +52,31 @@ jobs:
         run: composer install --prefer-dist --ignore-platform-reqs
 
       - name: Start Mosquitto message broker
-        uses: Namoshek/mosquitto-github-action@v0.1.0
+        if: matrix.mqtt-broker == 'mosquitto'
+        uses: Namoshek/mosquitto-github-action@v0.2.0
+        with:
+          version: '1.6'
+          port: 1883
+
+      - name: Start HiveMQ message broker
+        if: matrix.mqtt-broker == 'hivemq'
+        uses: Namoshek/hivemq4-github-action@v0.1.0
+        with:
+          version: '4.4.4'
+          port: 1883
+
+      - name: Start EMQ X message broker
+        if: matrix.mqtt-broker == 'emqx'
+        uses: Namoshek/emqx-github-action@v0.1.0
+        with:
+          version: '4.2.5'
+          port: 1883
 
       - name: Run phpunit tests
         run: composer test
+        env:
+          MQTT_BROKER_HOST: '127.0.0.1'
+          MQTT_BROKER_PORT: 1883
 
       - name: Prepare paths for SonarQube analysis
         if: matrix.php-version == '8.0'
