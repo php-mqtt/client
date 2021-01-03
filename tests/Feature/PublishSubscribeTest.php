@@ -38,9 +38,14 @@ class PublishSubscribeTest extends TestCase
 
         $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
 
-        // Finally, we loop on the subscriber to (hopefully) receive the published message.
+        // Then we loop on the subscriber to (hopefully) receive the published message.
         $subscriber->loop();
+
+        // Finally, we disconnect for a graceful shutdown on the broker side.
+        $publisher->disconnect();
+        $subscriber->disconnect();
     }
+
     /**
      * @small
      */
@@ -65,7 +70,11 @@ class PublishSubscribeTest extends TestCase
 
         $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
 
-        // Finally, we loop on the subscriber to (hopefully) receive the published message.
+        // Then we loop on the subscriber to (hopefully) receive the published message.
         $subscriber->loop();
+
+        // Finally, we disconnect for a graceful shutdown on the broker side.
+        $publisher->disconnect();
+        $subscriber->disconnect();
     }
 }

@@ -22,5 +22,7 @@ class BasicConnectionTest extends TestCase
         $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-client');
 
         $client->connect();
+
+        $client->disconnect();
     }
 }
