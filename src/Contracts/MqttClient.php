@@ -24,14 +24,14 @@ interface MqttClient
      * See {@see ConnectionSettings} for more details about the defaults.
      *
      * @param ConnectionSettings|null $settings
-     * @param bool                    $sendCleanSessionFlag
+     * @param bool                    $useCleanSession
      * @return void
      * @throws ConfigurationInvalidException
      * @throws ConnectingToBrokerFailedException
      */
     public function connect(
         ConnectionSettings $settings = null,
-        bool $sendCleanSessionFlag = false
+        bool $useCleanSession = false
     ): void;
 
     /**

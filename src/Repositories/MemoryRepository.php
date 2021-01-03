@@ -34,6 +34,17 @@ class MemoryRepository implements Repository
     /**
      * {@inheritDoc}
      */
+    public function reset(): void
+    {
+        $this->nextMessageId           = 1;
+        $this->pendingOutgoingMessages = [];
+        $this->pendingIncomingMessages = [];
+        $this->subscriptions           = [];
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function newMessageId(): int
     {
         if (count($this->pendingOutgoingMessages) >= 65535) {

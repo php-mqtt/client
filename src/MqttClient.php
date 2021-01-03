@@ -114,14 +114,14 @@ class MqttClient implements ClientContract
      * replaced with the new one, as `disconnect()` should be called first.
      *
      * @param ConnectionSettings|null $settings
-     * @param bool                    $sendCleanSessionFlag
+     * @param bool                    $useCleanSession
      * @return void
      * @throws ConfigurationInvalidException
      * @throws ConnectingToBrokerFailedException
      */
     public function connect(
         ConnectionSettings $settings = null,
-        bool $sendCleanSessionFlag = false
+        bool $useCleanSession = false
     ): void
     {
         // Always abruptly close any previous connection if we are opening a new one.
@@ -134,9 +134,14 @@ class MqttClient implements ClientContract
 
         $this->ensureConnectionSettingsAreValid($this->settings);
 
+        // When a clean session is requested, we have to reset the repository to forget about persisted states.
+        if ($useCleanSession) {
+            $this->repository->reset();
+        }
+
         try {
             $this->establishSocketConnection();
-            $this->performConnectionHandshake($sendCleanSessionFlag);
+            $this->performConnectionHandshake($useCleanSession);
         } catch (ConnectingToBrokerFailedException $e) {
             if ($this->socket !== null) {
                 $this->closeSocket();
