@@ -86,6 +86,7 @@ trait OffersHooks
 
     /**
      * Runs all registered loop event handlers with the given parameters.
+     * Each event handler is executed in a try-catch block to avoid spilling exceptions.
      *
      * @param float $elapsedTime
      * @return void
@@ -156,5 +157,30 @@ trait OffersHooks
 
         /** @var MqttClient $this */
         return $this;
+    }
+
+    /**
+     * Runs all the registered publish event handlers with the given parameters.
+     * Each event handler is executed in a try-catch block to avoid spilling exceptions.
+     *
+     * @param string   $topic
+     * @param string   $message
+     * @param int|null $messageId
+     * @param int      $qualityOfService
+     * @param bool     $retain
+     * @return void
+     */
+    private function runPublishEventHandlers(string $topic, string $message, ?int $messageId, int $qualityOfService, bool $retain): void
+    {
+        foreach ($this->publishEventHandlers as $handler) {
+            try {
+                call_user_func($handler, $this, $topic, $message, $messageId, $qualityOfService, $retain);
+            } catch (\Throwable $e) {
+                $this->logger->error('Publish hook callback threw exception for published message on topic [{topic}].', [
+                    'topic' => $topic,
+                    'exception' => $e,
+                ]);
+            }
+        }
     }
 }
