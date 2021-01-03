@@ -8,6 +8,7 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
+use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\ProtocolViolationException;
 use PhpMqtt\Client\Exceptions\RepositoryException;
 
@@ -90,14 +91,17 @@ interface MqttClient
      * );
      * ```
      *
-     * @param string   $topicFilter
-     * @param callable $callback
-     * @param int      $qualityOfService
+     * If no callback is passed, a subscription will still be made. Received messages are delivered only to
+     * event handlers for received messages though.
+     *
+     * @param string        $topicFilter
+     * @param callable|null $callback
+     * @param int           $qualityOfService
      * @return void
      * @throws DataTransferException
      * @throws RepositoryException
      */
-    public function subscribe(string $topicFilter, callable $callback, int $qualityOfService = 0): void;
+    public function subscribe(string $topicFilter, callable $callback = null, int $qualityOfService = 0): void;
 
     /**
      * Unsubscribe from the given topic.
@@ -105,6 +109,7 @@ interface MqttClient
      * @param string $topicFilter
      * @return void
      * @throws DataTransferException
+     * @throws RepositoryException
      */
     public function unsubscribe(string $topicFilter): void;
 
@@ -138,6 +143,7 @@ interface MqttClient
      * @param int|null $queueWaitLimit
      * @return void
      * @throws DataTransferException
+     * @throws MqttClientException
      * @throws ProtocolViolationException
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void;
