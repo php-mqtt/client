@@ -18,7 +18,7 @@ class PublishSubscribeTest extends TestCase
     {
         // We connect and subscribe to a topic using the first client.
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
-        $subscriber->connect();
+        $subscriber->connect(null, true);
 
         $subscriber->subscribe('test/foo/bar/baz', function (string $topic, string $message, bool $retained) use ($subscriber) {
             // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
@@ -31,7 +31,7 @@ class PublishSubscribeTest extends TestCase
 
         // We publish a message from a second client on the same topic.
         $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
-        $publisher->connect();
+        $publisher->connect(null, true);
 
         $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
 
@@ -47,7 +47,7 @@ class PublishSubscribeTest extends TestCase
     {
         // We connect and subscribe to a topic using the first client.
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
-        $subscriber->connect();
+        $subscriber->connect(null, true);
 
         $subscriber->subscribe('test/foo/bar/+', function (string $topic, string $message, bool $retained) use ($subscriber) {
             // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
@@ -60,7 +60,7 @@ class PublishSubscribeTest extends TestCase
 
         // We publish a message from a second client on the same topic.
         $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
-        $publisher->connect();
+        $publisher->connect(null, true);
 
         $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
 
@@ -76,7 +76,7 @@ class PublishSubscribeTest extends TestCase
     {
         // We connect and subscribe to a topic using the first client.
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
-        $subscriber->connect();
+        $subscriber->connect(null, true);
 
         $subscribedTopic      = 'test/foo/bar/baz';
         $receivedMessageCount = 0;
@@ -97,7 +97,7 @@ class PublishSubscribeTest extends TestCase
 
         // We publish a message from a second client on the same topic.
         $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
-        $publisher->connect();
+        $publisher->connect(null, true);
 
         $publisher->publish($subscribedTopic, 'hello world', 0, false);
 

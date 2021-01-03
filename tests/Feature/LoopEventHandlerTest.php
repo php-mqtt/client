@@ -35,7 +35,7 @@ class LoopEventHandlerTest extends TestCase
             }
         });
 
-        $client->connect();
+        $client->connect(null, true);
 
         $client->loop();
 
@@ -60,7 +60,7 @@ class LoopEventHandlerTest extends TestCase
 
         $client->registerLoopEventHandler($handler);
 
-        $client->connect();
+        $client->connect(null, true);
 
         $client->loop();
 
@@ -96,7 +96,7 @@ class LoopEventHandlerTest extends TestCase
         $client->registerLoopEventHandler($handler1);
         $client->registerLoopEventHandler($handler2);
 
-        $client->connect();
+        $client->connect(null, true);
 
         $client->loop();
 

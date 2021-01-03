@@ -27,7 +27,7 @@ class PublishEventHandlerTest extends TestCase
 
         $client->registerPublishEventHandler($handler);
 
-        $client->connect();
+        $client->connect(null, true);
         $client->publish('foo/bar', 'baz-01');
         $client->publish('foo/bar', 'baz-02');
         $client->publish('foo/bar', 'baz-03');
@@ -48,7 +48,7 @@ class PublishEventHandlerTest extends TestCase
 
         $client->registerPublishEventHandler($handler);
 
-        $client->connect();
+        $client->connect(null, true);
         $client->publish('foo/bar', 'baz-01');
 
         $this->assertSame(1, $handlerCallCount);

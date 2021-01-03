@@ -25,7 +25,7 @@ class ConnectWithInvalidHostAndPortTest extends TestCase
         $this->expectExceptionCode(ConnectingToBrokerFailedException::EXCEPTION_CONNECTION_SOCKET_ERROR);
 
         try {
-            $client->connect();
+            $client->connect(null, true);
         } catch (ConnectingToBrokerFailedException $e) {
             $this->assertGreaterThan(0, $e->getConnectionErrorCode());
             $this->assertNotEmpty($e->getConnectionErrorMessage());

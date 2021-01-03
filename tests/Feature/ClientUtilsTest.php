@@ -20,7 +20,7 @@ class ClientUtilsTest extends TestCase
     {
         $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-byte-count');
 
-        $client->connect();
+        $client->connect(null, true);
 
         // Even the connection request and acknowledgement have bytes.
         $this->assertGreaterThan(0, $client->getSentBytes());
@@ -49,7 +49,7 @@ class ClientUtilsTest extends TestCase
     {
         $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-is-connected');
 
-        $client->connect();
+        $client->connect(null, true);
 
         $this->assertTrue($client->isConnected());
 
@@ -57,7 +57,7 @@ class ClientUtilsTest extends TestCase
 
         $this->assertFalse($client->isConnected());
 
-        $client->connect();
+        $client->connect(null, true);
 
         $this->assertTrue($client->isConnected());
 
