@@ -76,8 +76,8 @@ trait ValidatesConfiguration
             throw new ConfigurationInvalidException('Using a client certificate key file without certificate does not work.');
         }
 
-        if ($settings->getTlsClientCertificatePassphrase() !== null && $settings->getTlsClientCertificateFile() === null) {
-            throw new ConfigurationInvalidException('Using a client certificate passphrase without certificate does not work.');
+        if ($settings->getTlsClientCertificateKeyPassphrase() !== null && $settings->getTlsClientCertificateKeyFile() === null) {
+            throw new ConfigurationInvalidException('Using a client certificate key passphrase without key file does not work.');
         }
     }
 }

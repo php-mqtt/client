@@ -11,25 +11,25 @@ namespace PhpMqtt\Client;
  */
 class ConnectionSettings
 {
-    private ?string $username                       = null;
-    private ?string $password                       = null;
-    private int $connectTimeout                     = 60;
-    private int $socketTimeout                      = 5;
-    private int $resendTimeout                      = 10;
-    private int $keepAliveInterval                  = 10;
-    private ?string $lastWillTopic                  = null;
-    private ?string $lastWillMessage                = null;
-    private int $lastWillQualityOfService           = 0;
-    private bool $lastWillRetain                    = false;
-    private bool $useTls                            = false;
-    private bool $tlsVerifyPeer                     = true;
-    private bool $tlsVerifyPeerName                 = true;
-    private bool $tlsSelfSignedAllowed              = false;
-    private ?string $tlsCertificateAuthorityFile    = null;
-    private ?string $tlsCertificateAuthorityPath    = null;
-    private ?string $tlsClientCertificateFile       = null;
-    private ?string $tlsClientCertificateKeyFile    = null;
-    private ?string $tlsClientCertificatePassphrase = null;
+    private ?string $username                          = null;
+    private ?string $password                          = null;
+    private int $connectTimeout                        = 60;
+    private int $socketTimeout                         = 5;
+    private int $resendTimeout                         = 10;
+    private int $keepAliveInterval                     = 10;
+    private ?string $lastWillTopic                     = null;
+    private ?string $lastWillMessage                   = null;
+    private int $lastWillQualityOfService              = 0;
+    private bool $lastWillRetain                       = false;
+    private bool $useTls                               = false;
+    private bool $tlsVerifyPeer                        = true;
+    private bool $tlsVerifyPeerName                    = true;
+    private bool $tlsSelfSignedAllowed                 = false;
+    private ?string $tlsCertificateAuthorityFile       = null;
+    private ?string $tlsCertificateAuthorityPath       = null;
+    private ?string $tlsClientCertificateFile          = null;
+    private ?string $tlsClientCertificateKeyFile       = null;
+    private ?string $tlsClientCertificateKeyPassphrase = null;
 
     /**
      * The username used for authentication when connecting to the broker.
@@ -442,7 +442,7 @@ class ConnectionSettings
      * The client certificate must be PEM encoded. It may optionally contain the
      * certificate chain of issuers. The certificate key can be included in this certificate
      * file or in a separate file ({@see ConnectionSettings::setTlsClientCertificateKeyFile()}).
-     * A passphrase can be configured using {@see ConnectionSettings::setTlsClientCertificatePassphrase()}.
+     * A passphrase can be configured using {@see ConnectionSettings::setTlsClientCertificateKeyPassphrase()}.
      *
      * @param string|null $tlsClientCertificateFile
      * @return ConnectionSettings
@@ -495,20 +495,18 @@ class ConnectionSettings
      * which in return is used for authentication, if TLS is used.
      *
      * This option requires {@see ConnectionSettings::setTlsClientCertificateFile()}
-     * and potentially {@see ConnectionSettings::setTlsClientCertificateKeyFile()}
-     * to be used as well.
+     * and {@see ConnectionSettings::setTlsClientCertificateKeyFile()} to be used as well.
      *
-     * Please be aware that your passphrase is not stored in secure memory when
-     * using this option.
+     * Please be aware that your passphrase is not stored in secure memory when using this option.
      *
-     * @param string|null $tlsClientCertificatePassphrase
+     * @param string|null $tlsClientCertificateKeyPassphrase
      * @return ConnectionSettings
      */
-    public function setTlsClientCertificatePassphrase(?string $tlsClientCertificatePassphrase): ConnectionSettings
+    public function setTlsClientCertificateKeyPassphrase(?string $tlsClientCertificateKeyPassphrase): ConnectionSettings
     {
         $copy = clone $this;
 
-        $copy->tlsClientCertificatePassphrase = $tlsClientCertificatePassphrase;
+        $copy->tlsClientCertificateKeyPassphrase = $tlsClientCertificateKeyPassphrase;
 
         return $copy;
     }
@@ -516,8 +514,8 @@ class ConnectionSettings
     /**
      * @return string|null
      */
-    public function getTlsClientCertificatePassphrase(): ?string
+    public function getTlsClientCertificateKeyPassphrase(): ?string
     {
-        return $this->tlsClientCertificatePassphrase;
+        return $this->tlsClientCertificateKeyPassphrase;
     }
 }
