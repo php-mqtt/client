@@ -37,7 +37,7 @@ $clientId = 'test-publisher';
 $mqtt = new \PhpMqtt\Client\MqttClient($server, $port, $clientId);
 $mqtt->connect();
 $mqtt->publish('php-mqtt/client/test', 'Hello World!', 0);
-$mqtt->close();
+$mqtt->disconnect();
 ```
 
 If you do not want to pass a `$clientId`, a random one will be generated for you. This will basically force a clean session implicitly.
@@ -57,6 +57,7 @@ $mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
     echo sprintf("Received message on topic [%s]: %s\n", $topic, $message);
 }, 0);
 $mqtt->loop(true);
+$mqtt->disconnect();
 ```
 
 While the loop is active, you can use `$mqtt->interrupt()` to send an interrupt signal to the loop.
@@ -76,7 +77,7 @@ $mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
     echo sprintf("Received message on topic [%s]: %s\n", $topic, $message);
 }, 0);
 $mqtt->loop(true);
-$mqtt->close();
+$mqtt->disconnect();
 ```
 
 ### Client Settings

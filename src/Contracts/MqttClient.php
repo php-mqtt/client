@@ -35,6 +35,14 @@ interface MqttClient
     ): void;
 
     /**
+     * Sends a disconnect message to the broker and closes the socket.
+     *
+     * @return void
+     * @throws DataTransferException
+     */
+    public function disconnect(): void;
+
+    /**
      * Returns an indication, whether the client is supposed to be connected already or not.
      *
      * Note: the result of this method should be used carefully, since we can only detect a
@@ -99,14 +107,6 @@ interface MqttClient
      * @throws DataTransferException
      */
     public function unsubscribe(string $topic): void;
-
-    /**
-     * Sends a disconnect and closes the socket.
-     *
-     * @return void
-     * @throws DataTransferException
-     */
-    public function close(): void;
 
     /**
      * Sets the interrupted signal. Doing so instructs the client to exit the loop, if it is
