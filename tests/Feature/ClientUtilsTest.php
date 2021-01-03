@@ -44,4 +44,50 @@ class ClientUtilsTest extends TestCase
 
         $client->disconnect();
     }
+
+    public function test_is_connected_returns_correct_state(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-is-connected');
+
+        $client->connect();
+
+        $this->assertTrue($client->isConnected());
+
+        $client->disconnect();
+
+        $this->assertFalse($client->isConnected());
+
+        $client->connect();
+
+        $this->assertTrue($client->isConnected());
+
+        $client->disconnect();
+
+        $this->assertFalse($client->isConnected());
+    }
+
+    public function test_configured_client_id_is_returned_if_client_id_is_passed_to_constructor(): void
+    {
+        $clientId = 'test-configured-client-id';
+
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, $clientId);
+
+        $this->assertSame($clientId, $client->getClientId());
+    }
+
+    public function test_generated_client_id_is_returned_if_no_client_id_is_passed_to_constructor(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort);
+
+        $this->assertNotNull($client->getClientId());
+        $this->assertNotEmpty($client->getClientId());
+    }
+
+    public function test_configured_broker_host_and_port_are_returned(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort);
+
+        $this->assertSame($this->mqttBrokerHost, $client->getHost());
+        $this->assertSame($this->mqttBrokerPort, $client->getPort());
+    }
 }
