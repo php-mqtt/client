@@ -9,15 +9,19 @@ use PhpMqtt\Client\Contracts\MqttClient;
 /**
  * Contains common methods and properties necessary to offer hooks.
  *
+ * @mixin MqttClient
  * @package PhpMqtt\Client\Concerns
  */
 trait OffersHooks
 {
     /** @var \SplObjectStorage|array<\Closure> */
-    protected $loopEventHandlers;
+    private $loopEventHandlers;
 
     /** @var \SplObjectStorage|array<\Closure> */
-    protected $publishEventHandlers;
+    private $publishEventHandlers;
+
+    /** @var \SplObjectStorage|array<\Closure> */
+    private $messageReceivedEventHandlers;
 
     /**
      * Needs to be called in order to initialize the trait.
@@ -26,8 +30,9 @@ trait OffersHooks
      */
     protected function initializeEventHandlers(): void
     {
-        $this->loopEventHandlers    = new \SplObjectStorage();
-        $this->publishEventHandlers = new \SplObjectStorage();
+        $this->loopEventHandlers            = new \SplObjectStorage();
+        $this->publishEventHandlers         = new \SplObjectStorage();
+        $this->messageReceivedEventHandlers = new \SplObjectStorage();
     }
 
     /**
@@ -106,8 +111,8 @@ trait OffersHooks
      * Registers a loop event handler which is called when a message is published.
      *
      * The loop event handler is passed the MQTT client as first, the topic as
-     * second and the message as third parameter. As fourth parameter, the
-     * message identifier will be passed. The QoS level as well as the retained
+     * second and the message as third parameter. As fourth parameter, the message identifier
+     * will be passed, which can be null in case of QoS 0. The QoS level as well as the retained
      * flag will also be passed as fifth and sixth parameters.
      *
      * Example:
@@ -116,7 +121,7 @@ trait OffersHooks
      *     MqttClient $mqtt,
      *     string $topic,
      *     string $message,
-     *     int $messageId,
+     *     ?int $messageId,
      *     int $qualityOfService,
      *     bool $retain
      * ) use ($logger) {
@@ -177,6 +182,84 @@ trait OffersHooks
                 call_user_func($handler, $this, $topic, $message, $messageId, $qualityOfService, $retain);
             } catch (\Throwable $e) {
                 $this->logger->error('Publish hook callback threw exception for published message on topic [{topic}].', [
+                    'topic' => $topic,
+                    'exception' => $e,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Registers an event handler which is called when a message is received from the broker.
+     *
+     * The message received event handler is passed the MQTT client as first, the topic as
+     * second and the message as third parameter. As fourth parameter, the QoS level will be
+     * passed and the retained flag as fifth.
+     *
+     * Example:
+     * ```php
+     * $mqtt->registerReceivedMessageEventHandler(function (
+     *     MqttClient $mqtt,
+     *     string $topic,
+     *     string $message,
+     *     int $qualityOfService,
+     *     bool $retained
+     * ) use ($logger) {
+     *     $logger->info("Received message on topic [{$topic}]: {$message}");
+     * });
+     * ```
+     *
+     * Multiple event handlers can be registered at the same time.
+     *
+     * @param \Closure $callback
+     * @return MqttClient
+     */
+    public function registerMessageReceivedEventHandler(\Closure $callback): MqttClient
+    {
+        $this->messageReceivedEventHandlers->attach($callback);
+
+        /** @var MqttClient $this */
+        return $this;
+    }
+
+    /**
+     * Unregisters a message received event handler which prevents it from being called in the future.
+     *
+     * This does not affect other registered event handlers. It is possible
+     * to unregister all registered event handlers by passing null as callback.
+     *
+     * @param \Closure|null $callback
+     * @return MqttClient
+     */
+    public function unregisterMessageReceivedEventHandler(\Closure $callback = null): MqttClient
+    {
+        if ($callback === null) {
+            $this->messageReceivedEventHandlers->removeAll($this->messageReceivedEventHandlers);
+        } else {
+            $this->messageReceivedEventHandlers->detach($callback);
+        }
+
+        /** @var MqttClient $this */
+        return $this;
+    }
+
+    /**
+     * Runs all the registered message received event handlers with the given parameters.
+     * Each event handler is executed in a try-catch block to avoid spilling exceptions.
+     *
+     * @param string $topic
+     * @param string $message
+     * @param int    $qualityOfService
+     * @param bool   $retained
+     * @return void
+     */
+    private function runMessageReceivedEventHandlers(string $topic, string $message, int $qualityOfService, bool $retained): void
+    {
+        foreach ($this->messageReceivedEventHandlers as $handler) {
+            try {
+                call_user_func($handler, $this, $topic, $message, $qualityOfService, $retained);
+            } catch (\Throwable $e) {
+                $this->logger->error('Received message hook callback threw exception for received message on topic [{topic}].', [
                     'topic' => $topic,
                     'exception' => $e,
                 ]);

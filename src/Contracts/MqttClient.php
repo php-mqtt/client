@@ -8,6 +8,7 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
+use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\ProtocolViolationException;
 use PhpMqtt\Client\Exceptions\RepositoryException;
 
@@ -24,14 +25,14 @@ interface MqttClient
      * See {@see ConnectionSettings} for more details about the defaults.
      *
      * @param ConnectionSettings|null $settings
-     * @param bool                    $sendCleanSessionFlag
+     * @param bool                    $useCleanSession
      * @return void
      * @throws ConfigurationInvalidException
      * @throws ConnectingToBrokerFailedException
      */
     public function connect(
         ConnectionSettings $settings = null,
-        bool $sendCleanSessionFlag = false
+        bool $useCleanSession = false
     ): void;
 
     /**
@@ -90,14 +91,17 @@ interface MqttClient
      * );
      * ```
      *
-     * @param string   $topicFilter
-     * @param callable $callback
-     * @param int      $qualityOfService
+     * If no callback is passed, a subscription will still be made. Received messages are delivered only to
+     * event handlers for received messages though.
+     *
+     * @param string        $topicFilter
+     * @param callable|null $callback
+     * @param int           $qualityOfService
      * @return void
      * @throws DataTransferException
      * @throws RepositoryException
      */
-    public function subscribe(string $topicFilter, callable $callback, int $qualityOfService = 0): void;
+    public function subscribe(string $topicFilter, callable $callback = null, int $qualityOfService = 0): void;
 
     /**
      * Unsubscribe from the given topic.
@@ -105,6 +109,7 @@ interface MqttClient
      * @param string $topicFilter
      * @return void
      * @throws DataTransferException
+     * @throws RepositoryException
      */
     public function unsubscribe(string $topicFilter): void;
 
@@ -138,6 +143,7 @@ interface MqttClient
      * @param int|null $queueWaitLimit
      * @return void
      * @throws DataTransferException
+     * @throws MqttClientException
      * @throws ProtocolViolationException
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void;
@@ -255,4 +261,42 @@ interface MqttClient
      * @return MqttClient
      */
     public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient;
+
+    /**
+     * Registers an event handler which is called when a message is received from the broker.
+     *
+     * The message received event handler is passed the MQTT client as first, the topic as
+     * second and the message as third parameter. As fourth parameter, the QoS level will be
+     * passed and the retained flag as fifth.
+     *
+     * Example:
+     * ```php
+     * $mqtt->registerReceivedMessageEventHandler(function (
+     *     MqttClient $mqtt,
+     *     string $topic,
+     *     string $message,
+     *     int $qualityOfService,
+     *     bool $retained
+     * ) use ($logger) {
+     *     $logger->info("Received message on topic [{$topic}]: {$message}");
+     * });
+     * ```
+     *
+     * Multiple event handlers can be registered at the same time.
+     *
+     * @param \Closure $callback
+     * @return MqttClient
+     */
+    public function registerMessageReceivedEventHandler(\Closure $callback): MqttClient;
+
+    /**
+     * Unregisters a message received event handler which prevents it from being called in the future.
+     *
+     * This does not affect other registered event handlers. It is possible
+     * to unregister all registered event handlers by passing null as callback.
+     *
+     * @param \Closure|null $callback
+     * @return MqttClient
+     */
+    public function unregisterMessageReceivedEventHandler(\Closure $callback = null): MqttClient;
 }

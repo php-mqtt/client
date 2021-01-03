@@ -29,8 +29,7 @@
     "require": {
         "php": "^7.4|^8.0",
         "psr/log": "^1.1",
-        "myclabs/php-enum": "^1.7",
-        "opis/closure": "^3.5"
+        "myclabs/php-enum": "^1.7"
     },
     "require-dev": {
         "phpunit/php-invoker": "^3.0",

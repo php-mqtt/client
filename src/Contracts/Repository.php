@@ -28,6 +28,15 @@ use PhpMqtt\Client\Subscription;
 interface Repository
 {
     /**
+     * Re-initializes the repository by deleting all persisted data and restoring the original state,
+     * which was given when the repository was first created. This is used when a clean session
+     * is requested by a client during connection.
+     *
+     * @return bool
+     */
+    public function reset(): void;
+
+    /**
      * Returns a new message id. The message id might have been used before,
      * but it is currently not being used (i.e. in a resend queue).
      *
@@ -149,13 +158,12 @@ interface Repository
     public function addSubscription(Subscription $subscription): void;
 
     /**
-     * Gets all subscriptions matching the given criteria.
+     * Gets all subscriptions matching the given topic.
      *
-     * @param string|null $topicName
-     * @param int|null    $subscriptionId
+     * @param string $topicName
      * @return Subscription[]
      */
-    public function getMatchingSubscriptions(string $topicName = null, int $subscriptionId = null): array;
+    public function getSubscriptionsMatchingTopic(string $topicName): array;
 
     /**
      * Removes the subscription with the given topic filter from the repository.

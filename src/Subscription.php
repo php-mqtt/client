@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
-use Opis\Closure\SerializableClosure;
-
 /**
  * A simple DTO for subscriptions to a topic which need to be stored in a repository.
  *
@@ -14,27 +12,22 @@ use Opis\Closure\SerializableClosure;
 class Subscription
 {
     private string $topicFilter;
-    private ?int $subscriptionId;
-    private int $qualityOfService;
-    private ?SerializableClosure $callback = null;
     private string $regexifiedTopicFilter;
+    private int $qualityOfService;
+    private ?\Closure $callback;
 
     /**
      * Creates a new subscription object.
      *
      * @param string        $topicFilter
-     * @param \Closure|null $callback
      * @param int           $qualityOfService
+     * @param \Closure|null $callback
      */
-    public function __construct(string $topicFilter, ?int $subscriptionId, ?\Closure $callback, int $qualityOfService = 0)
+    public function __construct(string $topicFilter, int $qualityOfService = 0, ?\Closure $callback = null)
     {
         $this->topicFilter      = $topicFilter;
-        $this->subscriptionId   = $subscriptionId;
         $this->qualityOfService = $qualityOfService;
-
-        if ($callback !== null) {
-            $this->callback = SerializableClosure::from($callback);
-        }
+        $this->callback         = $callback;
 
         $this->regexifyTopicFilter();
     }
@@ -65,19 +58,9 @@ class Subscription
      * @param string $topicName
      * @return bool
      */
-    public function matchTopicFilter(string $topicName): bool
+    public function matchesTopic(string $topicName): bool
     {
         return (bool) preg_match($this->regexifiedTopicFilter, $topicName);
-    }
-
-    /**
-     * Returns the subscription identifier.
-     *
-     * @return int|null
-     */
-    public function getSubscriptionId(): ?int
-    {
-        return $this->subscriptionId;
     }
 
     /**
@@ -87,7 +70,7 @@ class Subscription
      */
     public function getCallback(): ?\Closure
     {
-        return ($this->callback ? $this->callback->getClosure() : null);
+        return $this->callback;
     }
 
     /**

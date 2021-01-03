@@ -32,10 +32,18 @@ class MemoryRepository implements Repository
     private array $subscriptions = [];
 
     /**
-     * Returns a new message id. The message id might have been used before,
-     * but it is currently not being used (i.e. in a resend queue).
-     *
-     * @return int
+     * {@inheritDoc}
+     */
+    public function reset(): void
+    {
+        $this->nextMessageId           = 1;
+        $this->pendingOutgoingMessages = [];
+        $this->pendingIncomingMessages = [];
+        $this->subscriptions           = [];
+    }
+
+    /**
+     * {@inheritDoc}
      */
     public function newMessageId(): int
     {
@@ -189,16 +197,12 @@ class MemoryRepository implements Repository
     /**
      * {@inheritDoc}
      */
-    public function getMatchingSubscriptions(string $topicName = null, int $subscriptionId = null): array
+    public function getSubscriptionsMatchingTopic(string $topicName): array
     {
         $result = [];
 
         foreach ($this->subscriptions as $subscription) {
-            if (($topicName !== null) && !$subscription->matchTopicFilter($topicName)) {
-                continue;
-            }
-
-            if (($subscriptionId !== null) && ($subscription->getSubscriptionId() !== $subscriptionId)) {
+            if ($topicName !== null && !$subscription->matchesTopic($topicName)) {
                 continue;
             }
 

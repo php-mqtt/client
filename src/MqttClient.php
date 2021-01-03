@@ -11,7 +11,6 @@ use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Contracts\MqttClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
-use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\InvalidMessageException;
@@ -20,7 +19,6 @@ use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
 use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
 use PhpMqtt\Client\Exceptions\ProtocolViolationException;
-use PhpMqtt\Client\Exceptions\RepositoryException;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 use Psr\Log\LoggerInterface;
@@ -106,22 +104,11 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Connect to the MQTT broker using the given credentials and settings.
-     * If no custom settings are passed, the client will use the default settings.
-     * See {@see ConnectionSettings} for more details about the defaults.
-     *
-     * In case there is an existing connection, it will be abruptly closed and
-     * replaced with the new one, as `disconnect()` should be called first.
-     *
-     * @param ConnectionSettings|null $settings
-     * @param bool                    $sendCleanSessionFlag
-     * @return void
-     * @throws ConfigurationInvalidException
-     * @throws ConnectingToBrokerFailedException
+     * {@inheritDoc}
      */
     public function connect(
         ConnectionSettings $settings = null,
-        bool $sendCleanSessionFlag = false
+        bool $useCleanSession = false
     ): void
     {
         // Always abruptly close any previous connection if we are opening a new one.
@@ -134,9 +121,14 @@ class MqttClient implements ClientContract
 
         $this->ensureConnectionSettingsAreValid($this->settings);
 
+        // When a clean session is requested, we have to reset the repository to forget about persisted states.
+        if ($useCleanSession) {
+            $this->repository->reset();
+        }
+
         try {
             $this->establishSocketConnection();
-            $this->performConnectionHandshake($sendCleanSessionFlag);
+            $this->performConnectionHandshake($useCleanSession);
         } catch (ConnectingToBrokerFailedException $e) {
             if ($this->socket !== null) {
                 $this->closeSocket();
@@ -373,13 +365,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Sets the interrupted signal. Doing so instructs the client to exit the loop, if it is
-     * actually looping.
-     *
-     * Sending multiple interrupt signals has no effect, unless the client exits the loop,
-     * which resets the signal for another loop.
-     *
-     * @return void
+     * {@inheritDoc}
      */
     public function interrupt(): void
     {
@@ -387,9 +373,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Returns the host used by the client to connect to.
-     *
-     * @return string
+     * {@inheritDoc}
      */
     public function getHost(): string
     {
@@ -397,9 +381,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Returns the port used by the client to connect to.
-     *
-     * @return int
+     * {@inheritDoc}
      */
     public function getPort(): int
     {
@@ -407,9 +389,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Returns the identifier used by the client.
-     *
-     * @return string
+     * {@inheritDoc}
      */
     public function getClientId(): string
     {
@@ -417,9 +397,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Returns the total number of received bytes, across reconnects.
-     *
-     * @return int
+     * {@inheritDoc}
      */
     public function getReceivedBytes(): int
     {
@@ -427,9 +405,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Returns the total number of sent bytes, across reconnects.
-     *
-     * @return int
+     * {@inheritDoc}
      */
     public function getSentBytes(): int
     {
@@ -437,14 +413,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Returns an indication, whether the client is supposed to be connected already or not.
-     *
-     * Note: the result of this method should be used carefully, since we can only detect a
-     * closed socket once we try to send or receive data. Therefore, this method only gives
-     * an indication whether the client is in a connected state or not.
-     * This information may be useful in applications where multiple parts use the client.
-     *
-     * @return bool
+     * {@inheritDoc}
      */
     public function isConnected(): bool
     {
@@ -468,10 +437,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Sends a disconnect message to the broker and closes the socket.
-     *
-     * @return void
-     * @throws DataTransferException
+     * {@inheritDoc}
      */
     public function disconnect(): void
     {
@@ -489,17 +455,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Publishes the given message on the given topic. If the additional quality of service
-     * and retention flags are set, the message will be published using these settings.
-     *
-     * @param string $topic
-     * @param string $message
-     * @param int    $qualityOfService
-     * @param bool   $retain
-     * @return void
-     * @throws DataTransferException
-     * @throws PendingMessageAlreadyExistsException
-     * @throws RepositoryException
+     * {@inheritDoc}
      */
     public function publish(string $topic, string $message, int $qualityOfService = 0, bool $retain = false): void
     {
@@ -557,34 +513,9 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Subscribe to the given topic with the given quality of service.
-     *
-     * The subscription callback is passed the topic as first and the message as second
-     * parameter. A third parameter indicates whether the received message has been sent
-     * because it was retained by the broker.
-     *
-     * Example:
-     * ```php
-     * $mqtt->subscribe(
-     *     '/foo/bar/+',
-     *     function (string $topic, string $message, bool $retained) use ($logger) {
-     *         $logger->info("Received {retained} message on topic [{topic}]: {message}", [
-     *             'topic' => $topic,
-     *             'message' => $message,
-     *             'retained' => $retained ? 'retained' : 'live'
-     *         ]);
-     *     }
-     * );
-     * ```
-     *
-     * @param string   $topicFilter
-     * @param callable $callback
-     * @param int      $qualityOfService
-     * @return void
-     * @throws DataTransferException
-     * @throws RepositoryException
+     * {@inheritDoc}
      */
-    public function subscribe(string $topicFilter, callable $callback, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
+    public function subscribe(string $topicFilter, callable $callback = null, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
     {
         $this->ensureConnected();
 
@@ -597,7 +528,7 @@ class MqttClient implements ClientContract
 
         // Create the subscription representation now, but it will become an
         // actual subscription only upon acknowledgement from the broker.
-        $subscriptions = [new Subscription($topicFilter, null, $callback, $qualityOfService)];
+        $subscriptions = [new Subscription($topicFilter, $qualityOfService, $callback)];
 
         $pendingMessage = new SubscribeRequest($messageId, $subscriptions);
         $this->repository->addPendingOutgoingMessage($pendingMessage);
@@ -607,12 +538,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Unsubscribe from the given topic.
-     *
-     * @param string $topicFilter
-     * @return void
-     * @throws DataTransferException
-     * @throws RepositoryException
+     * {@inheritDoc}
      */
     public function unsubscribe(string $topicFilter): void
     {
@@ -641,25 +567,7 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Runs an event loop that handles messages from the server and calls the registered
-     * callbacks for published messages.
-     *
-     * If the second parameter is provided, the loop will exit as soon as all
-     * queues are empty. This means there may be no open subscriptions,
-     * no pending messages as well as acknowledgments and no pending unsubscribe requests.
-     *
-     * The third parameter will, if set, lead to a forceful exit after the specified
-     * amount of seconds, but only if the second parameter is set to true. This basically
-     * means that if we wait for all pending messages to be acknowledged, we only wait
-     * a maximum of $queueWaitLimit seconds until we give up. We do not exit after the
-     * given amount of time if there are open topic subscriptions though.
-     *
-     * @param bool     $allowSleep
-     * @param bool     $exitWhenQueuesEmpty
-     * @param int|null $queueWaitLimit
-     * @return void
-     * @throws DataTransferException
-     * @throws MqttClientException
+     * {@inheritDoc}
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void
     {
@@ -943,7 +851,7 @@ class MqttClient implements ClientContract
      */
     protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel, bool $retained = false): void
     {
-        $subscribers = $this->repository->getMatchingSubscriptions($topic);
+        $subscribers = $this->repository->getSubscriptionsMatchingTopic($topic);
 
         $this->logger->debug('Delivering message received on topic [{topic}] with QoS [{qos}] from the broker to [{subscribers}] subscribers.', [
             'topic' => $topic,
@@ -953,6 +861,10 @@ class MqttClient implements ClientContract
         ]);
 
         foreach ($subscribers as $subscriber) {
+            if ($subscriber->getCallback() === null) {
+                continue;
+            }
+
             try {
                 call_user_func($subscriber->getCallback(), $topic, $message, $retained);
             } catch (\Throwable $e) {
@@ -963,6 +875,8 @@ class MqttClient implements ClientContract
                 ]);
             }
         }
+
+        $this->runMessageReceivedEventHandlers($topic, $message, $qualityOfServiceLevel, $retained);
     }
 
     /**
