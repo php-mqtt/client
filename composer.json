@@ -44,9 +44,9 @@
         "fix:cs": "vendor/bin/phpcbf",
         "test": [
             "@test:cs",
-            "@test:unit",
-            "@test:feature"
+            "@test:all"
         ],
+        "test:all": "vendor/bin/phpunit --testdox --log-junit=phpunit.report-junit.xml --coverage-clover=phpunit.coverage-clover.xml --coverage-text",
         "test:cs": "vendor/bin/phpcs",
         "test:feature": "vendor/bin/phpunit --testsuite=Feature --testdox --log-junit=phpunit.report-junit.xml --coverage-clover=phpunit.coverage-clover.xml --coverage-text",
         "test:unit": "vendor/bin/phpunit --testsuite=Unit --testdox --log-junit=phpunit.report-junit.xml --coverage-clover=phpunit.coverage-clover.xml --coverage-text"
