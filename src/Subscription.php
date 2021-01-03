@@ -15,7 +15,6 @@ class Subscription
     private string $regexifiedTopicFilter;
     private int $qualityOfService;
     private ?\Closure $callback;
-    private ?int $subscriptionId;
 
     /**
      * Creates a new subscription object.
@@ -23,14 +22,12 @@ class Subscription
      * @param string        $topicFilter
      * @param int           $qualityOfService
      * @param \Closure|null $callback
-     * @param int|null      $subscriptionId
      */
-    public function __construct(string $topicFilter, int $qualityOfService = 0, ?\Closure $callback = null, ?int $subscriptionId = null)
+    public function __construct(string $topicFilter, int $qualityOfService = 0, ?\Closure $callback = null)
     {
         $this->topicFilter      = $topicFilter;
         $this->qualityOfService = $qualityOfService;
         $this->callback         = $callback;
-        $this->subscriptionId   = $subscriptionId;
 
         $this->regexifyTopicFilter();
     }
@@ -64,16 +61,6 @@ class Subscription
     public function matchesTopic(string $topicName): bool
     {
         return (bool) preg_match($this->regexifiedTopicFilter, $topicName);
-    }
-
-    /**
-     * Returns the subscription identifier.
-     *
-     * @return int|null
-     */
-    public function getSubscriptionId(): ?int
-    {
-        return $this->subscriptionId;
     }
 
     /**

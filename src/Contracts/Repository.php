@@ -149,13 +149,12 @@ interface Repository
     public function addSubscription(Subscription $subscription): void;
 
     /**
-     * Gets all subscriptions matching the given criteria.
+     * Gets all subscriptions matching the given topic.
      *
-     * @param string|null $topicName
-     * @param int|null    $subscriptionId
+     * @param string $topicName
      * @return Subscription[]
      */
-    public function getMatchingSubscriptions(string $topicName = null, int $subscriptionId = null): array;
+    public function getSubscriptionsMatchingTopic(string $topicName): array;
 
     /**
      * Removes the subscription with the given topic filter from the repository.

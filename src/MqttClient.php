@@ -943,7 +943,7 @@ class MqttClient implements ClientContract
      */
     protected function deliverPublishedMessage(string $topic, string $message, int $qualityOfServiceLevel, bool $retained = false): void
     {
-        $subscribers = $this->repository->getMatchingSubscriptions($topic);
+        $subscribers = $this->repository->getSubscriptionsMatchingTopic($topic);
 
         $this->logger->debug('Delivering message received on topic [{topic}] with QoS [{qos}] from the broker to [{subscribers}] subscribers.', [
             'topic' => $topic,
