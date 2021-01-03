@@ -875,6 +875,8 @@ class MqttClient implements ClientContract
                 ]);
             }
         }
+
+        $this->runReceivedMessageEventHandlers($topic, $message, $qualityOfServiceLevel, $retained);
     }
 
     /**

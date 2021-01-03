@@ -261,4 +261,42 @@ interface MqttClient
      * @return MqttClient
      */
     public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient;
+
+    /**
+     * Registers an event handler which is called when a message is received from the broker.
+     *
+     * The received message event handler is passed the MQTT client as first, the topic as
+     * second and the message as third parameter. As fourth parameter, the QoS level will be
+     * passed and the retained flag as fifth.
+     *
+     * Example:
+     * ```php
+     * $mqtt->registerReceivedMessageEventHandler(function (
+     *     MqttClient $mqtt,
+     *     string $topic,
+     *     string $message,
+     *     int $qualityOfService,
+     *     bool $retained
+     * ) use ($logger) {
+     *     $logger->info("Received message on topic [{$topic}]: {$message}");
+     * });
+     * ```
+     *
+     * Multiple event handlers can be registered at the same time.
+     *
+     * @param \Closure $callback
+     * @return MqttClient
+     */
+    public function registerReceivedMessageEventHandler(\Closure $callback): MqttClient;
+
+    /**
+     * Unregisters a received message event handler which prevents it from being called in the future.
+     *
+     * This does not affect other registered event handlers. It is possible
+     * to unregister all registered event handlers by passing null as callback.
+     *
+     * @param \Closure|null $callback
+     * @return MqttClient
+     */
+    public function unregisterReceivedMessageEventHandler(\Closure $callback = null): MqttClient;
 }
