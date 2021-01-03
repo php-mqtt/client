@@ -14,9 +14,6 @@ use Tests\TestCase;
  */
 class PublishSubscribeTest extends TestCase
 {
-    /**
-     * @small
-     */
     public function test_publish_and_subscribing_using_quality_of_service_0_with_exact_topic_match_works(): void
     {
         // We connect and subscribe to a topic using the first client.
@@ -39,16 +36,13 @@ class PublishSubscribeTest extends TestCase
         $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
 
         // Then we loop on the subscriber to (hopefully) receive the published message.
-        $subscriber->loop();
+        $subscriber->loop(true);
 
         // Finally, we disconnect for a graceful shutdown on the broker side.
         $publisher->disconnect();
         $subscriber->disconnect();
     }
 
-    /**
-     * @small
-     */
     public function test_publish_and_subscribing_using_quality_of_service_0_with_wildcard_topic_match_works(): void
     {
         // We connect and subscribe to a topic using the first client.
@@ -71,7 +65,52 @@ class PublishSubscribeTest extends TestCase
         $publisher->publish('test/foo/bar/baz', 'hello world', 0, false);
 
         // Then we loop on the subscriber to (hopefully) receive the published message.
-        $subscriber->loop();
+        $subscriber->loop(true);
+
+        // Finally, we disconnect for a graceful shutdown on the broker side.
+        $publisher->disconnect();
+        $subscriber->disconnect();
+    }
+
+    public function test_unsubscribe_stops_receiving_messages_on_topic(): void
+    {
+        // We connect and subscribe to a topic using the first client.
+        $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
+        $subscriber->connect();
+
+        $subscribedTopic      = 'test/foo/bar/baz';
+        $receivedMessageCount = 0;
+        $subscriber->subscribe(
+            $subscribedTopic,
+            function (string $topic, string $message, bool $retained) use ($subscriber, $subscribedTopic, &$receivedMessageCount) {
+                $receivedMessageCount++;
+
+                // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
+                $this->assertEquals('test/foo/bar/baz', $topic);
+                $this->assertEquals('hello world', $message);
+                $this->assertFalse($retained);
+
+                $subscriber->unsubscribe($subscribedTopic);
+            },
+            0
+        );
+
+        // We publish a message from a second client on the same topic.
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
+        $publisher->connect();
+
+        $publisher->publish($subscribedTopic, 'hello world', 0, false);
+
+        // Then we loop on the subscriber to (hopefully) receive the published message.
+        $subscriber->loop(true, true);
+
+        $this->assertSame(1, $receivedMessageCount);
+
+        $publisher->publish($subscribedTopic, 'hello world #2', 0, false);
+        $subscriber->loop(true, true);
+
+        // Ensure no second message has been received since we are not subscribed anymore.
+        $this->assertSame(1, $receivedMessageCount);
 
         // Finally, we disconnect for a graceful shutdown on the broker side.
         $publisher->disconnect();
