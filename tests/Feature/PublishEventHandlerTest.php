@@ -37,7 +37,7 @@ class PublishEventHandlerTest extends TestCase
         $client->disconnect();
     }
 
-    public function test_loop_event_handlers_can_be_unregistered_and_will_not_be_called_anymore(): void
+    public function test_publish_event_handlers_can_be_unregistered_and_will_not_be_called_anymore(): void
     {
         $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-publish-event-handler');
 
@@ -67,6 +67,29 @@ class PublishEventHandlerTest extends TestCase
         $client->publish('foo/bar', 'baz-04');
 
         $this->assertSame(2, $handlerCallCount);
+
+        $client->disconnect();
+    }
+
+    public function test_publish_event_handlers_can_throw_exceptions_which_does_not_affect_other_handlers_or_the_application(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-publish-event-handler');
+
+        $handlerCallCount = 0;
+        $handler1 = function () use (&$handlerCallCount) {
+            $handlerCallCount++;
+        };
+        $handler2 = function () {
+            throw new \Exception('Something went wrong!');
+        };
+
+        $client->registerPublishEventHandler($handler1);
+        $client->registerPublishEventHandler($handler2);
+
+        $client->connect(null, true);
+        $client->publish('foo/bar', 'baz-01');
+
+        $this->assertSame(1, $handlerCallCount);
 
         $client->disconnect();
     }

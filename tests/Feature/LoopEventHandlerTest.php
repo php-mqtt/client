@@ -112,4 +112,32 @@ class LoopEventHandlerTest extends TestCase
 
         $client->disconnect();
     }
+
+    public function test_loop_event_handlers_can_throw_exceptions_which_does_not_affect_other_handlers_or_the_application(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-publish-event-handler');
+
+        $loopCount = 0;
+        $handler1  = function () {
+            throw new \Exception('Something went wrong!');
+        };
+        $handler2  = function (MqttClient $client) use (&$loopCount) {
+            $loopCount++;
+
+            if ($loopCount >= 1) {
+                $client->interrupt();
+                return;
+            }
+        };
+
+        $client->registerLoopEventHandler($handler1);
+        $client->registerLoopEventHandler($handler2);
+
+        $client->connect(null, true);
+        $client->loop(true);
+
+        $this->assertSame(1, $loopCount);
+
+        $client->disconnect();
+    }
 }
