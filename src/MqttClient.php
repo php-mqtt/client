@@ -208,7 +208,7 @@ class MqttClient implements ClientContract
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
         $socketContext    = stream_context_create($contextOptions);
 
-        $socket = stream_socket_client(
+        $socket = @stream_socket_client(
             $connectionString,
             $errorCode,
             $errorMessage,
