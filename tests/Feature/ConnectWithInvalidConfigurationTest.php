@@ -1,5 +1,6 @@
 <?php
 
+/** @noinspection PhpDocSignatureInspection */
 /** @noinspection PhpUnhandledExceptionInspection */
 
 declare(strict_types=1);
@@ -8,6 +9,8 @@ namespace Tests\Feature;
 
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
+use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
+use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
 use PhpMqtt\Client\MqttClient;
 use Tests\TestCase;
 
@@ -186,8 +189,8 @@ class ConnectWithInvalidConfigurationTest extends TestCase
      * @param ConnectionSettings $connectionSettings
      * @return void
      * @throws ConfigurationInvalidException
-     * @throws \PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException
-     * @throws \PhpMqtt\Client\Exceptions\ProtocolNotSupportedException
+     * @throws ConnectingToBrokerFailedException
+     * @throws ProtocolNotSupportedException
      */
     private function connectAndExpectConfigurationExceptionUsingSettings(ConnectionSettings $connectionSettings): void
     {
