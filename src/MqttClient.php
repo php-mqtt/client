@@ -597,7 +597,7 @@ class MqttClient implements ClientContract
 
         // Create the subscription representation now, but it will become an
         // actual subscription only upon acknowledgement from the broker.
-        $subscriptions = [new Subscription($topicFilter, null, $callback, $qualityOfService)];
+        $subscriptions = [new Subscription($topicFilter, $qualityOfService, $callback)];
 
         $pendingMessage = new SubscribeRequest($messageId, $subscriptions);
         $this->repository->addPendingOutgoingMessage($pendingMessage);

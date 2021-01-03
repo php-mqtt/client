@@ -159,13 +159,13 @@ class Mqtt31MessageProcessorTest extends TestCase
 
         return [
             // Simple QoS 0 subscription
-            [42, [new Subscription('test/foo', null, null, 0)], hex2bin('82'.'0d00'.'2a00'.'08') . 'test/foo' . hex2bin('00')],
+            [42, [new Subscription('test/foo', 0)], hex2bin('82'.'0d00'.'2a00'.'08') . 'test/foo' . hex2bin('00')],
 
             // Wildcard QoS 2 subscription with high message id
-            [43764, [new Subscription('test/foo/bar/baz/#', null, null, 2)], hex2bin('82'.'17aa'.'f400'.'12') . 'test/foo/bar/baz/#' . hex2bin('02')],
+            [43764, [new Subscription('test/foo/bar/baz/#', 2)], hex2bin('82'.'17aa'.'f400'.'12') . 'test/foo/bar/baz/#' . hex2bin('02')],
 
             // Long QoS 1 subscription with high message id
-            [62304, [new Subscription($longTopic, null, null, 1)], hex2bin('82'.'8701'.'f360'.'0082') . $longTopic . hex2bin('01')],
+            [62304, [new Subscription($longTopic, 1)], hex2bin('82'.'8701'.'f360'.'0082') . $longTopic . hex2bin('01')],
         ];
     }
 

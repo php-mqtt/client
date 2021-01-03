@@ -194,7 +194,7 @@ class MemoryRepository implements Repository
         $result = [];
 
         foreach ($this->subscriptions as $subscription) {
-            if (($topicName !== null) && !$subscription->matchTopicFilter($topicName)) {
+            if (($topicName !== null) && !$subscription->matchesTopic($topicName)) {
                 continue;
             }
 
