@@ -319,6 +319,7 @@ class MqttClient implements ClientContract
      *   - Connect acknowledgement with variable length
      *
      * @param bool $useCleanSession
+     * @return void
      * @throws ConnectingToBrokerFailedException
      */
     protected function performConnectionHandshake(bool $useCleanSession = false): void
@@ -467,20 +468,20 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Sends a disconnect and closes the socket.
+     * Sends a disconnect message to the broker and closes the socket.
      *
      * @return void
      * @throws DataTransferException
      */
-    public function close(): void
+    public function disconnect(): void
     {
         $this->ensureConnected();
 
-        $this->logger->debug('Closing the connection to the broker.');
-
-        $this->disconnect();
+        $this->sendDisconnect();
 
         if ($this->socket !== null && is_resource($this->socket)) {
+            $this->logger->debug('Closing the socket to the broker.');
+
             stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
         }
 
@@ -527,6 +528,7 @@ class MqttClient implements ClientContract
      * @param bool     $retain
      * @param int|null $messageId
      * @param bool     $isDuplicate
+     * @return void
      * @throws DataTransferException
      */
     protected function publishMessage(
@@ -761,6 +763,7 @@ class MqttClient implements ClientContract
      * Handles the given message according to its contents.
      *
      * @param Message $message
+     * @return void
      * @throws DataTransferException
      * @throws ProtocolViolationException
      */
@@ -1080,6 +1083,7 @@ class MqttClient implements ClientContract
     /**
      * Sends a ping message to the broker to keep the connection alive.
      *
+     * @return void
      * @throws DataTransferException
      */
     protected function ping(): void
@@ -1092,9 +1096,10 @@ class MqttClient implements ClientContract
     /**
      * Sends a disconnect message to the broker. Does not close the socket.
      *
+     * @return void
      * @throws DataTransferException
      */
-    protected function disconnect(): void
+    protected function sendDisconnect(): void
     {
         $data = $this->messageProcessor->buildDisconnectMessage();
 
