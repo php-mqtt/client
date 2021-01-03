@@ -185,6 +185,7 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings())
   This also only affects QoS levels higher than 0, as QoS level 0 is a simple fire and forget mode.
 - Message flows with a QoS level higher than 0 are not persisted as the default implementation uses an in-memory repository for data.
   To avoid issues with broken message flows, use the clean session flag to indicate that you don't care about old data.
+  It will not only instruct the broker to consider the connection new (without previous state), but will also reset the registered repository.
 
 ## License
 
