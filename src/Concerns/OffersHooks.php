@@ -120,7 +120,7 @@ trait OffersHooks
      *     int $qualityOfService,
      *     bool $retain
      * ) use ($logger) {
-     *     $logger->info("Received message on topic [{$topic}]: {$message}");
+     *     $logger->info("Sending message on topic [{$topic}]: {$message}");
      * });
      * ```
      *
