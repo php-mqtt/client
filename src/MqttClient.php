@@ -861,6 +861,10 @@ class MqttClient implements ClientContract
         ]);
 
         foreach ($subscribers as $subscriber) {
+            if ($subscriber->getCallback() === null) {
+                continue;
+            }
+
             try {
                 call_user_func($subscriber->getCallback(), $topic, $message, $retained);
             } catch (\Throwable $e) {
