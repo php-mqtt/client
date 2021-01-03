@@ -207,7 +207,7 @@ interface MqttClient
      * @param \Closure $callback
      * @return MqttClient
      */
-    public function registerLoopEventHandler(\Closure $callback): self;
+    public function registerLoopEventHandler(\Closure $callback): MqttClient;
 
     /**
      * Unregisters a loop event handler which prevents it from being called
@@ -219,7 +219,7 @@ interface MqttClient
      * @param \Closure|null $callback
      * @return MqttClient
      */
-    public function unregisterLoopEventHandler(\Closure $callback = null): self;
+    public function unregisterLoopEventHandler(\Closure $callback = null): MqttClient;
 
     /**
      * Registers a loop event handler which is called when a message is published.
@@ -248,7 +248,7 @@ interface MqttClient
      * @param \Closure $callback
      * @return MqttClient
      */
-    public function registerPublishEventHandler(\Closure $callback): self;
+    public function registerPublishEventHandler(\Closure $callback): MqttClient;
 
     /**
      * Unregisters a publish event handler which prevents it from being called
@@ -260,12 +260,12 @@ interface MqttClient
      * @param \Closure|null $callback
      * @return MqttClient
      */
-    public function unregisterPublishEventHandler(\Closure $callback = null): self;
+    public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient;
 
     /**
      * Registers an event handler which is called when a message is received from the broker.
      *
-     * The received message event handler is passed the MQTT client as first, the topic as
+     * The message received event handler is passed the MQTT client as first, the topic as
      * second and the message as third parameter. As fourth parameter, the QoS level will be
      * passed and the retained flag as fifth.
      *
@@ -287,10 +287,10 @@ interface MqttClient
      * @param \Closure $callback
      * @return MqttClient
      */
-    public function registerReceivedMessageEventHandler(\Closure $callback): self;
+    public function registerMessageReceivedEventHandler(\Closure $callback): MqttClient;
 
     /**
-     * Unregisters a received message event handler which prevents it from being called in the future.
+     * Unregisters a message received event handler which prevents it from being called in the future.
      *
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
@@ -298,5 +298,5 @@ interface MqttClient
      * @param \Closure|null $callback
      * @return MqttClient
      */
-    public function unregisterReceivedMessageEventHandler(\Closure $callback = null): self;
+    public function unregisterMessageReceivedEventHandler(\Closure $callback = null): MqttClient;
 }

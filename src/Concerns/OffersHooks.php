@@ -21,7 +21,7 @@ trait OffersHooks
     private $publishEventHandlers;
 
     /** @var \SplObjectStorage|array<\Closure> */
-    private $receivedMessageEventHandlers;
+    private $messageReceivedEventHandlers;
 
     /**
      * Needs to be called in order to initialize the trait.
@@ -32,7 +32,7 @@ trait OffersHooks
     {
         $this->loopEventHandlers            = new \SplObjectStorage();
         $this->publishEventHandlers         = new \SplObjectStorage();
-        $this->receivedMessageEventHandlers = new \SplObjectStorage();
+        $this->messageReceivedEventHandlers = new \SplObjectStorage();
     }
 
     /**
@@ -57,12 +57,13 @@ trait OffersHooks
      * Multiple event handlers can be registered at the same time.
      *
      * @param \Closure $callback
-     * @return self
+     * @return MqttClient
      */
-    public function registerLoopEventHandler(\Closure $callback): self
+    public function registerLoopEventHandler(\Closure $callback): MqttClient
     {
         $this->loopEventHandlers->attach($callback);
 
+        /** @var MqttClient $this */
         return $this;
     }
 
@@ -74,9 +75,9 @@ trait OffersHooks
      * to unregister all registered event handlers by passing null as callback.
      *
      * @param \Closure|null $callback
-     * @return self
+     * @return MqttClient
      */
-    public function unregisterLoopEventHandler(\Closure $callback = null): self
+    public function unregisterLoopEventHandler(\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
             $this->loopEventHandlers->removeAll($this->loopEventHandlers);
@@ -84,6 +85,7 @@ trait OffersHooks
             $this->loopEventHandlers->detach($callback);
         }
 
+        /** @var MqttClient $this */
         return $this;
     }
 
@@ -130,12 +132,13 @@ trait OffersHooks
      * Multiple event handlers can be registered at the same time.
      *
      * @param \Closure $callback
-     * @return self
+     * @return MqttClient
      */
-    public function registerPublishEventHandler(\Closure $callback): self
+    public function registerPublishEventHandler(\Closure $callback): MqttClient
     {
         $this->publishEventHandlers->attach($callback);
 
+        /** @var MqttClient $this */
         return $this;
     }
 
@@ -147,9 +150,9 @@ trait OffersHooks
      * to unregister all registered event handlers by passing null as callback.
      *
      * @param \Closure|null $callback
-     * @return self
+     * @return MqttClient
      */
-    public function unregisterPublishEventHandler(\Closure $callback = null): self
+    public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
             $this->publishEventHandlers->removeAll($this->publishEventHandlers);
@@ -157,6 +160,7 @@ trait OffersHooks
             $this->publishEventHandlers->detach($callback);
         }
 
+        /** @var MqttClient $this */
         return $this;
     }
 
@@ -188,7 +192,7 @@ trait OffersHooks
     /**
      * Registers an event handler which is called when a message is received from the broker.
      *
-     * The received message event handler is passed the MQTT client as first, the topic as
+     * The message received event handler is passed the MQTT client as first, the topic as
      * second and the message as third parameter. As fourth parameter, the QoS level will be
      * passed and the retained flag as fifth.
      *
@@ -208,37 +212,39 @@ trait OffersHooks
      * Multiple event handlers can be registered at the same time.
      *
      * @param \Closure $callback
-     * @return self
+     * @return MqttClient
      */
-    public function registerReceivedMessageEventHandler(\Closure $callback): self
+    public function registerMessageReceivedEventHandler(\Closure $callback): MqttClient
     {
-        $this->receivedMessageEventHandlers->attach($callback);
+        $this->messageReceivedEventHandlers->attach($callback);
 
+        /** @var MqttClient $this */
         return $this;
     }
 
     /**
-     * Unregisters a received message event handler which prevents it from being called in the future.
+     * Unregisters a message received event handler which prevents it from being called in the future.
      *
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
      *
      * @param \Closure|null $callback
-     * @return self
+     * @return MqttClient
      */
-    public function unregisterReceivedMessageEventHandler(\Closure $callback = null): self
+    public function unregisterMessageReceivedEventHandler(\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
-            $this->receivedMessageEventHandlers->removeAll($this->receivedMessageEventHandlers);
+            $this->messageReceivedEventHandlers->removeAll($this->messageReceivedEventHandlers);
         } else {
-            $this->receivedMessageEventHandlers->detach($callback);
+            $this->messageReceivedEventHandlers->detach($callback);
         }
 
+        /** @var MqttClient $this */
         return $this;
     }
 
     /**
-     * Runs all the registered received message event handlers with the given parameters.
+     * Runs all the registered message received event handlers with the given parameters.
      * Each event handler is executed in a try-catch block to avoid spilling exceptions.
      *
      * @param string $topic
@@ -247,9 +253,9 @@ trait OffersHooks
      * @param bool   $retained
      * @return void
      */
-    private function runReceivedMessageEventHandlers(string $topic, string $message, int $qualityOfService, bool $retained): void
+    private function runMessageReceivedEventHandlers(string $topic, string $message, int $qualityOfService, bool $retained): void
     {
-        foreach ($this->receivedMessageEventHandlers as $handler) {
+        foreach ($this->messageReceivedEventHandlers as $handler) {
             try {
                 call_user_func($handler, $this, $topic, $message, $qualityOfService, $retained);
             } catch (\Throwable $e) {
