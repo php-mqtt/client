@@ -207,7 +207,7 @@ interface MqttClient
      * @param \Closure $callback
      * @return MqttClient
      */
-    public function registerLoopEventHandler(\Closure $callback): MqttClient;
+    public function registerLoopEventHandler(\Closure $callback): self;
 
     /**
      * Unregisters a loop event handler which prevents it from being called
@@ -219,7 +219,7 @@ interface MqttClient
      * @param \Closure|null $callback
      * @return MqttClient
      */
-    public function unregisterLoopEventHandler(\Closure $callback = null): MqttClient;
+    public function unregisterLoopEventHandler(\Closure $callback = null): self;
 
     /**
      * Registers a loop event handler which is called when a message is published.
@@ -248,7 +248,7 @@ interface MqttClient
      * @param \Closure $callback
      * @return MqttClient
      */
-    public function registerPublishEventHandler(\Closure $callback): MqttClient;
+    public function registerPublishEventHandler(\Closure $callback): self;
 
     /**
      * Unregisters a publish event handler which prevents it from being called
@@ -260,7 +260,7 @@ interface MqttClient
      * @param \Closure|null $callback
      * @return MqttClient
      */
-    public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient;
+    public function unregisterPublishEventHandler(\Closure $callback = null): self;
 
     /**
      * Registers an event handler which is called when a message is received from the broker.
@@ -287,7 +287,7 @@ interface MqttClient
      * @param \Closure $callback
      * @return MqttClient
      */
-    public function registerReceivedMessageEventHandler(\Closure $callback): MqttClient;
+    public function registerReceivedMessageEventHandler(\Closure $callback): self;
 
     /**
      * Unregisters a received message event handler which prevents it from being called in the future.
@@ -298,5 +298,5 @@ interface MqttClient
      * @param \Closure|null $callback
      * @return MqttClient
      */
-    public function unregisterReceivedMessageEventHandler(\Closure $callback = null): MqttClient;
+    public function unregisterReceivedMessageEventHandler(\Closure $callback = null): self;
 }
