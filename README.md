@@ -121,6 +121,7 @@ and a new `ConnectionSettings` instance will be created for each added option.
 This also prevents changes to the connection settings after a connection has been established.
 
 The following is a complete list of options with their respective default:
+
 ```php
 $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings())
     ->setUsername(null)
@@ -141,7 +142,7 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings())
     ->setTlsCertificateAuthorityPath(null)
     ->setTlsClientCertificateFile(null)
     ->setTlsClientCertificateKeyFile(null)
-    ->setTlsClientCertificatePassphrase(null);
+    ->setTlsClientCertificateKeyPassphrase(null);
 ```
 
 ## Features

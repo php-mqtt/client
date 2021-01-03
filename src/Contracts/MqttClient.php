@@ -90,23 +90,23 @@ interface MqttClient
      * );
      * ```
      *
-     * @param string   $topic
+     * @param string   $topicFilter
      * @param callable $callback
      * @param int      $qualityOfService
      * @return void
      * @throws DataTransferException
      * @throws RepositoryException
      */
-    public function subscribe(string $topic, callable $callback, int $qualityOfService = 0): void;
+    public function subscribe(string $topicFilter, callable $callback, int $qualityOfService = 0): void;
 
     /**
      * Unsubscribe from the given topic.
      *
-     * @param string $topic
+     * @param string $topicFilter
      * @return void
      * @throws DataTransferException
      */
-    public function unsubscribe(string $topic): void;
+    public function unsubscribe(string $topicFilter): void;
 
     /**
      * Sets the interrupted signal. Doing so instructs the client to exit the loop, if it is

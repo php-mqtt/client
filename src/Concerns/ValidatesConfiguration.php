@@ -39,8 +39,8 @@ trait ValidatesConfiguration
             throw new ConfigurationInvalidException('The resend timeout cannot be less than 1 second.');
         }
 
-        if ($settings->getKeepAliveInterval() < 1 || $settings->getKeepAliveInterval() > 65536) {
-            throw new ConfigurationInvalidException('The keep alive interval must be a value in the range of 1 to 65536 seconds.');
+        if ($settings->getKeepAliveInterval() < 1 || $settings->getKeepAliveInterval() > 65535) {
+            throw new ConfigurationInvalidException('The keep alive interval must be a value in the range of 1 to 65535 seconds.');
         }
 
         if ($settings->getUsername() !== null && trim($settings->getUsername()) === '') {
@@ -76,8 +76,8 @@ trait ValidatesConfiguration
             throw new ConfigurationInvalidException('Using a client certificate key file without certificate does not work.');
         }
 
-        if ($settings->getTlsClientCertificatePassphrase() !== null && $settings->getTlsClientCertificateFile() === null) {
-            throw new ConfigurationInvalidException('Using a client certificate passphrase without certificate does not work.');
+        if ($settings->getTlsClientCertificateKeyPassphrase() !== null && $settings->getTlsClientCertificateKeyFile() === null) {
+            throw new ConfigurationInvalidException('Using a client certificate key passphrase without key file does not work.');
         }
     }
 }

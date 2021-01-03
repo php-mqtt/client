@@ -198,8 +198,8 @@ class MqttClient implements ClientContract
                 $tlsOptions['local_pk'] = $this->settings->getTlsClientCertificateKeyFile();
             }
 
-            if ($this->settings->getTlsClientCertificatePassphrase() !== null) {
-                $tlsOptions['passphrase'] = $this->settings->getTlsClientCertificatePassphrase();
+            if ($this->settings->getTlsClientCertificateKeyPassphrase() !== null) {
+                $tlsOptions['passphrase'] = $this->settings->getTlsClientCertificateKeyPassphrase();
             }
 
             $contextOptions['ssl'] = $tlsOptions;
@@ -208,7 +208,7 @@ class MqttClient implements ClientContract
         $connectionString = 'tcp://' . $this->getHost() . ':' . $this->getPort();
         $socketContext    = stream_context_create($contextOptions);
 
-        $socket = stream_socket_client(
+        $socket = @stream_socket_client(
             $connectionString,
             $errorCode,
             $errorMessage,
@@ -549,16 +549,7 @@ class MqttClient implements ClientContract
             'isDuplicate' => $isDuplicate,
         ]);
 
-        foreach ($this->publishEventHandlers as $handler) {
-            try {
-                call_user_func($handler, $this, $topic, $message, $messageId, $qualityOfService, $retain);
-            } catch (\Throwable $e) {
-                $this->logger->error('Publish hook callback threw exception for published message on topic [{topic}].', [
-                    'topic' => $topic,
-                    'exception' => $e,
-                ]);
-            }
-        }
+        $this->runPublishEventHandlers($topic, $message, $messageId, $qualityOfService, $retain);
 
         $data = $this->messageProcessor->buildPublishMessage($topic, $message, $qualityOfService, $retain, $messageId, $isDuplicate);
 
@@ -597,8 +588,8 @@ class MqttClient implements ClientContract
     {
         $this->ensureConnected();
 
-        $this->logger->debug('Subscribing to topic [{topic}] with maximum QoS [{qos}].', [
-            'topic' => $topicFilter,
+        $this->logger->debug('Subscribing to topic [{topicFilter}] with maximum QoS [{qos}].', [
+            'topicFilter' => $topicFilter,
             'qos' => $qualityOfService,
         ]);
 
@@ -627,7 +618,7 @@ class MqttClient implements ClientContract
     {
         $this->ensureConnected();
 
-        $this->logger->debug('Unsubscribing from topic [{topic}].', ['topic' => $topicFilter]);
+        $this->logger->debug('Unsubscribing from topic [{topicFilter}].', ['topicFilter' => $topicFilter]);
 
         $messageId    = $this->repository->newMessageId();
         $topicFilters = [$topicFilter];
