@@ -44,7 +44,7 @@ jobs:
         run: composer install --prefer-dist --ignore-platform-reqs
 
       - name: Start Mosquitto message broker
-        uses: Namoshek/mosquitto-github-action@v0.1.0
+        uses: Namoshek/mosquitto-github-action@v0.2.0
 
       - name: Run phpunit tests
         run: phpunit
