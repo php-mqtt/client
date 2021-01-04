@@ -10,6 +10,7 @@ use Psr\Log\LogLevel;
 /**
  * Wrapper for another logger. Drops logged messages if no logger is available.
  *
+ * @internal This class is not part of the public API of the library and used internally only.
  * @package PhpMqtt\Client
  */
 class Logger implements LoggerInterface

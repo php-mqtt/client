@@ -153,7 +153,7 @@ class ConnectionSettings
     /**
      * The keep alive interval is the number of seconds the client will wait without sending a message
      * until it sends a keep alive signal (ping) to the broker. The value cannot be less than 1 second
-     * and may not be higher than 65536 seconds. A reasonable value is 10 seconds (the default).
+     * and may not be higher than 65535 seconds. A reasonable value is 10 seconds (the default).
      *
      * @param int $keepAliveInterval
      * @return ConnectionSettings
