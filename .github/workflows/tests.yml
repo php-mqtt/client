@@ -69,7 +69,7 @@ jobs:
         with:
           version: '1.6'
           ports: 1883:1883 8883:8883 8884:8884
-          certificates: .ci/
+          certificates: .ci
           config: .ci/mosquitto.conf
 
 #      - name: Start Mosquitto message broker
