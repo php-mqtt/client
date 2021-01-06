@@ -64,10 +64,19 @@ jobs:
 
       - name: Start Mosquitto message broker
         if: matrix.mqtt-broker == 'mosquitto'
-        uses: Namoshek/mosquitto-github-action@v0.2.0
+        uses: ./.github/actions/mosquitto-mqtt-broker
         with:
           version: '1.6'
-          port: 1883
+          ports: 1883:1883 8883:8883 8884:8884
+          certificates: .ci/
+          config: .ci/mosquitto.conf
+
+#      - name: Start Mosquitto message broker
+#        if: matrix.mqtt-broker == 'mosquitto'
+#        uses: Namoshek/mosquitto-github-action@v0.2.0
+#        with:
+#          version: '1.6'
+#          port: 1883
 
       - name: Start HiveMQ message broker
         if: matrix.mqtt-broker == 'hivemq'
@@ -89,8 +98,10 @@ jobs:
       - name: Run phpunit tests
         run: composer test
         env:
-          MQTT_BROKER_HOST: '127.0.0.1'
+          MQTT_BROKER_HOST: 'localhost'
           MQTT_BROKER_PORT: 1883
+          MQTT_BROKER_TLS_PORT: 8883
+          MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
 
       - name: Prepare paths for SonarQube analysis
         if: matrix.php-version == '8.0' && matrix.mqtt-broker == 'mosquitto'
