@@ -19,7 +19,7 @@ inputs:
     required: false
     default: ''
   config:
-    description: 'Relative path to the mosquitto.conf configuration file to use'
+    description: 'Relative path to the directory containing the mosquitto.conf configuration file to use (the whole directory is mounted under `/mosquitto-config`)'
     required: false
     default: ''
 
