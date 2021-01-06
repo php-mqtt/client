@@ -12,7 +12,7 @@ if [ -n "$INPUT_CERTIFICATES" ]; then
 fi
 
 if [ -n "$INPUT_CONFIG" ]; then
-  docker_run="$docker_run --volume $GITHUB_WORKSPACE/$INPUT_CONFIG:/mosquitto/config"
+  docker_run="$docker_run --volume $GITHUB_WORKSPACE/$INPUT_CONFIG:/mosquitto/config/mosquitto.conf"
 fi
 
 docker_run="$docker_run eclipse-mosquitto:$INPUT_VERSION"
