@@ -1,8 +1,5 @@
 #!/bin/sh
 
-ls -lsa $GITHUB_WORKSPACE
-ls -lsa $GITHUB_WORKSPACE/.ci
-
 docker_run="docker run --detach --name mosquitto"
 
 for i in $(echo $INPUT_PORTS | tr " " "\n")
@@ -22,3 +19,7 @@ docker_run="$docker_run eclipse-mosquitto:$INPUT_VERSION"
 
 echo "$docker_run"
 sh -c "$docker_run"
+
+sleep 5
+
+sh -c "docker logs mosquitto"
