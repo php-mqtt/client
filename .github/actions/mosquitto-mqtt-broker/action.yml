@@ -26,3 +26,5 @@ inputs:
 runs:
   using: 'docker'
   image: 'Dockerfile'
+  env:
+    WORKSPACE: $GITHUB_WORKSPACE

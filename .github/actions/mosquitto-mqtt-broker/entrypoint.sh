@@ -8,11 +8,11 @@ do
 done
 
 if [ -n "$INPUT_CERTIFICATES" ]; then
-  docker_run="$docker_run --volume $GITHUB_WORKSPACE/$INPUT_CERTIFICATES:/mosquitto-certs:ro"
+  docker_run="$docker_run --volume $WORKSPACE/$INPUT_CERTIFICATES:/mosquitto-certs:ro"
 fi
 
 if [ -n "$INPUT_CONFIG" ]; then
-  docker_run="$docker_run --volume $GITHUB_WORKSPACE/$INPUT_CONFIG:/mosquitto/config/mosquitto.conf:ro"
+  docker_run="$docker_run --volume $WORKSPACE/$INPUT_CONFIG:/mosquitto/config/mosquitto.conf:ro"
 fi
 
 docker_run="$docker_run eclipse-mosquitto:$INPUT_VERSION"
