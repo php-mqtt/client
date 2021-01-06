@@ -70,7 +70,7 @@ jobs:
           version: '1.6'
           ports: 1883:1883 8883:8883 8884:8884
           certificates: .ci/tls
-          config: .ci/mosquitto-config
+          config: .ci/mosquitto.conf
 
 #      - name: Start Mosquitto message broker
 #        if: matrix.mqtt-broker == 'mosquitto'
