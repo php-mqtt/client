@@ -1,6 +1,7 @@
 #!/bin/sh
 
 ls -lsa $GITHUB_WORKSPACE
+ls -lsa $GITHUB_WORKSPACE/.ci
 
 docker_run="docker run --detach --name mosquitto"
 
