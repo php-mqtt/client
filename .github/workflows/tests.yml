@@ -68,9 +68,11 @@ jobs:
         uses: ./.github/actions/mosquitto-mqtt-broker
         with:
           version: '1.6'
-          ports: 1883:1883 8883:8883 8884:8884
-          certificates: ${{ github.workspace }}/.ci/tls
-          config: ${{ github.workspace }}/.ci/mosquitto.conf
+          ports: '1883:1883 8883:8883 8884:8884'
+          certificates: $WORKSPACE/.ci/tls
+          config: $WORKSPACE/.ci/mosquitto.conf
+        env:
+          WORKSPACE: ${{ github.workspace }}
 
 #      - name: Start Mosquitto message broker
 #        if: matrix.mqtt-broker == 'mosquitto'
