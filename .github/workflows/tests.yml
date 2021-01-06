@@ -54,14 +54,14 @@ jobs:
 
       - name: Generate certificates for tests
         run: |
-          openssl genrsa -out .ci/ca.key 2048
-          openssl req -x509 -new -nodes -key .ci/ca.key -days 1 -out .ci/ca.crt -subj "/C=AT/ST=Vorarlberg/CN=php-mqtt Test CA"
-          openssl genrsa -out .ci/server.key 2048
-          openssl req -new -key .ci/server.key -out .ci/server.csr -sha512 -subj "/C=AT/ST=Vorarlberg/CN=localhost"
-          openssl x509 -req -in .ci/server.csr -CA .ci/ca.crt -CAkey .ci/ca.key -CAcreateserial -out .ci/server.crt -days 1 -sha512
-          openssl genrsa -out .ci/client.key 2048
-          openssl req -new -key .ci/client.key -out .ci/client.csr -sha512 -subj "/C=AT/ST=Vorarlberg/CN=localhost"
-          openssl x509 -req -in .ci/client.csr -CA .ci/ca.crt -CAkey .ci/ca.key -CAcreateserial -out .ci/client.crt -days 1 -sha256
+          openssl genrsa -out .ci/tls/ca.key 2048
+          openssl req -x509 -new -nodes -key .ci/tls/ca.key -days 1 -out .ci/tls/ca.crt -subj "/C=AT/ST=Vorarlberg/CN=php-mqtt Test CA"
+          openssl genrsa -out .ci/tls/server.key 2048
+          openssl req -new -key .ci/tls/server.key -out .ci/tls/server.csr -sha512 -subj "/C=AT/ST=Vorarlberg/CN=localhost"
+          openssl x509 -req -in .ci/tls/server.csr -CA .ci/tls/ca.crt -CAkey .ci/tls/ca.key -CAcreateserial -out .ci/tls/server.crt -days 1 -sha512
+          openssl genrsa -out .ci/tls/client.key 2048
+          openssl req -new -key .ci/tls/client.key -out .ci/tls/client.csr -sha512 -subj "/C=AT/ST=Vorarlberg/CN=localhost"
+          openssl x509 -req -in .ci/tls/client.csr -CA .ci/tls/ca.crt -CAkey .ci/tls/ca.key -CAcreateserial -out .ci/tls/client.crt -days 1 -sha256
 
       - name: Start Mosquitto message broker
         if: matrix.mqtt-broker == 'mosquitto'
@@ -69,7 +69,7 @@ jobs:
         with:
           version: '1.6'
           ports: 1883:1883 8883:8883 8884:8884
-          certificates: .ci
+          certificates: .ci/tls
           config: .ci/mosquitto.conf
 
 #      - name: Start Mosquitto message broker
