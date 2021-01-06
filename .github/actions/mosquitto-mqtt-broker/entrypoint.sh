@@ -1,5 +1,8 @@
 #!/bin/sh
 
+echo "Certificates: $INPUT_CERTIFICATES\n"
+echo "Config: $INPUT_CONFIG\n"
+
 docker_run="docker run --detach --name mosquitto"
 
 for i in $(echo $INPUT_PORTS | tr " " "\n")

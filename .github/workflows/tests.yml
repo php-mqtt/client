@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-all:
-    name: Test PHP ${{ matrix.php-version }} using broker [${{ matrix.mqtt-broker }}] (tmp)
+    name: Test PHP ${{ matrix.php-version }} using broker [${{ matrix.mqtt-broker }}]
 
     runs-on: ubuntu-latest
 
