@@ -26,3 +26,8 @@ inputs:
 runs:
   using: 'docker'
   image: 'Dockerfile'
+  args:
+    - ${{ inputs.version }}
+    - ${{ inputs.ports }}
+    - ${{ inputs.certificates }}
+    - ${{ inputs.config }}
