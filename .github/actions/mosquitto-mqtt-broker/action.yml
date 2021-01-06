@@ -15,16 +15,14 @@ inputs:
     required: false
     default: '1883:1883'
   certificates:
-    description: 'Relative path to a directory containing certificate files which can be referenced in the config (the folder is mounted under `/mosquitto-certs`)'
+    description: 'Absolute path to a directory containing certificate files which can be referenced in the config (the folder is mounted under `/mosquitto-certs`)'
     required: false
     default: ''
   config:
-    description: 'Relative path to the mosquitto.conf configuration file to use'
+    description: 'Absolute path to the mosquitto.conf configuration file to use'
     required: false
     default: ''
 
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  env:
-    WORKSPACE: $GITHUB_WORKSPACE
