@@ -9,14 +9,15 @@ on:
 
 jobs:
   test-all:
-    name: Test PHP ${{ matrix.php-version }} using broker [${{ matrix.mqtt-broker }}]
+    name: Test PHP ${{ matrix.php-version }} using broker [${{ matrix.mqtt-broker }}] (tmp)
 
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        php-version: ['7.4', '8.0']
+        php-version: ['8.0']
         mqtt-broker: ['mosquitto']
+#        php-version: ['7.4', '8.0']
 #        mqtt-broker: ['mosquitto', 'hivemq', 'emqx']
 
     steps:
@@ -69,8 +70,8 @@ jobs:
         with:
           version: '1.6'
           ports: '1883:1883 8883:8883 8884:8884'
-          certificates: /home/runner/work/client/client/.ci/tls
-          config: /home/runner/work/client/client/.ci/mosquitto.conf
+          certificates: ${{ github.workspace }}/.ci/tls
+          config: ${{ github.workspace }}/.ci/mosquitto.conf
 
 #      - name: Start Mosquitto message broker
 #        if: matrix.mqtt-broker == 'mosquitto'
