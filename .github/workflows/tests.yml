@@ -51,6 +51,17 @@ jobs:
       - name: Install composer dependencies
         run: composer install --prefer-dist --ignore-platform-reqs
 
+      - name: Generate certificates for tests
+        run: |
+          openssl genrsa -out .ci/ca.key 2048
+          openssl req -x509 -new -nodes -key .ci/ca.key -days 1 -out .ci/ca.crt -subj "/C=AT/ST=Vorarlberg/CN=php-mqtt Test CA"
+          openssl genrsa -out .ci/server.key 2048
+          openssl req -new -key .ci/server.key -out .ci/server.csr -sha512 -subj "/C=AT/ST=Vorarlberg/CN=localhost"
+          openssl x509 -req -in .ci/server.csr -CA .ci/ca.crt -CAkey .ci/ca.key -CAcreateserial -out .ci/server.crt -days 1 -sha512
+          openssl genrsa -out .ci/client.key 2048
+          openssl req -new -key .ci/client.key -out .ci/client.csr -sha512 -subj "/C=AT/ST=Vorarlberg/CN=localhost"
+          openssl x509 -req -in .ci/client.csr -CA .ci/ca.crt -CAkey .ci/ca.key -CAcreateserial -out .ci/client.crt -days 1 -sha256
+
       - name: Start Mosquitto message broker
         if: matrix.mqtt-broker == 'mosquitto'
         uses: Namoshek/mosquitto-github-action@v0.2.0
