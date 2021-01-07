@@ -1,5 +1,5 @@
-name: 'Mosquitto MQTT Broker in GitHub Actions'
-description: 'Start a Mosquitto message broker with configurable ports and TLS'
+name: 'EMQ X MQTT Broker in GitHub Actions'
+description: 'Start an EMQ X message broker with configurable ports and TLS'
 
 branding:
   icon: 'message-square'
@@ -7,7 +7,7 @@ branding:
 
 inputs:
   version:
-    description: 'Mosquitto version to use'
+    description: 'EMQ X version to use'
     required: false
     default: 'latest'
   ports:
@@ -15,11 +15,11 @@ inputs:
     required: false
     default: '1883:1883'
   certificates:
-    description: 'Absolute path to a directory containing certificate files which can be referenced in the config (the folder is mounted under `/mosquitto-certs`)'
+    description: 'Absolute path to a directory containing certificate files which can be referenced in the config (the folder is mounted under `/emqx-certs`)'
     required: false
     default: ''
   config:
-    description: 'Absolute path to the mosquitto.conf configuration file to use'
+    description: 'Absolute path to the emqx.conf configuration file to use'
     required: false
     default: ''
 

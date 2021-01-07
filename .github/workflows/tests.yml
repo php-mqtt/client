@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         php-version: ['7.4', '8.0']
-        mqtt-broker: ['mosquitto']
+        mqtt-broker: ['mosquitto', 'emqx']
 #        mqtt-broker: ['mosquitto', 'hivemq', 'emqx']
 
     steps:
@@ -79,12 +79,21 @@ jobs:
 #          version: '1.6'
 #          port: 1883
 
-      - name: Start HiveMQ message broker
-        if: matrix.mqtt-broker == 'hivemq'
-        uses: Namoshek/hivemq4-github-action@v0.1.0
-        with:
-          version: '4.4.4'
-          port: 1883
+       - name: Start EMQ X message broker
+         if: matrix.mqtt-broker == 'emqx'
+         uses: ./.github/actions/emqx-mqtt-broker
+         with:
+           version: '4.4.4'
+           ports: '1883:1883 8883:8883 8884:8884'
+           certificates: ${{ github.workspace }}/.ci/tls
+           config: ${{ github.workspace }}/.ci/emqx.conf
+
+#      - name: Start HiveMQ message broker
+#        if: matrix.mqtt-broker == 'hivemq'
+#        uses: Namoshek/hivemq4-github-action@v0.1.0
+#        with:
+#          version: '4.4.4'
+#          port: 1883
 
       - name: Start EMQ X message broker
         if: matrix.mqtt-broker == 'emqx'
