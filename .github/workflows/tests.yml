@@ -55,6 +55,9 @@ jobs:
       - name: Generate certificates for tests
         run: sh create-certificates.sh
 
+      - name: Debug ciphers supported by PHP
+        run: php -r 'var_dump(openssl_get_cipher_methods());'
+
       - name: Start Mosquitto message broker
         if: matrix.mqtt-broker == 'mosquitto'
         uses: ./.github/actions/mosquitto-mqtt-broker
