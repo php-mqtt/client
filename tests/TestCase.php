@@ -16,6 +16,8 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     protected int $mqttBrokerTlsPort;
     protected int $mqttBrokerTlsWithClientCertificatePort;
 
+    protected string $tlsCertificateDirectory;
+
     /**
      * {@inheritdoc}
      */
@@ -27,5 +29,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         $this->mqttBrokerPort                         = intval(getenv('MQTT_BROKER_PORT'));
         $this->mqttBrokerTlsPort                      = intval(getenv('MQTT_BROKER_TLS_PORT'));
         $this->mqttBrokerTlsWithClientCertificatePort = intval(getenv('MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT'));
+
+        $this->tlsCertificateDirectory = rtrim(getenv('TLS_CERT_DIR'), '/');
     }
 }

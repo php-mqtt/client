@@ -43,7 +43,7 @@ class ConnectWithTlsSettingsTest extends TestCase
             ->setTlsSelfSignedAllowed(false)
             ->setTlsVerifyPeer(true)
             ->setTlsVerifyPeerName(true)
-            ->setTlsCertificateAuthorityFile(__DIR__ . '/../../.ci/ca.crt');
+            ->setTlsCertificateAuthorityFile($this->tlsCertificateDirectory . '/ca.crt');
 
         $client->connect($connectionSettings, true);
 
@@ -61,9 +61,9 @@ class ConnectWithTlsSettingsTest extends TestCase
             ->setTlsSelfSignedAllowed(false)
             ->setTlsVerifyPeer(true)
             ->setTlsVerifyPeerName(true)
-            ->setTlsCertificateAuthorityFile(__DIR__ . '/../../.ci/ca.crt')
-            ->setTlsClientCertificateFile(__DIR__ . '/../../.ci/client.crt')
-            ->setTlsClientCertificateKeyFile(__DIR__ . '/../../.ci/client.key');
+            ->setTlsCertificateAuthorityFile($this->tlsCertificateDirectory . '/ca.crt')
+            ->setTlsClientCertificateFile($this->tlsCertificateDirectory . '/client.crt')
+            ->setTlsClientCertificateKeyFile($this->tlsCertificateDirectory . '/client.key');
 
         $client->connect($connectionSettings, true);
 
