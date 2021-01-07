@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup PHP ${{ matrix.php-version }}
-        uses: shivammathur/setup-php@develop
+        uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
           tools: phpunit:9.5.0
