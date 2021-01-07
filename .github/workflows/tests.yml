@@ -53,7 +53,7 @@ jobs:
         run: composer install --prefer-dist --ignore-platform-reqs
 
       - name: Generate certificates for tests
-        run: sh create-certificates.sh && sleep 5
+        run: sh create-certificates.sh
 
       - name: Start Mosquitto message broker
         if: matrix.mqtt-broker == 'mosquitto'
