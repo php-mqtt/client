@@ -62,6 +62,8 @@ jobs:
           openssl genrsa -out .ci/tls/client.key 2048
           openssl req -new -key .ci/tls/client.key -out .ci/tls/client.csr -sha512 -subj "/C=AT/ST=Vorarlberg/CN=localhost"
           openssl x509 -req -in .ci/tls/client.csr -CA .ci/tls/ca.crt -CAkey .ci/tls/ca.key -CAcreateserial -out .ci/tls/client.crt -days 1 -sha256
+          openssl ciphers
+          openssl ciphers -v
 
       - name: Start Mosquitto message broker
         if: matrix.mqtt-broker == 'mosquitto'
