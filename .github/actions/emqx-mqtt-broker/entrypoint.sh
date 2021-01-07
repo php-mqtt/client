@@ -6,10 +6,7 @@ CERTIFICATES=$3
 CONFIG=$4
 
 echo "Certificates: $CERTIFICATES"
-ls -lsa $CERTIFICATES
-
 echo "Config: $CONFIG"
-ls -lsa $CONFIG
 
 docker_run="docker run --detach --name emqx"
 

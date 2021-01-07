@@ -105,6 +105,10 @@ jobs:
       - name: Wait a bit until MQTT broker has started
         run: sleep 30
 
+      - name: Log EMQ X output
+        if: matrix.mqtt-broker == 'emqx'
+        run: docker logs emqx
+
       - name: Run phpunit tests
         run: composer test
         env:
