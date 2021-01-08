@@ -96,7 +96,7 @@ jobs:
         if: matrix.mqtt-broker == 'emqx'
         uses: ./.github/actions/emqx-mqtt-broker
         with:
-          version: 'v4.1.3'
+          version: '4.2.5'
           ports: '1883:1883 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/emqx.conf
