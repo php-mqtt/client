@@ -167,6 +167,7 @@ class MqttClient implements ClientContract
             }
 
             $tlsOptions = [
+                'peer_name' => 'emqxt1.php-mqtt-test',
                 'verify_peer' => $shouldVerifyPeer,
                 'verify_peer_name' => $this->settings->shouldTlsVerifyPeerName(),
                 'allow_self_signed' => $this->settings->isTlsSelfSignedAllowed(),
