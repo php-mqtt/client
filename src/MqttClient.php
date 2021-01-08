@@ -234,7 +234,7 @@ class MqttClient implements ClientContract
 
             $this->logger->debug('Enabling TLS on the existing socket connection.');
 
-            $enableEncryptionResult = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_ANY_CLIENT);
+            $enableEncryptionResult = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT);
 
             if ($enableEncryptionResult === false) {
                 // At this point, PHP should have given us something like this:
