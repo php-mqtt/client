@@ -170,6 +170,7 @@ class MqttClient implements ClientContract
                 'verify_peer' => $shouldVerifyPeer,
                 'verify_peer_name' => $this->settings->shouldTlsVerifyPeerName(),
                 'allow_self_signed' => $this->settings->isTlsSelfSignedAllowed(),
+                'security_level' => 0,
             ];
 
             if ($this->settings->getTlsCertificateAuthorityFile() !== null) {
