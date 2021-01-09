@@ -39,7 +39,7 @@ jobs:
       - name: Install Mosquitto tools
         run: |
           sudo apt-get update
-          sudo apt-get install mosquitto
+          sudo apt-get install mosquitto-clients
 
       - name: Setup problem matchers for PHP
         run: echo "::add-matcher::${{ runner.tool_cache }}/php.json"
