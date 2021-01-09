@@ -21,7 +21,7 @@ class ConnectWithTlsSettingsTest extends TestCase
     {
         parent::setUp();
 
-        if (!$this->testTls) {
+        if ($this->skipTlsTests) {
             $this->markTestSkipped('TLS tests are disabled.');
         }
     }

@@ -128,7 +128,7 @@ jobs:
           MQTT_BROKER_PORT: 1883
           MQTT_BROKER_TLS_PORT: 8883
           MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
-          TEST_TLS: ${{ matrix.mqtt-broker != 'emqx' }}
+          SKIP_TLS_TESTS: ${{ matrix.mqtt-broker == 'emqx' }}
 
       - name: Dump docker logs on failure
         if: failure()
