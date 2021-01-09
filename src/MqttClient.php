@@ -443,8 +443,6 @@ class MqttClient implements ClientContract
 
         $this->sendDisconnect();
 
-        usleep(250000);
-
         if ($this->socket !== null && is_resource($this->socket)) {
             $this->logger->debug('Closing the socket to the broker.');
 
