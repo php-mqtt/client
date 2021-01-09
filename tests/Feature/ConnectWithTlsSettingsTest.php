@@ -17,6 +17,15 @@ use Tests\TestCase;
  */
 class ConnectWithTlsSettingsTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (!$this->testTls) {
+            $this->markTestSkipped('TLS tests are disabled.');
+        }
+    }
+
     public function test_connecting_with_tls_with_ignored_self_signed_certificate_works_as_intended(): void
     {
         $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerTlsPort, 'test-tls-settings');
