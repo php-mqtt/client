@@ -85,19 +85,10 @@ jobs:
 
       - name: Start EMQ X message broker
         if: matrix.mqtt-broker == 'emqx'
-        uses: ./.github/actions/emqx-mqtt-broker
+        uses: Namoshek/emqx-github-action@v0.1.0
         with:
           version: '4.2.5'
-          ports: '1883:1883 8883:8883 8884:8884'
-          certificates: ${{ github.workspace }}/.ci/tls
-          config: ${{ github.workspace }}/.ci/emqx.conf
-
-#      - name: Start EMQ X message broker
-#        if: matrix.mqtt-broker == 'emqx'
-#        uses: Namoshek/emqx-github-action@v0.1.0
-#        with:
-#          version: '4.2.5'
-#          port: 1883
+          ports: '1883:1883'
 
       - name: Wait a bit until MQTT broker has started
         run: sleep 30
