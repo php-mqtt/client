@@ -130,9 +130,7 @@ class MqttClient implements ClientContract
             $this->establishSocketConnection();
             $this->performConnectionHandshake($useCleanSession);
         } catch (ConnectingToBrokerFailedException $e) {
-            if ($this->socket !== null) {
-                $this->closeSocket();
-            }
+            $this->closeSocket();
 
             throw $e;
         }

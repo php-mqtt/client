@@ -23,6 +23,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Java 11 (for keytool)
+        uses: actions/setup-java@v1
+        with:
+          java-version: '11'
+          java-package: 'jre'
+
       - name: Setup PHP ${{ matrix.php-version }}
         uses: shivammathur/setup-php@v2
         with:
@@ -48,29 +54,36 @@ jobs:
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
           restore-keys: ${{ runner.os }}-composer-
 
-      - name: Install composer dependencies
+      - name: Install Composer dependencies
         run: composer install --prefer-dist --ignore-platform-reqs
+
+      - name: Generate certificates for tests
+        run: sh create-certificates.sh
 
       - name: Start Mosquitto message broker
         if: matrix.mqtt-broker == 'mosquitto'
-        uses: Namoshek/mosquitto-github-action@v0.2.0
+        uses: Namoshek/mosquitto-github-action@v1
         with:
           version: '1.6'
-          port: 1883
+          ports: '1883:1883 8883:8883 8884:8884'
+          certificates: ${{ github.workspace }}/.ci/tls
+          config: ${{ github.workspace }}/.ci/mosquitto.conf
 
       - name: Start HiveMQ message broker
         if: matrix.mqtt-broker == 'hivemq'
-        uses: Namoshek/hivemq4-github-action@v0.1.0
+        uses: Namoshek/hivemq4-github-action@v1
         with:
           version: '4.4.4'
-          port: 1883
+          ports: '1883:1883 8883:8883 8884:8884'
+          certificates: ${{ github.workspace }}/.ci/tls
+          config: ${{ github.workspace }}/.ci/hivemq.xml
 
       - name: Start EMQ X message broker
         if: matrix.mqtt-broker == 'emqx'
-        uses: Namoshek/emqx-github-action@v0.1.0
+        uses: Namoshek/emqx-github-action@v1
         with:
           version: '4.2.5'
-          port: 1883
+          ports: '1883:1883'
 
       - name: Wait a bit until MQTT broker has started
         run: sleep 30
@@ -78,8 +91,15 @@ jobs:
       - name: Run phpunit tests
         run: composer test
         env:
-          MQTT_BROKER_HOST: '127.0.0.1'
+          MQTT_BROKER_HOST: 'localhost'
           MQTT_BROKER_PORT: 1883
+          MQTT_BROKER_TLS_PORT: 8883
+          MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
+          SKIP_TLS_TESTS: ${{ matrix.mqtt-broker == 'emqx' }}
+
+      - name: Dump Docker logs on failure
+        if: failure()
+        uses: jwalton/gh-docker-logs@v2
 
       - name: Prepare paths for SonarQube analysis
         if: matrix.php-version == '8.0' && matrix.mqtt-broker == 'mosquitto'
@@ -88,7 +108,7 @@ jobs:
           sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.report-junit.xml
 
       - name: Run SonarQube analysis
-        uses: sonarsource/sonarcloud-github-action@master
+        uses: sonarsource/sonarcloud-github-action@v1.4
         if: matrix.php-version == '8.0' && matrix.mqtt-broker == 'mosquitto'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
