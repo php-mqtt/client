@@ -76,19 +76,12 @@ jobs:
 
       - name: Start HiveMQ message broker
         if: matrix.mqtt-broker == 'hivemq'
-        uses: ./.github/actions/hivemq4-mqtt-broker
+        uses: Namoshek/hivemq4-github-action@v1
         with:
           version: '4.4.4'
           ports: '1883:1883 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/hivemq.xml
-
-#      - name: Start HiveMQ message broker
-#        if: matrix.mqtt-broker == 'hivemq'
-#        uses: Namoshek/hivemq4-github-action@v0.1.0
-#        with:
-#          version: '4.4.4'
-#          port: 1883
 
       - name: Start EMQ X message broker
         if: matrix.mqtt-broker == 'emqx'
