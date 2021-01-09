@@ -67,19 +67,12 @@ jobs:
 
       - name: Start Mosquitto message broker
         if: matrix.mqtt-broker == 'mosquitto'
-        uses: ./.github/actions/mosquitto-mqtt-broker
+        uses: Namoshek/mosquitto-github-action@v1
         with:
           version: '1.6'
           ports: '1883:1883 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/mosquitto.conf
-
-#      - name: Start Mosquitto message broker
-#        if: matrix.mqtt-broker == 'mosquitto'
-#        uses: Namoshek/mosquitto-github-action@v0.2.0
-#        with:
-#          version: '1.6'
-#          port: 1883
 
       - name: Start HiveMQ message broker
         if: matrix.mqtt-broker == 'hivemq'
