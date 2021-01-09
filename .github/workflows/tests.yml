@@ -16,15 +16,15 @@ jobs:
     strategy:
       matrix:
         php-version: ['7.4', '8.0']
-        mqtt-broker: ['emqx']
-#        mqtt-broker: ['mosquitto', 'hivemq', 'emqx']
+        mqtt-broker: ['mosquitto', 'hivemq', 'emqx']
 
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-java@v1
+      - name: Setup Java 11 (for keytool)
+        uses: actions/setup-java@v1
         with:
           java-version: '11'
           java-package: 'jre'
@@ -35,11 +35,6 @@ jobs:
           php-version: ${{ matrix.php-version }}
           tools: phpunit:9.5.0
           coverage: pcov
-
-      - name: Install Mosquitto tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install mosquitto-clients
 
       - name: Setup problem matchers for PHP
         run: echo "::add-matcher::${{ runner.tool_cache }}/php.json"
@@ -59,7 +54,7 @@ jobs:
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
           restore-keys: ${{ runner.os }}-composer-
 
-      - name: Install composer dependencies
+      - name: Install Composer dependencies
         run: composer install --prefer-dist --ignore-platform-reqs
 
       - name: Generate certificates for tests
@@ -93,11 +88,6 @@ jobs:
       - name: Wait a bit until MQTT broker has started
         run: sleep 30
 
-      - name: Try to publish to broker using mosquitto_pub
-        run: |
-          mosquitto_pub -h localhost -p 8883 -t 'foo/bar' -m 'baz' -d -V mqttv31 --cafile .ci/tls/ca.crt
-          mosquitto_pub -h localhost -p 8884 -t 'foo/bar' -m 'baz' -d -V mqttv31 --cafile .ci/tls/ca.crt --cert .ci/tls/client.crt --key .ci/tls/client.key
-
       - name: Run phpunit tests
         run: composer test
         env:
@@ -107,7 +97,7 @@ jobs:
           MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
           SKIP_TLS_TESTS: ${{ matrix.mqtt-broker == 'emqx' }}
 
-      - name: Dump docker logs on failure
+      - name: Dump Docker logs on failure
         if: failure()
         uses: jwalton/gh-docker-logs@v2
 
