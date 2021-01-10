@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         php-version: ['7.4', '8.0']
-        mqtt-broker: ['mosquitto', 'hivemq', 'emqx']
+        mqtt-broker: ['mosquitto', 'hivemq', 'emqx', 'rabbitmq']
 
     steps:
       - uses: actions/checkout@v2
@@ -85,6 +85,15 @@ jobs:
           version: '4.2.5'
           ports: '1883:1883'
 
+      - name: Start RabbitMQ message broker
+        if: matrix.mqtt-broker == 'rabbitmq'
+        uses: namoshek/rabbitmq-github-action@v1
+        with:
+          version: '3.8.9'
+          ports: '1883:1883'
+          config: ${{ github.workspace }}/.ci/rabbitmq.conf
+          plugins: 'rabbitmq_mqtt'
+
       - name: Wait a bit until MQTT broker has started
         run: sleep 30
 
@@ -95,7 +104,7 @@ jobs:
           MQTT_BROKER_PORT: 1883
           MQTT_BROKER_TLS_PORT: 8883
           MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
-          SKIP_TLS_TESTS: ${{ matrix.mqtt-broker == 'emqx' }}
+          SKIP_TLS_TESTS: ${{ matrix.mqtt-broker == 'emqx' || matrix.mqtt-broker == 'rabbitmq' }}
 
       - name: Dump Docker logs on failure
         if: failure()
