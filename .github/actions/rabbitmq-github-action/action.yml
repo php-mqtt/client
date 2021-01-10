@@ -1,0 +1,43 @@
+name: 'RabbitMQ in GitHub Actions'
+description: 'Start a RabbitMQ message broker as Docker container'
+
+branding:
+  icon: 'message-square'
+  color: 'red'
+
+inputs:
+  version:
+    description: 'RabbitMQ version to use'
+    required: false
+    default: 'latest'
+  ports:
+    description: 'Port mappings in a [host]:[container] format, delimited by spaces (example: "1883:1883 8883:8883")'
+    required: false
+    default: '1883:1883'
+  certificates:
+    description: 'Absolute path to a directory containing certificate files which can be referenced in the config (the folder is mounted under `/rabbitmq-certs`)'
+    required: false
+    default: ''
+  config:
+    description: 'Absolute path to the `rabbitmq.conf` configuration file to use'
+    required: false
+    default: ''
+  plugins:
+    description: 'A comma separated list of RabbitMQ plugins which should be enabled'
+    required: false
+    default: ''
+  container-name:
+    description: 'The name of the spawned Docker container (can be used as hostname when accessed from other containers)'
+    required: false
+    default: 'rabbitmq'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.version }}
+    - ${{ inputs.ports }}
+    - ${{ inputs.certificates }}
+    - ${{ inputs.config }}
+    - ${{ inputs.plugins }}
+    - ${{ inputs.container-name }}
