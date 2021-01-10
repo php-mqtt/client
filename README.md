@@ -195,6 +195,27 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
 - Message flows with a QoS level higher than 0 are not persisted as the default implementation uses an in-memory repository for data.
   To avoid issues with broken message flows, use the clean session flag to indicate that you don't care about old data.
   It will not only instruct the broker to consider the connection new (without previous state), but will also reset the registered repository.
+  
+## Developing & Testing
+
+### Certificates (TLS)
+
+To run the tests (especially the TLS tests), you will need to create certificates. A command has been provided for this:
+```sh
+sh create-certificates.sh
+```
+This will create all required certificates in the `.ci/tls/` directory. The same script is used for continuous integration as well.
+
+### MQTT Broker for Testing
+
+Running the tests expects an MQTT broker to be running. The easiest way to run an MQTT broker is through Docker:
+```sh
+docker run --rm -it -p 1883:1883 -p 8883:8883 -p 8884:8884 -v $(pwd)/.ci/tls:/mosquitto-certs -v $(pwd)/.ci/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto:1.6
+```
+When run from the project directory, this will spawn a Mosquitto MQTT broker configured with the generated TLS certificates and a custom configuration.
+
+In case you intend to run a different broker or using a different method, or use a public broker instead,
+you will need to adjust the environment variables defined in `phpunit.xml` accordingly.
 
 ## License
 

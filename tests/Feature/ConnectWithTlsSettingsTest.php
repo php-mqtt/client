@@ -43,7 +43,7 @@ class ConnectWithTlsSettingsTest extends TestCase
         $client->disconnect();
     }
 
-    public function test_connecting_with_tls_with_validated_self_signed_certificate_works_as_intended(): void
+    public function test_connecting_with_tls_with_validated_self_signed_certificate_using_cafile__works_as_intended(): void
     {
         $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerTlsPort, 'test-tls-settings');
 
@@ -53,6 +53,24 @@ class ConnectWithTlsSettingsTest extends TestCase
             ->setTlsVerifyPeer(true)
             ->setTlsVerifyPeerName(true)
             ->setTlsCertificateAuthorityFile($this->tlsCertificateDirectory . '/ca.crt');
+
+        $client->connect($connectionSettings, true);
+
+        $this->assertTrue($client->isConnected());
+
+        $client->disconnect();
+    }
+
+    public function test_connecting_with_tls_with_validated_self_signed_certificate_using_capath_works_as_intended(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerTlsPort, 'test-tls-settings');
+
+        $connectionSettings = (new ConnectionSettings)
+            ->setUseTls(true)
+            ->setTlsSelfSignedAllowed(false)
+            ->setTlsVerifyPeer(true)
+            ->setTlsVerifyPeerName(true)
+            ->setTlsCertificateAuthorityPath($this->tlsCertificateDirectory);
 
         $client->connect($connectionSettings, true);
 
@@ -73,6 +91,27 @@ class ConnectWithTlsSettingsTest extends TestCase
             ->setTlsCertificateAuthorityFile($this->tlsCertificateDirectory . '/ca.crt')
             ->setTlsClientCertificateFile($this->tlsCertificateDirectory . '/client.crt')
             ->setTlsClientCertificateKeyFile($this->tlsCertificateDirectory . '/client.key');
+
+        $client->connect($connectionSettings, true);
+
+        $this->assertTrue($client->isConnected());
+
+        $client->disconnect();
+    }
+
+    public function test_connecting_with_tls_and_passphrase_protected_client_certificate_with_validated_self_signed_certificate_works_as_intended(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerTlsWithClientCertificatePort, 'test-tls-settings');
+
+        $connectionSettings = (new ConnectionSettings)
+            ->setUseTls(true)
+            ->setTlsSelfSignedAllowed(false)
+            ->setTlsVerifyPeer(true)
+            ->setTlsVerifyPeerName(true)
+            ->setTlsCertificateAuthorityFile($this->tlsCertificateDirectory . '/ca.crt')
+            ->setTlsClientCertificateFile($this->tlsCertificateDirectory . '/client2.crt')
+            ->setTlsClientCertificateKeyFile($this->tlsCertificateDirectory . '/client2.key')
+            ->setTlsClientCertificateKeyPassphrase('s3cr3t');
 
         $client->connect($connectionSettings, true);
 
