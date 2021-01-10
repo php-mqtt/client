@@ -1137,7 +1137,7 @@ class MqttClient implements ClientContract
             $this->logger->debug('Successfully closed socket connection to the broker.');
         } else {
             $phpError = error_get_last();
-            $this->logger->debug('Closing socket connection failed: {error}', [
+            $this->logger->notice('Closing socket connection failed: {error}', [
                 'error' => $phpError ? $phpError['message'] : 'undefined',
             ]);
         }
