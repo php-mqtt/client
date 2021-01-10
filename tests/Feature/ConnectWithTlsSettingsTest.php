@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use PhpMqtt\Client\ConnectionSettings;
+use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\MqttClient;
 use Tests\TestCase;
 
@@ -24,6 +25,19 @@ class ConnectWithTlsSettingsTest extends TestCase
         if ($this->skipTlsTests) {
             $this->markTestSkipped('TLS tests are disabled.');
         }
+    }
+
+    public function test_connecting_with_tls_but_without_further_configuration_throws_for_self_signed_certificate(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerTlsPort, 'test-tls-settings');
+
+        $connectionSettings = (new ConnectionSettings)
+            ->setUseTls(true);
+
+        $this->expectException(ConnectingToBrokerFailedException::class);
+        $this->expectExceptionCode(ConnectingToBrokerFailedException::EXCEPTION_CONNECTION_TLS_ERROR);
+
+        $client->connect($connectionSettings, true);
     }
 
     public function test_connecting_with_tls_with_ignored_self_signed_certificate_works_as_intended(): void
