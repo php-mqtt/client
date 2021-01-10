@@ -603,18 +603,16 @@ class MqttClient implements ClientContract
                 $this->ping();
             }
 
-            // This check will ensure, that, if we want to exit as soon as all queues
-            // are empty and they really are empty, we quit.
-            if ($exitWhenQueuesEmpty) {
-                if ($this->allQueuesAreEmpty() && $this->repository->countSubscriptions() === 0) {
+            // If configured, the loop is exited if all queues are empty or a certain time limit is reached (i.e. retry is aborted).
+            // In any case, there may not be any active subscriptions though.
+            if ($exitWhenQueuesEmpty && $this->repository->countSubscriptions() === 0) {
+                if ($this->allQueuesAreEmpty()) {
                     break;
                 }
 
-                // We also exit the loop if there are no open topic subscriptions
-                // and we reached the time limit.
-                if ($queueWaitLimit !== null &&
-                    (microtime(true) - $loopStartedAt) > $queueWaitLimit &&
-                    $this->repository->countSubscriptions() === 0) {
+                // The time limit is reached. This most likely means the outgoing queues could not be emptied in time.
+                // Probably the server did not respond with an acknowledgement.
+                if ($queueWaitLimit !== null && (microtime(true) - $loopStartedAt) > $queueWaitLimit) {
                     break;
                 }
             }
