@@ -17,6 +17,8 @@ class ConnectionSettings
     private int $socketTimeout                         = 5;
     private int $resendTimeout                         = 10;
     private int $keepAliveInterval                     = 10;
+    private bool $reconnectAutomatically               = false;
+    private int $maxReconnectAttempts                  = 3;
     private ?string $lastWillTopic                     = null;
     private ?string $lastWillMessage                   = null;
     private int $lastWillQualityOfService              = 0;
@@ -173,6 +175,55 @@ class ConnectionSettings
     public function getKeepAliveInterval(): int
     {
         return $this->keepAliveInterval;
+    }
+
+    /**
+     * This flag determines whether the client will try to reconnect automatically,
+     * if it notices a disconnect while sending data.
+     * The setting cannot be used together with the clean session flag.
+     *
+     * @param bool $reconnectAutomatically
+     * @return ConnectionSettings
+     */
+    public function setReconnectAutomatically(bool $reconnectAutomatically): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->reconnectAutomatically = $reconnectAutomatically;
+
+        return $copy;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldReconnectAutomatically(): bool
+    {
+        return $this->reconnectAutomatically;
+    }
+
+    /**
+     * Defines the maximum number of reconnect attempts until the client gives up. This setting
+     * is only relevant if {@see setReconnectAutomatically()} is set to true.
+     *
+     * @param int $maxReconnectAttempts
+     * @return ConnectionSettings
+     */
+    public function setMaxReconnectAttempts(int $maxReconnectAttempts): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->maxReconnectAttempts = $maxReconnectAttempts;
+
+        return $copy;
+    }
+
+    /**
+     * @return int
+     */
+    public function getMaxReconnectAttempts(): int
+    {
+        return $this->maxReconnectAttempts;
     }
 
     /**

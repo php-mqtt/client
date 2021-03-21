@@ -155,6 +155,15 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
     // of pending messages without acknowledgement. The value cannot be less than 1 second.
     ->setResendTimeout(10)
     
+    // This flag determines whether the client will try to reconnect automatically
+    // if it notices a disconnect while sending data.
+    // The setting cannot be used together with the clean session flag.
+    ->setReconnectAutomatically(false)
+    
+    // Defines the maximum number of reconnect attempts until the client gives up.
+    // This setting is only relevant if setReconnectAutomatically() is set to true.
+    ->setMaxReconnectAttempts(3)
+    
     // The keep alive interval is the number of seconds the client will wait without sending a message
     // until it sends a keep alive signal (ping) to the broker. The value cannot be less than 1 second
     // and may not be higher than 65535 seconds. A reasonable value is 10 seconds (the default).
