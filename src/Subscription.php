@@ -39,7 +39,17 @@ class Subscription
      */
     private function regexifyTopicFilter(): void
     {
-        $this->regexifiedTopicFilter = '/^' . str_replace(['$', '/', '+', '#'], ['\$', '\/', '[^\/]*', '.*'], $this->topicFilter) . '$/';
+        $topicFilter = $this->topicFilter;
+
+        // If the topic filter is for a shared subscription, we remove the shared subscription prefix as well as the group name
+        // from the topic filter. To do so, we look for the $share keyword and then try to find the second topic separator to
+        // calculate the substring containing the actual topic filter.
+        // Note: shared subscriptions always have the form: $share/<group>/<topic>
+        if (strpos($topicFilter, '$share/') === 0 && ($separatorIndex = strpos($topicFilter, '/', 7)) !== false) {
+            $topicFilter = substr($topicFilter, $separatorIndex + 1);
+        }
+
+        $this->regexifiedTopicFilter = '/^' . str_replace(['$', '/', '+', '#'], ['\$', '\/', '[^\/]*', '.*'], $topicFilter) . '$/';
     }
 
     /**

@@ -180,4 +180,52 @@ class PublishSubscribeTest extends TestCase
         $publisher->disconnect();
         $subscriber->disconnect();
     }
+
+    public function test_shared_subscriptions_using_quality_of_service_0_work_as_intended(): void
+    {
+        $subscriptionTopicFilter = '$share/test-shared-subscriptions/foo/+';
+        $publishTopic = 'foo/bar';
+
+        // We connect and subscribe to a topic using the first client with a shared subscription.
+        $subscriber1 = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber1');
+        $subscriber1->connect(null, true);
+
+        $subscriber1->subscribe($subscriptionTopicFilter, function (string $topic, string $message, bool $retained) use ($subscriber1, $publishTopic) {
+            // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
+            $this->assertEquals($publishTopic, $topic);
+            $this->assertEquals('hello world #1', $message);
+            $this->assertFalse($retained);
+
+            $subscriber1->interrupt(); // This allows us to exit the test as soon as possible.
+        }, 0);
+
+        // We connect and subscribe to a topic using the second client with a shared subscription.
+        $subscriber2 = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber2');
+        $subscriber2->connect(null, true);
+
+        $subscriber2->subscribe($subscriptionTopicFilter, function (string $topic, string $message, bool $retained) use ($subscriber2, $publishTopic) {
+            // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
+            $this->assertEquals($publishTopic, $topic);
+            $this->assertEquals('hello world #2', $message);
+            $this->assertFalse($retained);
+
+            $subscriber2->interrupt(); // This allows us to exit the test as soon as possible.
+        }, 0);
+
+        // We publish a message from a second client on the same topic.
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
+        $publisher->connect(null, true);
+
+        $publisher->publish($publishTopic, 'hello world #1', 0, false);
+        $publisher->publish($publishTopic, 'hello world #2', 0, false);
+
+        // Then we loop on the subscribers to (hopefully) receive the published messages.
+        $subscriber1->loop(true);
+        $subscriber2->loop(true);
+
+        // Finally, we disconnect for a graceful shutdown on the broker side.
+        $publisher->disconnect();
+        $subscriber1->disconnect();
+        $subscriber2->disconnect();
+    }
 }
