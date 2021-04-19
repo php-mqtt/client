@@ -118,7 +118,7 @@ jobs:
           sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.report-junit.xml
 
       - name: Run SonarQube analysis
-        uses: sonarsource/sonarcloud-github-action@v1.4
+        uses: sonarsource/sonarcloud-github-action@v1.6
         if: matrix.php-version == '8.0' && matrix.mqtt-broker == 'mosquitto'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
