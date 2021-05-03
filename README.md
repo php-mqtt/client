@@ -135,24 +135,93 @@ The following is a complete list of options with their respective default:
 
 ```php
 $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
+
+    // The username used for authentication when connecting to the broker.
     ->setUsername(null)
+    
+    // The password used for authentication when connecting to the broker.
     ->setPassword(null)
+    
+    // The connect timeout defines the maximum amount of seconds the client will try to establish
+    // a socket connection with the broker. The value cannot be less than 1 second.
     ->setConnectTimeout(60)
+    
+    // The socket timeout is the maximum amount of idle time in seconds for the socket connection.
+    // If no data is read or sent for the given amount of seconds, the socket will be closed.
+    // The value cannot be less than 1 second.
     ->setSocketTimeout(5)
-    ->setKeepAliveInterval(10)
+    
+    // The resend timeout is the number of seconds the client will wait before sending a duplicate
+    // of pending messages without acknowledgement. The value cannot be less than 1 second.
     ->setResendTimeout(10)
+    
+    // The keep alive interval is the number of seconds the client will wait without sending a message
+    // until it sends a keep alive signal (ping) to the broker. The value cannot be less than 1 second
+    // and may not be higher than 65535 seconds. A reasonable value is 10 seconds (the default).
+    ->setKeepAliveInterval(10)
+    
+    // If the broker should publish a last will message in the name of the client when the client
+    // disconnects abruptly, this setting defines the topic on which the message will be published.
+    //
+    // A last will message will only be published if both this setting as well as the last will
+    // message are configured.
     ->setLastWillTopic(null)
+    
+    // If the broker should publish a last will message in the name of the client when the client
+    // disconnects abruptly, this setting defines the message which will be published.
+    //
+    // A last will message will only be published if both this setting as well as the last will
+    // topic are configured.
     ->setLastWillMessage(null)
+    
+    // The quality of service level the last will message of the client will be published with,
+    // if it gets triggered.
     ->setLastWillQualityOfService(0)
+    
+    // This flag determines if the last will message of the client will be retained, if it gets
+    // triggered. Using this setting can be handy to signal that a client is offline by publishing
+    // a retained offline state in the last will and an online state as first message on connect.
     ->setRetainLastWill(false)
+    
+    // This flag determines if TLS should be used for the connection. The port which is used to
+    // connect to the broker must support TLS connections.
     ->setUseTls(false)
+    
+    // This flag determines if the peer certificate is verified, if TLS is used.
     ->setTlsVerifyPeer(true)
+    
+    // This flag determines if the peer name is verified, if TLS is used.
     ->setTlsVerifyPeerName(true)
+    
+    // This flag determines if self signed certificates of the peer should be accepted.
+    // Setting this to TRUE implies a security risk and should be avoided for production
+    // scenarios and public services.
     ->setTlsSelfSignedAllowed(false)
+    
+    // The path to a Certificate Authority certificate which is used to verify the peer
+    // certificate, if TLS is used.
     ->setTlsCertificateAuthorityFile(null)
+    
+    // The path to a directory containing Certificate Authority certificates which are
+    // used to verify the peer certificate, if TLS is used.
     ->setTlsCertificateAuthorityPath(null)
+    
+    // The path to a client certificate file used for authentication, if TLS is used.
+    //
+    // The client certificate must be PEM encoded. It may optionally contain the
+    // certificate chain of issuers.
     ->setTlsClientCertificateFile(null)
+    
+    // The path to a client certificate key file used for authentication, if TLS is used.
+    //
+    // This option requires ConnectionSettings::setTlsClientCertificateFile() to be used as well.
     ->setTlsClientCertificateKeyFile(null)
+    
+    // The passphrase used to decrypt the private key of the client certificate,
+    // which in return is used for authentication, if TLS is used.
+    //
+    // This option requires ConnectionSettings::setTlsClientCertificateFile() and
+    // ConnectionSettings::setTlsClientCertificateKeyFile() to be used as well.
     ->setTlsClientCertificateKeyPassphrase(null);
 ```
 
@@ -187,11 +256,7 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
   - [ ] Redis Driver
   
 ## Limitations
-
-- There is no guarantee that message identifiers are not used twice (while the first usage is still pending).
-  The current implementation uses a simple counter which resets after all 65535 identifiers were used.
-  This means that as long as the client isn't used to an extent where acknowledgements are open for a very long time, you should be fine.
-  This also only affects QoS levels higher than 0, as QoS level 0 is a simple fire and forget mode.
+  
 - Message flows with a QoS level higher than 0 are not persisted as the default implementation uses an in-memory repository for data.
   To avoid issues with broken message flows, use the clean session flag to indicate that you don't care about old data.
   It will not only instruct the broker to consider the connection new (without previous state), but will also reset the registered repository.
