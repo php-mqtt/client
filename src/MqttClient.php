@@ -315,6 +315,8 @@ class MqttClient implements ClientContract
     protected function performConnectionHandshake(bool $useCleanSession = false): void
     {
         try {
+            $connectionHandshakeStartedAt = microtime(true);
+
             $data = $this->messageProcessor->buildConnectMessage($this->settings, $useCleanSession);
 
             $this->logger->debug('Sending connection handshake to broker.');
@@ -348,6 +350,15 @@ class MqttClient implements ClientContract
                     $this->messageProcessor->handleConnectAcknowledgement($message);
 
                     break;
+                }
+
+                // If no acknowledgement has been received from the broker within the configured connection timeout period,
+                // we abort the connection attempt and assume broker unavailability.
+                if (microtime(true) - $this->settings->getConnectTimeout() > $connectionHandshakeStartedAt) {
+                    throw new ConnectingToBrokerFailedException(
+                        ConnectingToBrokerFailedException::EXCEPTION_CONNECTION_BROKER_UNAVAILABLE,
+                        'The broker did not acknowledge the connection attempt within the configured connection timeout period.'
+                    );
                 }
             }
 
