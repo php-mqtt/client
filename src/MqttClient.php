@@ -35,7 +35,7 @@ class MqttClient implements ClientContract
         OffersHooks,
         ValidatesConfiguration;
 
-    const MQTT_3_1 = '3.1';
+    const MQTT_3_1   = '3.1';
     const MQTT_3_1_1 = '3.1.1';
 
     const QOS_AT_MOST_ONCE  = 0;
@@ -99,10 +99,12 @@ class MqttClient implements ClientContract
         switch ($protocol) {
             case self::MQTT_3_1_1:
                 $this->messageProcessor = new Mqtt311MessageProcessor($this->clientId, $this->logger);
+                break;
 
             case self::MQTT_3_1:
             default:
                 $this->messageProcessor = new Mqtt31MessageProcessor($this->clientId, $this->logger);
+                break;
         }
 
         $this->initializeEventHandlers();
@@ -803,6 +805,15 @@ class MqttClient implements ClientContract
             }
 
             foreach ($message->getAcknowledgedQualityOfServices() as $index => $qualityOfService) {
+                // Starting from MQTT 3.1.1, the broker is able to reject individual subscriptions.
+                // Instead of failing the whole bulk, we log the incident and skip the single subscription.
+                if ($qualityOfService === 128) {
+                    $this->logger->error('The broker rejected the subscription to [{topicFilter}].', [
+                        'topicFilter' => $acknowledgedSubscriptions[$index]->getTopicFilter(),
+                    ]);
+                    continue;
+                }
+
                 // It may happen that the server registers our subscription
                 // with a lower quality of service than requested, in this
                 // case this is the one that we will record.
