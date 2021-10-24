@@ -86,7 +86,7 @@ class MqttClient implements ClientContract
         LoggerInterface $logger = null
     )
     {
-        if (!in_array($protocol, [self::MQTT_3_1])) {
+        if (!in_array($protocol, [self::MQTT_3_1, self::MQTT_3_1_1])) {
             throw new ProtocolNotSupportedException($protocol);
         }
 
