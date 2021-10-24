@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client\MessageProcessors;
 
-use PhpMqtt\Client\ConnectionSettings;
-use Psr\Log\LoggerInterface;
+use PhpMqtt\Client\Exceptions\InvalidMessageException;
+use PhpMqtt\Client\Exceptions\ProtocolViolationException;
+use PhpMqtt\Client\Message;
+use PhpMqtt\Client\MessageType;
 
 /**
  * This message processor implements the MQTT protocol version 3.1.1.
@@ -14,57 +16,64 @@ use Psr\Log\LoggerInterface;
  */
 class Mqtt311MessageProcessor extends Mqtt31MessageProcessor
 {
-    private string $clientId;
-
     /**
-     * Creates a new message processor instance which supports version 3.1.1 of the MQTT protocol.
-     *
-     * @param string          $clientId
-     * @param LoggerInterface $logger
+     * {@inheritDoc}
      */
-    public function __construct(string $clientId, LoggerInterface $logger)
+    protected function getEncodedProtocolNameAndVersion(): string
     {
-        parent::__construct($clientId, $logger);
-
-        $this->clientId = $clientId;
+        return $this->buildLengthPrefixedString('MQTT') . chr(0x04); // protocol version (4)
     }
 
     /**
      * {@inheritDoc}
      */
-    public function buildConnectMessage(ConnectionSettings $connectionSettings, bool $useCleanSession = false): string
+    public function parseAndValidateMessage(string $message): ?Message
     {
-        // The protocol name and version.
-        $buffer  = $this->buildLengthPrefixedString('MQTT');
-        $buffer .= chr(0x04); // protocol version (4)
+        $result = parent::parseAndValidateMessage($message);
 
-        // Build connection flags based on the connection settings.
-        $buffer .= chr($this->buildConnectionFlags($connectionSettings, $useCleanSession));
-
-        // Encode and add the keep alive interval.
-        $buffer .= chr($connectionSettings->getKeepAliveInterval() >> 8);
-        $buffer .= chr($connectionSettings->getKeepAliveInterval() & 0xff);
-
-        // Encode and add the client identifier.
-        $buffer .= $this->buildLengthPrefixedString($this->clientId);
-
-        // Encode and add the last will topic and message, if configured.
-        if ($connectionSettings->hasLastWill()) {
-            $buffer .= $this->buildLengthPrefixedString($connectionSettings->getLastWillTopic());
-            $buffer .= $this->buildLengthPrefixedString($connectionSettings->getLastWillMessage());
+        if ($this->isPublishMessageWithNullCharacter($result)) {
+            throw new ProtocolViolationException('The broker sent us a message with the forbidden unicode character U+0000.');
         }
 
-        // Encode and add the credentials, if configured.
-        if ($connectionSettings->getUsername() !== null) {
-            $buffer .= $this->buildLengthPrefixedString($connectionSettings->getUsername());
-        }
-        if ($connectionSettings->getPassword() !== null) {
-            $buffer .= $this->buildLengthPrefixedString($connectionSettings->getPassword());
+        return $result;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function parseAndValidateSubscribeAcknowledgementMessage(string $data): Message
+    {
+        if (strlen($data) < 3) {
+            $this->logger->notice('Received invalid subscribe acknowledgement from the broker.');
+            throw new InvalidMessageException('Received invalid subscribe acknowledgement from the broker.');
         }
 
-        // The header consists of the message type 0x10 and the length.
-        $header = chr(0x10) . $this->encodeMessageLength(strlen($buffer));
+        $messageId = $this->decodeMessageId($this->pop($data, 2));
 
-        return $header . $buffer;
+        // Parse and validate the QoS acknowledgements.
+        $acknowledgements = array_map('ord', str_split($data));
+        foreach ($acknowledgements as $acknowledgement) {
+            if (!in_array($acknowledgement, [0, 1, 2, 128])) {
+                throw new InvalidMessageException('Received subscribe acknowledgement with invalid QoS values from the broker.');
+            }
+        }
+
+        return (new Message(MessageType::SUBSCRIBE_ACKNOWLEDGEMENT()))
+            ->setMessageId($messageId)
+            ->setAcknowledgedQualityOfServices($acknowledgements);
+    }
+
+    /**
+     * Determines if the given message is a PUBLISH message and contains the unicode null character U+0000.
+     *
+     * @param Message $message
+     * @return bool
+     */
+    private function isPublishMessageWithNullCharacter(Message $message): bool
+    {
+        return $message !== null
+            && $message->getType()->equals(MessageType::PUBLISH())
+            && $message->getContent() !== null
+            && preg_match('/\x{0000}/u', $message->getContent());
     }
 }
