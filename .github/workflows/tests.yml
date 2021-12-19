@@ -56,7 +56,7 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Install Composer dependencies
-        run: composer install --prefer-dist --ignore-platform-reqs
+        run: composer install --prefer-dist
 
       - name: Generate certificates for tests
         run: sh create-certificates.sh
