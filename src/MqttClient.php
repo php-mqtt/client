@@ -49,7 +49,7 @@ class MqttClient implements ClientContract
     private ?float $lastPingAt = null;
     private MessageProcessor $messageProcessor;
     private Repository $repository;
-    private Logger $logger;
+    private LoggerInterface $logger;
     private bool $interrupted  = false;
     private int $bytesReceived = 0;
     private int $bytesSent     = 0;
