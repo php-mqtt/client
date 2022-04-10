@@ -15,8 +15,12 @@ jobs:
 
     strategy:
       matrix:
-        php-version: ['7.4', '8.0']
+        php-version: ['7.4', '8.0', '8.1']
         mqtt-broker: ['mosquitto', 'hivemq', 'emqx', 'rabbitmq']
+        include:
+          - php-version: '8.1'
+            mqtt-broker: 'mosquitto'
+            run-sonarqube-analysis: true
 
     steps:
       - uses: actions/checkout@v3
@@ -112,14 +116,14 @@ jobs:
         uses: jwalton/gh-docker-logs@v2
 
       - name: Prepare paths for SonarQube analysis
-        if: matrix.php-version == '8.0' && matrix.mqtt-broker == 'mosquitto'
+        if: matrix.run-sonarqube-analysis
         run: |
           sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.coverage-clover.xml
           sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.report-junit.xml
 
       - name: Run SonarQube analysis
         uses: sonarsource/sonarcloud-github-action@v1.6
-        if: matrix.php-version == '8.0' && matrix.mqtt-broker == 'mosquitto'
+        if: matrix.run-sonarqube-analysis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
