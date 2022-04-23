@@ -1,6 +1,6 @@
 {
     "name": "php-mqtt/client",
-    "description": "An MQTT client written in and for PHP.",
+    "description": "An MQTT client written in and for PHP a fork of https://github.com/php-mqtt/client",
     "type": "library",
     "keywords": [
         "mqtt",
@@ -11,8 +11,8 @@
     "license": "MIT",
     "authors": [
         {
-            "name": "Marvin Mall",
-            "email": "marvin-mall@msn.com",
+            "name": "Abdulbasit Mamman",
+            "email": "basttyydev@gmail.com",
             "role": "developer"
         }
     ],
