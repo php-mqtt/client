@@ -11,6 +11,7 @@ use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Contracts\MqttClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
+use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\InvalidMessageException;
@@ -120,6 +121,12 @@ class MqttClient implements ClientContract
         $this->settings = $settings ?? new ConnectionSettings();
 
         $this->ensureConnectionSettingsAreValid($this->settings);
+
+        // Because a clean session would make reconnects inherently more complex since all subscriptions would need to be replayed after reconnecting,
+        // we simply do not allow using these two features together.
+        if ($useCleanSession && $this->settings->shouldReconnectAutomatically()) {
+            throw new ConfigurationInvalidException('Automatic reconnects cannot be used together with the clean session flag.');
+        }
 
         // When a clean session is requested, we have to reset the repository to forget about persisted states.
         if ($useCleanSession) {
