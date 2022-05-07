@@ -407,6 +407,8 @@ class MqttClient implements ClientContract
         for ($i = 1; $i <= $maxReconnectAttempts; $i++) {
             try {
                 $this->connectInternal();
+
+                return;
             } catch (ConnectingToBrokerFailedException $e) {
                 if ($i === $maxReconnectAttempts) {
                     throw $e;
