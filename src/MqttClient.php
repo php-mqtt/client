@@ -808,7 +808,7 @@ class MqttClient implements ClientContract
                 // Starting from MQTT 3.1.1, the broker is able to reject individual subscriptions.
                 // Instead of failing the whole bulk, we log the incident and skip the single subscription.
                 if ($qualityOfService === 128) {
-                    $this->logger->error('The broker rejected the subscription to [{topicFilter}].', [
+                    $this->logger->notice('The broker rejected the subscription to [{topicFilter}].', [
                         'topicFilter' => $acknowledgedSubscriptions[$index]->getTopicFilter(),
                     ]);
                     continue;
