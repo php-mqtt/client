@@ -97,8 +97,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     public function buildConnectMessage(ConnectionSettings $connectionSettings, bool $useCleanSession = false): string
     {
         // The protocol name and version.
-        $buffer  = $this->buildLengthPrefixedString('MQIsdp');
-        $buffer .= chr(0x03); // protocol version (3)
+        $buffer = $this->getEncodedProtocolNameAndVersion();
 
         // Build connection flags based on the connection settings.
         $buffer .= chr($this->buildConnectionFlags($connectionSettings, $useCleanSession));
@@ -128,6 +127,16 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         $header = chr(0x10) . $this->encodeMessageLength(strlen($buffer));
 
         return $header . $buffer;
+    }
+
+    /**
+     * Returns the encoded protocol name and version, ready to be sent as part of the CONNECT message.
+     *
+     * @return string
+     */
+    protected function getEncodedProtocolNameAndVersion(): string
+    {
+        return $this->buildLengthPrefixedString('MQIsdp') . chr(0x03); // protocol version (3)
     }
 
     /**
@@ -362,7 +371,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         if ($qualityOfService > self::QOS_AT_MOST_ONCE) {
             $command += $qualityOfService << 1;
         }
-        if ($isDuplicate) {
+        if ($qualityOfService > self::QOS_AT_MOST_ONCE && $isDuplicate) {
             $command += 1 << 3;
         }
 
@@ -462,7 +471,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
                 break;
         }
 
-        // If we arrive here, we must have parsed a message with an unsupported type and it cannot be
+        // If we arrive here, we must have parsed a message with an unsupported type, and it cannot be
         // very relevant for us. So we return an empty result without information to skip processing.
         return null;
     }

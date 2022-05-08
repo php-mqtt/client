@@ -17,9 +17,41 @@ use Tests\TestCase;
  */
 class ConnectWithCustomConnectionSettingsTest extends TestCase
 {
-    public function test_connecting_with_custom_connection_settings_works_as_intended(): void
+    public function test_connecting_using_mqtt31_with_custom_connection_settings_works_as_intended(): void
     {
-        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-custom-connection-settings');
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-custom-connection-settings', MqttClient::MQTT_3_1);
+
+        $connectionSettings = (new ConnectionSettings)
+            ->setLastWillTopic('foo/last/will')
+            ->setLastWillMessage('baz is out!')
+            ->setLastWillQualityOfService(MqttClient::QOS_AT_MOST_ONCE)
+            ->setRetainLastWill(true)
+            ->setConnectTimeout(3)
+            ->setSocketTimeout(3)
+            ->setResendTimeout(3)
+            ->setKeepAliveInterval(30)
+            ->setUsername(null)
+            ->setPassword(null)
+            ->setUseTls(false)
+            ->setTlsCertificateAuthorityFile(null)
+            ->setTlsCertificateAuthorityPath(null)
+            ->setTlsClientCertificateFile(null)
+            ->setTlsClientCertificateKeyFile(null)
+            ->setTlsClientCertificateKeyPassphrase(null)
+            ->setTlsVerifyPeer(false)
+            ->setTlsVerifyPeerName(false)
+            ->setTlsSelfSignedAllowed(true);
+
+        $client->connect($connectionSettings);
+
+        $this->assertTrue($client->isConnected());
+
+        $client->disconnect();
+    }
+
+    public function test_connecting_using_mqtt311_with_custom_connection_settings_works_as_intended(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-custom-connection-settings', MqttClient::MQTT_3_1_1);
 
         $connectionSettings = (new ConnectionSettings)
             ->setLastWillTopic('foo/last/will')

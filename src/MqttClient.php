@@ -19,6 +19,7 @@ use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
 use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
 use PhpMqtt\Client\Exceptions\ProtocolViolationException;
+use PhpMqtt\Client\MessageProcessors\Mqtt311MessageProcessor;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
 use PhpMqtt\Client\Repositories\MemoryRepository;
 use Psr\Log\LoggerInterface;
@@ -34,7 +35,8 @@ class MqttClient implements ClientContract
         OffersHooks,
         ValidatesConfiguration;
 
-    const MQTT_3_1 = '3.1';
+    const MQTT_3_1   = '3.1';
+    const MQTT_3_1_1 = '3.1.1';
 
     const QOS_AT_MOST_ONCE  = 0;
     const QOS_AT_LEAST_ONCE = 1;
@@ -84,7 +86,7 @@ class MqttClient implements ClientContract
         LoggerInterface $logger = null
     )
     {
-        if (!in_array($protocol, [self::MQTT_3_1])) {
+        if (!in_array($protocol, [self::MQTT_3_1, self::MQTT_3_1_1])) {
             throw new ProtocolNotSupportedException($protocol);
         }
 
@@ -95,9 +97,14 @@ class MqttClient implements ClientContract
         $this->logger     = new Logger($this->host, $this->port, $this->clientId, $logger);
 
         switch ($protocol) {
+            case self::MQTT_3_1_1:
+                $this->messageProcessor = new Mqtt311MessageProcessor($this->clientId, $this->logger);
+                break;
+
             case self::MQTT_3_1:
             default:
                 $this->messageProcessor = new Mqtt31MessageProcessor($this->clientId, $this->logger);
+                break;
         }
 
         $this->initializeEventHandlers();
@@ -798,6 +805,15 @@ class MqttClient implements ClientContract
             }
 
             foreach ($message->getAcknowledgedQualityOfServices() as $index => $qualityOfService) {
+                // Starting from MQTT 3.1.1, the broker is able to reject individual subscriptions.
+                // Instead of failing the whole bulk, we log the incident and skip the single subscription.
+                if ($qualityOfService === 128) {
+                    $this->logger->notice('The broker rejected the subscription to [{topicFilter}].', [
+                        'topicFilter' => $acknowledgedSubscriptions[$index]->getTopicFilter(),
+                    ]);
+                    continue;
+                }
+
                 // It may happen that the server registers our subscription
                 // with a lower quality of service than requested, in this
                 // case this is the one that we will record.
