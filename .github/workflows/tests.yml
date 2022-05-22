@@ -113,7 +113,7 @@ jobs:
           plugins: 'rabbitmq_mqtt'
 
       - name: Wait a bit until MQTT broker has started
-        run: sleep 30
+        run: sleep 45
 
       - name: Run phpunit tests
         run: composer test
