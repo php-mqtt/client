@@ -101,6 +101,7 @@ jobs:
         with:
           version: '4.2.5'
           ports: '1883:1883'
+          config: ${{ github.workspace }}/.ci/emqx.conf
 
       - name: Start RabbitMQ message broker
         if: matrix.mqtt-broker == 'rabbitmq'
