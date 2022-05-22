@@ -99,8 +99,8 @@ jobs:
           config: ${{ github.workspace }}/.ci/rabbitmq.conf
           plugins: 'rabbitmq_mqtt'
 
-      - name: Wait a bit until MQTT broker has started
-        run: sleep 30
+      - name: Wait until the MQTT broker has started
+        run: sh ${{ github.workspace }}/.ci/wait-for-it.sh --timeout=60 localhost:1883
 
       - name: Run phpunit tests
         run: composer test
