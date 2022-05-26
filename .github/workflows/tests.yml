@@ -97,7 +97,7 @@ jobs:
 
       - name: Start EMQ X message broker
         if: matrix.mqtt-broker == 'emqx'
-        uses: Namoshek/emqx-github-action@master
+        uses: Namoshek/emqx-github-action@v1
         with:
           version: '4.4.3'
           ports: '1883:1883'
