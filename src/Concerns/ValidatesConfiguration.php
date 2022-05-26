@@ -43,6 +43,10 @@ trait ValidatesConfiguration
             throw new ConfigurationInvalidException('The keep alive interval must be a value in the range of 1 to 65535 seconds.');
         }
 
+        if ($settings->getMaxReconnectAttempts() < 1) {
+            throw new ConfigurationInvalidException('The maximum reconnect attempts cannot be fewer than 1.');
+        }
+
         if ($settings->getUsername() !== null && trim($settings->getUsername()) === '') {
             throw new ConfigurationInvalidException('The username may not consist of white space only.');
         }

@@ -11,6 +11,7 @@ use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Contracts\MqttClient as ClientContract;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
+use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\InvalidMessageException;
@@ -31,16 +32,17 @@ use Psr\Log\LoggerInterface;
  */
 class MqttClient implements ClientContract
 {
-    use GeneratesRandomClientIds,
-        OffersHooks,
-        ValidatesConfiguration;
+    use GeneratesRandomClientIds;
+    use OffersHooks;
+    use ValidatesConfiguration;
 
     const MQTT_3_1   = '3.1';
     const MQTT_3_1_1 = '3.1.1';
 
-    const QOS_AT_MOST_ONCE  = 0;
-    const QOS_AT_LEAST_ONCE = 1;
-    const QOS_EXACTLY_ONCE  = 2;
+    const QOS_AT_MOST_ONCE        = 0;
+    const QOS_AT_LEAST_ONCE       = 1;
+    const QOS_EXACTLY_ONCE        = 2;
+    const SOCKET_READ_BUFFER_SIZE = 8192;
 
     private string $host;
     private int $port;
@@ -128,11 +130,29 @@ class MqttClient implements ClientContract
 
         $this->ensureConnectionSettingsAreValid($this->settings);
 
+        // Because a clean session would make reconnects inherently more complex since all subscriptions would need to be replayed after reconnecting,
+        // we simply do not allow using these two features together.
+        if ($useCleanSession && $this->settings->shouldReconnectAutomatically()) {
+            throw new ConfigurationInvalidException('Automatic reconnects cannot be used together with the clean session flag.');
+        }
+
         // When a clean session is requested, we have to reset the repository to forget about persisted states.
         if ($useCleanSession) {
             $this->repository->reset();
         }
 
+        $this->connectInternal($useCleanSession);
+    }
+
+    /**
+     * Connect to the MQTT broker using the configured settings.
+     *
+     * @param bool $useCleanSession
+     * @return void
+     * @throws ConnectingToBrokerFailedException
+     */
+    protected function connectInternal(bool $useCleanSession = false): void
+    {
         try {
             $this->establishSocketConnection();
             $this->performConnectionHandshake($useCleanSession);
@@ -381,6 +401,30 @@ class MqttClient implements ClientContract
     }
 
     /**
+     * Attempts to reconnect to the broker. If a connection cannot be established within the configured number of retries,
+     * the last caught exception is thrown.
+     *
+     * @return void
+     * @throws ConnectingToBrokerFailedException
+     */
+    protected function reconnect(): void
+    {
+        $maxReconnectAttempts = $this->settings->getMaxReconnectAttempts();
+
+        for ($i = 1; $i <= $maxReconnectAttempts; $i++) {
+            try {
+                $this->connectInternal();
+
+                return;
+            } catch (ConnectingToBrokerFailedException $e) {
+                if ($i === $maxReconnectAttempts) {
+                    throw $e;
+                }
+            }
+        }
+    }
+
+    /**
      * {@inheritDoc}
      */
     public function interrupt(): void
@@ -525,7 +569,7 @@ class MqttClient implements ClientContract
 
         $data = $this->messageProcessor->buildPublishMessage($topic, $message, $qualityOfService, $retain, $messageId, $isDuplicate);
 
-        $this->writeToSocket($data);
+        $this->writeToSocketWithAutoReconnect($data);
     }
 
     /**
@@ -550,7 +594,7 @@ class MqttClient implements ClientContract
         $this->repository->addPendingOutgoingMessage($pendingMessage);
 
         $data = $this->messageProcessor->buildSubscribeMessage($messageId, $subscriptions);
-        $this->writeToSocket($data);
+        $this->writeToSocketWithAutoReconnect($data);
     }
 
     /**
@@ -569,7 +613,7 @@ class MqttClient implements ClientContract
         $this->repository->addPendingOutgoingMessage($pendingMessage);
 
         $data = $this->messageProcessor->buildUnsubscribeMessage($messageId, $topicFilters);
-        $this->writeToSocket($data);
+        $this->writeToSocketWithAutoReconnect($data);
     }
 
     /**
@@ -847,7 +891,7 @@ class MqttClient implements ClientContract
         // PINGREQ
         if ($message->getType()->equals(MessageType::PING_REQUEST())) {
             // Respond with PINGRESP.
-            $this->writeToSocket($this->messageProcessor->buildPingResponseMessage());
+            $this->writeToSocketWithAutoReconnect($this->messageProcessor->buildPingResponseMessage());
             return;
         }
     }
@@ -935,14 +979,14 @@ class MqttClient implements ClientContract
                 ]);
 
                 $data = $this->messageProcessor->buildSubscribeMessage($pendingMessage->getMessageId(), $pendingMessage->getSubscriptions(), true);
-                $this->writeToSocket($data);
+                $this->writeToSocketWithAutoReconnect($data);
             } elseif ($pendingMessage instanceof UnsubscribeRequest) {
                 $this->logger->debug('Re-sending pending unsubscribe request to the broker.', [
                     'messageId' => $pendingMessage->getMessageId(),
                 ]);
 
                 $data = $this->messageProcessor->buildUnsubscribeMessage($pendingMessage->getMessageId(), $pendingMessage->getTopicFilters(), true);
-                $this->writeToSocket($data);
+                $this->writeToSocketWithAutoReconnect($data);
             } else {
                 throw new InvalidMessageException('Unexpected message type encountered while resending pending messages.');
             }
@@ -963,7 +1007,7 @@ class MqttClient implements ClientContract
     {
         $this->logger->debug('Sending publish acknowledgement to the broker (message id: {messageId}).', ['messageId' => $messageId]);
 
-        $this->writeToSocket($this->messageProcessor->buildPublishAcknowledgementMessage($messageId));
+        $this->writeToSocketWithAutoReconnect($this->messageProcessor->buildPublishAcknowledgementMessage($messageId));
     }
 
     /**
@@ -977,7 +1021,7 @@ class MqttClient implements ClientContract
     {
         $this->logger->debug('Sending publish received message to the broker (message id: {messageId}).', ['messageId' => $messageId]);
 
-        $this->writeToSocket($this->messageProcessor->buildPublishReceivedMessage($messageId));
+        $this->writeToSocketWithAutoReconnect($this->messageProcessor->buildPublishReceivedMessage($messageId));
     }
 
     /**
@@ -991,7 +1035,7 @@ class MqttClient implements ClientContract
     {
         $this->logger->debug('Sending publish release message to the broker (message id: {messageId}).', ['messageId' => $messageId]);
 
-        $this->writeToSocket($this->messageProcessor->buildPublishReleaseMessage($messageId));
+        $this->writeToSocketWithAutoReconnect($this->messageProcessor->buildPublishReleaseMessage($messageId));
     }
 
     /**
@@ -1005,7 +1049,7 @@ class MqttClient implements ClientContract
     {
         $this->logger->debug('Sending publish complete message to the broker (message id: {messageId}).', ['messageId' => $messageId]);
 
-        $this->writeToSocket($this->messageProcessor->buildPublishCompleteMessage($messageId));
+        $this->writeToSocketWithAutoReconnect($this->messageProcessor->buildPublishCompleteMessage($messageId));
     }
 
     /**
@@ -1018,7 +1062,7 @@ class MqttClient implements ClientContract
     {
         $this->logger->debug('Sending ping to the broker to keep the connection alive.');
 
-        $this->writeToSocket($this->messageProcessor->buildPingRequestMessage());
+        $this->writeToSocketWithAutoReconnect($this->messageProcessor->buildPingRequestMessage());
     }
 
     /**
@@ -1033,12 +1077,45 @@ class MqttClient implements ClientContract
 
         $this->logger->debug('Sending disconnect package to the broker.');
 
-        $this->writeToSocket($data);
+        $this->writeToSocketWithAutoReconnect($data);
     }
 
     /**
-     * Writes some data to the socket. If a $length is given and it is shorter
-     * than the data, only $length amount of bytes will be sent.
+     * Writes some data to the socket. If a {@see $length} is given, and it is shorter
+     * than the data, only {@see $length} amount of bytes will be sent.
+     * If configured, this method will try to reconnect in case of transmission errors.
+     *
+     * @param string   $data
+     * @param int|null $length
+     * @return void
+     * @throws DataTransferException
+     */
+    protected function writeToSocketWithAutoReconnect(string $data, int $length = null): void
+    {
+        try {
+            $this->writeToSocket($data, $length);
+        } catch (DataTransferException $e) {
+            if (!$this->settings->shouldReconnectAutomatically()) {
+                throw $e;
+            }
+
+            try {
+                $this->reconnect();
+            } catch (ConnectingToBrokerFailedException $exception) {
+                $this->logger->error('Automatically reconnecting to the broker while writing data to the socket failed.');
+
+                // Throw the original exception.
+                throw $e;
+            }
+
+            // Retry writing to the socket. If this fails again, the exception is thrown as-is.
+            $this->writeToSocket($data, $length);
+        }
+    }
+
+    /**
+     * Writes some data to the socket. If a {@see $length} is given, and it is shorter
+     * than the data, only {@see $length} amount of bytes will be sent.
      *
      * @param string   $data
      * @param int|null $length
@@ -1070,16 +1147,50 @@ class MqttClient implements ClientContract
     }
 
     /**
-     * Reads data from the socket. If the second parameter $withoutBlocking is set to true,
-     * a maximum of $limit bytes will be read and returned. If $withoutBlocking is set to false,
-     * the method will wait until $limit bytes have been received.
+     * Reads data from the socket. If the second parameter {@see $withoutBlocking} is set to true,
+     * a maximum of {@see $limit} bytes will be read and returned. If {@see $withoutBlocking} is set to false,
+     * the method will wait until {@see $limit} bytes have been received.
+     * If configured, this method will try to reconnect in case of transmission errors.
      *
      * @param int  $limit
      * @param bool $withoutBlocking
      * @return string
      * @throws DataTransferException
      */
-    protected function readFromSocket(int $limit = 8192, bool $withoutBlocking = false): string
+    protected function readFromSocketWithAutoReconnect(int $limit = self::SOCKET_READ_BUFFER_SIZE, bool $withoutBlocking = false): string
+    {
+        try {
+            return $this->readFromSocket($limit, $withoutBlocking);
+        } catch (DataTransferException $e) {
+            if (!$this->settings->shouldReconnectAutomatically()) {
+                throw $e;
+            }
+
+            try {
+                $this->reconnect();
+            } catch (ConnectingToBrokerFailedException $exception) {
+                $this->logger->error('Automatically reconnecting to the broker while reading data from the socket failed.');
+
+                // Throw the original exception.
+                throw $e;
+            }
+
+            // Retry writing to the socket. If this fails again, the exception is thrown as-is.
+            return $this->readFromSocket($limit, $withoutBlocking);
+        }
+    }
+
+    /**
+     * Reads data from the socket. If the second parameter {@see $withoutBlocking} is set to true,
+     * a maximum of {@see $limit} bytes will be read and returned. If {@see $withoutBlocking} is set to false,
+     * the method will wait until {@see $limit} bytes have been received.
+     *
+     * @param int  $limit
+     * @param bool $withoutBlocking
+     * @return string
+     * @throws DataTransferException
+     */
+    protected function readFromSocket(int $limit = self::SOCKET_READ_BUFFER_SIZE, bool $withoutBlocking = false): string
     {
         if ($withoutBlocking) {
             $result = fread($this->socket, $limit);
@@ -1126,22 +1237,25 @@ class MqttClient implements ClientContract
 
     /**
      * Reads all the available data from the socket using non-blocking mode. Essentially this means
-     * that {@see MqttClient::readFromSocket()} is called over and over again, as long as data is
+     * that {@see MqttClient::readFromSocketWithAutoReconnect()} is called over and over again, as long as data is
      * returned.
      *
+     * @param bool $withAutoReconnectIfConfigured
      * @return string
      * @throws DataTransferException
      */
-    protected function readAllAvailableDataFromSocket(): string
+    protected function readAllAvailableDataFromSocket(bool $withAutoReconnectIfConfigured = false): string
     {
         $result = '';
 
         while (true) {
-            $buffer = $this->readFromSocket(8192, true);
+            $buffer = $withAutoReconnectIfConfigured
+                ? $this->readFromSocketWithAutoReconnect(self::SOCKET_READ_BUFFER_SIZE, true)
+                : $this->readFromSocket(self::SOCKET_READ_BUFFER_SIZE, true);
 
             $result .= $buffer;
 
-            if (strlen($buffer) < 8192) {
+            if (strlen($buffer) < self::SOCKET_READ_BUFFER_SIZE) {
                 break;
             }
         }
