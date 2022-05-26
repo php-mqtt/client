@@ -16,10 +16,10 @@ jobs:
     strategy:
       matrix:
         php-version: ['7.4', '8.0', '8.1']
-        mqtt-broker: ['mosquitto', 'hivemq', 'emqx', 'rabbitmq']
+        mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.0', 'hivemq', 'emqx', 'rabbitmq']
         include:
           - php-version: '8.1'
-            mqtt-broker: 'mosquitto'
+            mqtt-broker: 'mosquitto-2.0'
             run-sonarqube-analysis: true
 
     steps:
@@ -63,13 +63,25 @@ jobs:
         run: composer install --prefer-dist
 
       - name: Generate certificates for tests
-        run: sh create-certificates.sh
+        run: |
+          sh create-certificates.sh
+          chmod u+rx,g+rx ${{ github.workspace }}/.ci/tls
+          chmod a+r ${{ github.workspace }}/.ci/tls/*
 
-      - name: Start Mosquitto message broker
-        if: matrix.mqtt-broker == 'mosquitto'
+      - name: Start Mosquitto 1.6 message broker
+        if: matrix.mqtt-broker == 'mosquitto-1.6'
         uses: Namoshek/mosquitto-github-action@v1
         with:
           version: '1.6'
+          ports: '1883:1883 8883:8883 8884:8884'
+          certificates: ${{ github.workspace }}/.ci/tls
+          config: ${{ github.workspace }}/.ci/mosquitto.conf
+
+      - name: Start Mosquitto 2.0 message broker
+        if: matrix.mqtt-broker == 'mosquitto-2.0'
+        uses: Namoshek/mosquitto-github-action@v1
+        with:
+          version: '2.0'
           ports: '1883:1883 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/mosquitto.conf
