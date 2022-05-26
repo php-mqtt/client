@@ -20,10 +20,11 @@ class PublishSubscribeTest extends TestCase
     public function publishSubscribeData(): array
     {
         return [
-            ['test/foo/bar/baz', 'test/foo/bar/baz'],
-            ['test/foo/bar/+', 'test/foo/bar/baz'],
-            ['test/foo/+/baz', 'test/foo/bar/baz'],
-            ['test/foo/#', 'test/foo/bar/baz'],
+            ['test/foo/bar/baz', 'test/foo/bar/baz', 'hello world'],
+            ['test/foo/bar/+', 'test/foo/bar/baz', 'hello world'],
+            ['test/foo/+/baz', 'test/foo/bar/baz', 'hello world'],
+            ['test/foo/#', 'test/foo/bar/baz', 'hello world'],
+            ['test/foo/bar/baz', 'test/foo/bar/baz', random_bytes(2 * 1024 * 1024)], // 2MB message
         ];
     }
 
@@ -32,17 +33,18 @@ class PublishSubscribeTest extends TestCase
      */
     public function test_publishing_and_subscribing_using_quality_of_service_0_works_as_intended(
         string $subscriptionTopicFilter,
-        string $publishTopic
+        string $publishTopic,
+        string $publishMessage
     ): void
     {
         // We connect and subscribe to a topic using the first client.
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
         $subscriber->connect(null, true);
 
-        $subscriber->subscribe($subscriptionTopicFilter, function (string $topic, string $message, bool $retained) use ($subscriber, $publishTopic) {
+        $subscriber->subscribe($subscriptionTopicFilter, function (string $topic, string $message, bool $retained) use ($subscriber, $publishTopic, $publishMessage) {
             // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
             $this->assertEquals($publishTopic, $topic);
-            $this->assertEquals('hello world', $message);
+            $this->assertEquals($publishMessage, $message);
             $this->assertFalse($retained);
 
             $subscriber->interrupt(); // This allows us to exit the test as soon as possible.
@@ -52,7 +54,7 @@ class PublishSubscribeTest extends TestCase
         $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
         $publisher->connect(null, true);
 
-        $publisher->publish($publishTopic, 'hello world', 0, false);
+        $publisher->publish($publishTopic, $publishMessage, 0, false);
 
         // Then we loop on the subscriber to (hopefully) receive the published message.
         $subscriber->loop(true);
@@ -67,17 +69,18 @@ class PublishSubscribeTest extends TestCase
      */
     public function test_publishing_and_subscribing_using_quality_of_service_1_works_as_intended(
         string $subscriptionTopicFilter,
-        string $publishTopic
+        string $publishTopic,
+        string $publishMessage
     ): void
     {
         // We connect and subscribe to a topic using the first client.
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
         $subscriber->connect(null, true);
 
-        $subscriber->subscribe($subscriptionTopicFilter, function (string $topic, string $message, bool $retained) use ($subscriber, $publishTopic) {
+        $subscriber->subscribe($subscriptionTopicFilter, function (string $topic, string $message, bool $retained) use ($subscriber, $publishTopic, $publishMessage) {
             // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
             $this->assertEquals($publishTopic, $topic);
-            $this->assertEquals('hello world', $message);
+            $this->assertEquals($publishMessage, $message);
             $this->assertFalse($retained);
 
             $subscriber->interrupt(); // This allows us to exit the test as soon as possible.
@@ -87,7 +90,7 @@ class PublishSubscribeTest extends TestCase
         $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
         $publisher->connect(null, true);
 
-        $publisher->publish($publishTopic, 'hello world', 1, false);
+        $publisher->publish($publishTopic, $publishMessage, 1, false);
 
         // Then we loop on the subscriber to (hopefully) receive the published message.
         $subscriber->loop(true);
@@ -102,17 +105,18 @@ class PublishSubscribeTest extends TestCase
      */
     public function test_publishing_and_subscribing_using_quality_of_service_2_works_as_intended(
         string $subscriptionTopicFilter,
-        string $publishTopic
+        string $publishTopic,
+        string $publishMessage
     ): void
     {
         // We connect and subscribe to a topic using the first client.
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
         $subscriber->connect(null, true);
 
-        $subscription = function (string $topic, string $message, bool $retained) use ($subscriber, $subscriptionTopicFilter, $publishTopic) {
+        $subscription = function (string $topic, string $message, bool $retained) use ($subscriber, $subscriptionTopicFilter, $publishTopic, $publishMessage) {
             // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
             $this->assertEquals($publishTopic, $topic);
-            $this->assertEquals('hello world', $message);
+            $this->assertEquals($publishMessage, $message);
             $this->assertFalse($retained);
 
             $subscriber->unsubscribe($subscriptionTopicFilter);
@@ -125,7 +129,7 @@ class PublishSubscribeTest extends TestCase
         $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
         $publisher->connect(null, true);
 
-        $publisher->publish($publishTopic, 'hello world', 2, false);
+        $publisher->publish($publishTopic, $publishMessage, 2, false);
         $publisher->loop(true, true);
 
         // Then we loop on the subscriber to (hopefully) receive the published message until the receive handshake is done.

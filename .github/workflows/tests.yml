@@ -97,10 +97,11 @@ jobs:
 
       - name: Start EMQ X message broker
         if: matrix.mqtt-broker == 'emqx'
-        uses: Namoshek/emqx-github-action@v1
+        uses: Namoshek/emqx-github-action@v1.0.2
         with:
-          version: '4.2.5'
+          version: '4.4.3'
           ports: '1883:1883'
+          config: ${{ github.workspace }}/.ci/emqx.conf
 
       - name: Start RabbitMQ message broker
         if: matrix.mqtt-broker == 'rabbitmq'
@@ -112,7 +113,7 @@ jobs:
           plugins: 'rabbitmq_mqtt'
 
       - name: Wait a bit until MQTT broker has started
-        run: sleep 30
+        run: sleep 45
 
       - name: Run phpunit tests
         run: composer test
