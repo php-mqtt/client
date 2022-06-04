@@ -76,6 +76,7 @@ jobs:
           ports: '1883:1883 1884:1884 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/mosquitto.conf
+          password-file: ${{ github.workspace}}/.ci/mosquitto.passwd
 
       - name: Start Mosquitto 2.0 message broker
         if: matrix.mqtt-broker == 'mosquitto-2.0'
@@ -85,6 +86,7 @@ jobs:
           ports: '1883:1883 1884:1884 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/mosquitto.conf
+          password-file: ${{ github.workspace}}/.ci/mosquitto.passwd
 
       - name: Start HiveMQ message broker
         if: matrix.mqtt-broker == 'hivemq'
