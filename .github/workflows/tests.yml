@@ -73,7 +73,7 @@ jobs:
         uses: Namoshek/mosquitto-github-action@v1
         with:
           version: '1.6'
-          ports: '1883:1883 8883:8883 8884:8884'
+          ports: '1883:1883 1884:1884 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/mosquitto.conf
 
@@ -82,7 +82,7 @@ jobs:
         uses: Namoshek/mosquitto-github-action@v1
         with:
           version: '2.0'
-          ports: '1883:1883 8883:8883 8884:8884'
+          ports: '1883:1883 1884:1884 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/mosquitto.conf
 
