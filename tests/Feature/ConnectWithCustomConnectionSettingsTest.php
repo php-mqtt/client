@@ -19,7 +19,7 @@ class ConnectWithCustomConnectionSettingsTest extends TestCase
 {
     public function test_connecting_using_mqtt31_with_custom_connection_settings_works_as_intended(): void
     {
-        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-custom-connection-settings', MqttClient::MQTT_3_1);
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPortWithAuthentication, 'test-custom-connection-settings', MqttClient::MQTT_3_1);
 
         $connectionSettings = (new ConnectionSettings)
             ->setLastWillTopic('foo/last/will')
@@ -30,8 +30,8 @@ class ConnectWithCustomConnectionSettingsTest extends TestCase
             ->setSocketTimeout(3)
             ->setResendTimeout(3)
             ->setKeepAliveInterval(30)
-            ->setUsername(null)
-            ->setPassword(null)
+            ->setUsername($this->mqttBrokerUsername)
+            ->setPassword($this->mqttBrokerPassword)
             ->setUseTls(false)
             ->setTlsCertificateAuthorityFile(null)
             ->setTlsCertificateAuthorityPath(null)
@@ -51,7 +51,7 @@ class ConnectWithCustomConnectionSettingsTest extends TestCase
 
     public function test_connecting_using_mqtt311_with_custom_connection_settings_works_as_intended(): void
     {
-        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-custom-connection-settings', MqttClient::MQTT_3_1_1);
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPortWithAuthentication, 'test-custom-connection-settings', MqttClient::MQTT_3_1_1);
 
         $connectionSettings = (new ConnectionSettings)
             ->setLastWillTopic('foo/last/will')
@@ -62,8 +62,8 @@ class ConnectWithCustomConnectionSettingsTest extends TestCase
             ->setSocketTimeout(3)
             ->setResendTimeout(3)
             ->setKeepAliveInterval(30)
-            ->setUsername(null)
-            ->setPassword(null)
+            ->setUsername($this->mqttBrokerUsername)
+            ->setPassword($this->mqttBrokerPassword)
             ->setUseTls(false)
             ->setTlsCertificateAuthorityFile(null)
             ->setTlsCertificateAuthorityPath(null)

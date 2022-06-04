@@ -120,8 +120,11 @@ jobs:
         env:
           MQTT_BROKER_HOST: 'localhost'
           MQTT_BROKER_PORT: 1883
+          MQTT_BROKER_PORT_WITH_AUTHENTICATION: 1884
           MQTT_BROKER_TLS_PORT: 8883
           MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
+          MQTT_BROKER_USERNAME: ci-test-user
+          MQTT_BROKER_PASSWORD: ${{ secrets.CI_MOSQUITTO_CI_TEST_USER_PASSWORD }}
           SKIP_TLS_TESTS: ${{ matrix.mqtt-broker == 'emqx' || matrix.mqtt-broker == 'rabbitmq' }}
 
       - name: Dump Docker logs on failure
