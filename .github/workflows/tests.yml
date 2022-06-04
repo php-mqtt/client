@@ -73,18 +73,20 @@ jobs:
         uses: Namoshek/mosquitto-github-action@v1
         with:
           version: '1.6'
-          ports: '1883:1883 8883:8883 8884:8884'
+          ports: '1883:1883 1884:1884 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/mosquitto.conf
+          password-file: ${{ github.workspace}}/.ci/mosquitto.passwd
 
       - name: Start Mosquitto 2.0 message broker
         if: matrix.mqtt-broker == 'mosquitto-2.0'
         uses: Namoshek/mosquitto-github-action@v1
         with:
           version: '2.0'
-          ports: '1883:1883 8883:8883 8884:8884'
+          ports: '1883:1883 1884:1884 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/mosquitto.conf
+          password-file: ${{ github.workspace}}/.ci/mosquitto.passwd
 
       - name: Start HiveMQ message broker
         if: matrix.mqtt-broker == 'hivemq'
@@ -120,8 +122,11 @@ jobs:
         env:
           MQTT_BROKER_HOST: 'localhost'
           MQTT_BROKER_PORT: 1883
+          MQTT_BROKER_PORT_WITH_AUTHENTICATION: ${{ (matrix.mqtt-broker == 'mosquitto-1.6' || matrix.mqtt-broker == 'mosquitto-2.0') && 1884 || 1883 }}
           MQTT_BROKER_TLS_PORT: 8883
           MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
+          MQTT_BROKER_USERNAME: ${{ (matrix.mqtt-broker == 'mosquitto-1.6' || matrix.mqtt-broker == 'mosquitto-2.0') && 'ci-test-user' || '' }}
+          MQTT_BROKER_PASSWORD: ${{ (matrix.mqtt-broker == 'mosquitto-1.6' || matrix.mqtt-broker == 'mosquitto-2.0') && secrets.CI_MOSQUITTO_CI_TEST_USER_PASSWORD || '' }}
           SKIP_TLS_TESTS: ${{ matrix.mqtt-broker == 'emqx' || matrix.mqtt-broker == 'rabbitmq' }}
 
       - name: Dump Docker logs on failure

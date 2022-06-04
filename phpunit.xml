@@ -12,6 +12,7 @@
     <php>
         <env name="MQTT_BROKER_HOST" value="localhost"/>
         <env name="MQTT_BROKER_PORT" value="1883"/>
+        <env name="MQTT_BROKER_PORT_WITH_AUTHENTICATION" value="1883"/>
         <env name="MQTT_BROKER_TLS_PORT" value="8883"/>
         <env name="MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT" value="8884"/>
         <env name="TLS_CERT_DIR" value=".ci/tls"/>
