@@ -631,6 +631,10 @@ class MqttClient implements ClientContract
      * callbacks for published messages.
      * 
      * It allows the MQTT client implementation to be integrated to an event loop (like ReactPHP - Ratchet).
+     * 
+     * @param bool     $loopStartedAt
+     * @param bool     $allowSleep
+     * @return void
      */
     public function loopOnce($loopStartedAt = 0, $allowSleep = false): void
     {
