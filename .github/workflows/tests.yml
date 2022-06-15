@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        php-version: ['7.4.29', '8.0', '8.1']
+        php-version: ['7.4', '8.0', '8.1']
         mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.0', 'hivemq', 'emqx', 'rabbitmq']
         include:
           - php-version: '8.1'
