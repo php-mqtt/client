@@ -8,6 +8,7 @@ use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
+use PhpMqtt\Client\Exceptions\InvalidMessageException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\ProtocolViolationException;
 use PhpMqtt\Client\Exceptions\RepositoryException;
@@ -143,10 +144,31 @@ interface MqttClient
      * @param int|null $queueWaitLimit
      * @return void
      * @throws DataTransferException
+     * @throws InvalidMessageException
      * @throws MqttClientException
      * @throws ProtocolViolationException
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void;
+
+    /**
+     * Runs an event loop iteration that handles messages from the server and calls the registered
+     * callbacks for published messages. Also resends pending messages and calls loop event handlers.
+     *
+     * This method can be used to integrate the MQTT client in another event loop (like ReactPHP or Ratchet).
+     *
+     * Note: To ensure the event handlers called by this method will receive the correct elapsed time,
+     *       the caller is responsible to provide the correct starting time of the loop as returned by `microtime(true)`.
+     *
+     * @param float $loopStartedAt
+     * @param bool  $allowSleep
+     * @param int   $sleepMicroseconds
+     * @return void
+     * @throws DataTransferException
+     * @throws InvalidMessageException
+     * @throws MqttClientException
+     * @throws ProtocolViolationException
+     */
+    public function loopOnce(float $loopStartedAt, bool $allowSleep = false, int $sleepMicroseconds = 100000): void;
 
     /**
      * Returns the host used by the client to connect to.
