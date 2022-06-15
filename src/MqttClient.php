@@ -627,6 +627,41 @@ class MqttClient implements ClientContract
     }
 
     /**
+     * Runs an event loop iteration that handles messages from the server and calls the registered
+     * callbacks for published messages.
+     * 
+     * It allows the MQTT client implementation to be integrated to an event loop (like ReactPHP - Ratchet).
+     */
+    public function loopOnce($loopStartedAt = 0, $allowSleep = false): void
+    {
+        if($loopStartedAt == 0) $loopStartedAt = microtime(true);
+
+        $elapsedTime = microtime(true) - $loopStartedAt;
+        $this->runLoopEventHandlers($elapsedTime);
+
+        // Read data from the socket - as much as available.
+        $this->buffer .= $this->readAllAvailableDataFromSocket();
+
+        // Try to parse a message from the buffer and handle it, as long as messages can be parsed.
+        if (strlen($this->buffer) > 0) {
+            $this->processMessageBuffer();
+        } elseif ($allowSleep) {
+            usleep(100000); // 100ms
+        }
+
+        // Republish messages expired without confirmation.
+        // This includes published messages, subscribe and unsubscribe requests.
+        $this->resendPendingMessages();
+
+        // If the last message of the broker has been received more seconds ago
+        // than specified by the keep alive time, we will send a ping to ensure
+        // the connection is kept alive.
+        if ($this->nextPingAt() <= microtime(true)) {
+            $this->ping();
+        }
+    }
+
+    /**
      * {@inheritDoc}
      */
     public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void
@@ -641,29 +676,7 @@ class MqttClient implements ClientContract
                 break;
             }
 
-            $elapsedTime = microtime(true) - $loopStartedAt;
-            $this->runLoopEventHandlers($elapsedTime);
-
-            // Read data from the socket - as much as available.
-            $this->buffer .= $this->readAllAvailableDataFromSocket();
-
-            // Try to parse a message from the buffer and handle it, as long as messages can be parsed.
-            if (strlen($this->buffer) > 0) {
-                $this->processMessageBuffer();
-            } elseif ($allowSleep) {
-                usleep(100000); // 100ms
-            }
-
-            // Republish messages expired without confirmation.
-            // This includes published messages, subscribe and unsubscribe requests.
-            $this->resendPendingMessages();
-
-            // If the last message of the broker has been received more seconds ago
-            // than specified by the keep alive time, we will send a ping to ensure
-            // the connection is kept alive.
-            if ($this->nextPingAt() <= microtime(true)) {
-                $this->ping();
-            }
+            loopOnce($loopStartedAt, $allowSleep);
 
             // If configured, the loop is exited if all queues are empty or a certain time limit is reached (i.e. retry is aborted).
             // In any case, there may not be any active subscriptions though.
