@@ -239,7 +239,7 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
 - Supported MQTT Versions
   - [x] v3 (just don't use v3.1 features like username & password)
   - [x] v3.1
-  - [ ] v3.1.1
+  - [x] v3.1.1
   - [ ] v5.0
 - Transport
   - [x] TCP (unsecured)
