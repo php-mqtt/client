@@ -92,7 +92,7 @@ jobs:
         if: matrix.mqtt-broker == 'hivemq'
         uses: Namoshek/hivemq4-github-action@v1
         with:
-          version: '4.4.4'
+          version: '4.8.5'
           ports: '1883:1883 8883:8883 8884:8884'
           certificates: ${{ github.workspace }}/.ci/tls
           config: ${{ github.workspace }}/.ci/hivemq.xml
@@ -115,7 +115,7 @@ jobs:
           plugins: 'rabbitmq_mqtt'
 
       - name: Wait a bit until MQTT broker has started
-        run: sleep 60
+        run: sleep 45
 
       - name: Run phpunit tests
         run: composer test
