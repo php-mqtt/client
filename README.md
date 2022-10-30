@@ -60,7 +60,7 @@ $clientId = 'test-subscriber';
 
 $mqtt = new \PhpMqtt\Client\MqttClient($server, $port, $clientId);
 $mqtt->connect();
-$mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
+$mqtt->subscribe('php-mqtt/client/test', function ($topic, $message, $retained, $matchedWildcards) {
     echo sprintf("Received message on topic [%s]: %s\n", $topic, $message);
 }, 0);
 $mqtt->loop(true);
@@ -80,7 +80,7 @@ pcntl_signal(SIGINT, function (int $signal, $info) use ($mqtt) {
     $mqtt->interrupt();
 });
 $mqtt->connect();
-$mqtt->subscribe('php-mqtt/client/test', function ($topic, $message) {
+$mqtt->subscribe('php-mqtt/client/test', function ($topic, $message, $retained, $matchedWildcards) {
     echo sprintf("Received message on topic [%s]: %s\n", $topic, $message);
 }, 0);
 $mqtt->loop(true);
