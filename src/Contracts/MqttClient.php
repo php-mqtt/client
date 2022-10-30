@@ -76,13 +76,13 @@ interface MqttClient
      *
      * The subscription callback is passed the topic as first and the message as second
      * parameter. A third parameter indicates whether the received message has been sent
-     * because it was retained by the broker.
+     * because it was retained by the broker. A fourth parameter contains matched topic wildcards.
      *
      * Example:
      * ```php
      * $mqtt->subscribe(
      *     '/foo/bar/+',
-     *     function (string $topic, string $message, bool $retained) use ($logger) {
+     *     function (string $topic, string $message, bool $retained, array $matchedWildcards) use ($logger) {
      *         $logger->info("Received {retained} message on topic [{topic}]: {message}", [
      *             'topic' => $topic,
      *             'message' => $message,

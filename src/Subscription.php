@@ -49,7 +49,7 @@ class Subscription
             $topicFilter = substr($topicFilter, $separatorIndex + 1);
         }
 
-        $this->regexifiedTopicFilter = '/^' . str_replace(['$', '/', '+', '#'], ['\$', '\/', '[^\/]*', '.*'], $topicFilter) . '$/';
+        $this->regexifiedTopicFilter = '/^' . str_replace(['$', '/', '+', '#'], ['\$', '\/', '([^\/]*)', '(.*)'], $topicFilter) . '$/';
     }
 
     /**
@@ -71,6 +71,30 @@ class Subscription
     public function matchesTopic(string $topicName): bool
     {
         return (bool) preg_match($this->regexifiedTopicFilter, $topicName);
+    }
+
+    /**
+     * Returns an array which contains all matched wildcards of this subscription, taken from the given topic name.
+     *
+     * Example:
+     *   Subscription topic filter: foo/+/bar/+/baz/#
+     *   Result for 'foo/1/bar/2/baz': ['1', '2']
+     *   Result for 'foo/my/bar/subscription/baz/42': ['my', 'subscription', '42']
+     *   Result for 'foo/my/bar/subscription/baz/hello/world/123': ['my', 'subscription', 'hello', 'world', '123']
+     *   Result for invalid topic 'some/topic': []
+     *
+     * Note: This method should only be called if {@see matchesTopic} returned true. An empty array will be returned otherwise.
+     *
+     * @param string $topicName
+     * @return array
+     */
+    public function getMatchedWildcards(string $topicName): array
+    {
+        if (!preg_match($this->regexifiedTopicFilter, $topicName, $matches)) {
+            return [];
+        }
+
+        return array_slice($matches, 1);
     }
 
     /**

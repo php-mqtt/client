@@ -941,7 +941,7 @@ class MqttClient implements ClientContract
             }
 
             try {
-                call_user_func($subscriber->getCallback(), $topic, $message, $retained);
+                call_user_func($subscriber->getCallback(), $topic, $message, $retained, $subscriber->getMatchedWildcards($topic));
             } catch (\Throwable $e) {
                 $this->logger->error('Subscriber callback threw exception for published message on topic [{topic}].', [
                     'topic' => $topic,
