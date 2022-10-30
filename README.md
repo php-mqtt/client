@@ -284,7 +284,15 @@ This will create all required certificates in the `.ci/tls/` directory. The same
 
 Running the tests expects an MQTT broker to be running. The easiest way to run an MQTT broker is through Docker:
 ```sh
-docker run --rm -it -p 1883:1883 -p 8883:8883 -p 8884:8884 -v $(pwd)/.ci/tls:/mosquitto-certs -v $(pwd)/.ci/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto:1.6
+docker run --rm -it \
+  -p 1883:1883 \
+  -p 1884:1884 \
+  -p 8883:8883 \
+  -p 8884:8884 \
+  -v $(pwd)/.ci/tls:/mosquitto-certs \
+  -v $(pwd)/.ci/mosquitto.conf:/mosquitto/config/mosquitto.conf \
+  -v $(pwd)/.ci/mosquitto.passwd:/mosquitto/config/mosquitto.passwd \
+  eclipse-mosquitto:1.6
 ```
 When run from the project directory, this will spawn a Mosquitto MQTT broker configured with the generated TLS certificates and a custom configuration.
 
