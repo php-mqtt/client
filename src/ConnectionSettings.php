@@ -19,6 +19,7 @@ class ConnectionSettings
     private int $keepAliveInterval                     = 10;
     private bool $reconnectAutomatically               = false;
     private int $maxReconnectAttempts                  = 3;
+    private int $delayBetweenReconnectAttempts         = 0;
     private ?string $lastWillTopic                     = null;
     private ?string $lastWillMessage                   = null;
     private int $lastWillQualityOfService              = 0;
@@ -224,6 +225,30 @@ class ConnectionSettings
     public function getMaxReconnectAttempts(): int
     {
         return $this->maxReconnectAttempts;
+    }
+
+    /**
+     * Defines the delay between reconnect attempts in milliseconds.
+     * This setting is only relevant if {@see setReconnectAutomatically()} is set to true.
+     *
+     * @param int $delayBetweenReconnectAttempts
+     * @return ConnectionSettings
+     */
+    public function setDelayBetweenReconnectAttempts(int $delayBetweenReconnectAttempts): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->delayBetweenReconnectAttempts = $delayBetweenReconnectAttempts;
+
+        return $copy;
+    }
+
+    /**
+     * @return int
+     */
+    public function getDelayBetweenReconnectAttempts(): int
+    {
+        return $this->delayBetweenReconnectAttempts;
     }
 
     /**

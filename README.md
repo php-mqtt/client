@@ -164,6 +164,10 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
     // This setting is only relevant if setReconnectAutomatically() is set to true.
     ->setMaxReconnectAttempts(3)
     
+    // Defines the delay between reconnect attempts in milliseconds.
+    // This setting is only relevant if setReconnectAutomatically() is set to true.
+    ->setDelayBetweenReconnectAttempts(0)
+    
     // The keep alive interval is the number of seconds the client will wait without sending a message
     // until it sends a keep alive signal (ping) to the broker. The value cannot be less than 1 second
     // and may not be higher than 65535 seconds. A reasonable value is 10 seconds (the default).

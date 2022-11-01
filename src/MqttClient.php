@@ -409,7 +409,8 @@ class MqttClient implements ClientContract
      */
     protected function reconnect(): void
     {
-        $maxReconnectAttempts = $this->settings->getMaxReconnectAttempts();
+        $maxReconnectAttempts          = $this->settings->getMaxReconnectAttempts();
+        $delayBetweenReconnectAttempts = $this->settings->getDelayBetweenReconnectAttempts();
 
         for ($i = 1; $i <= $maxReconnectAttempts; $i++) {
             try {
@@ -419,6 +420,10 @@ class MqttClient implements ClientContract
             } catch (ConnectingToBrokerFailedException $e) {
                 if ($i === $maxReconnectAttempts) {
                     throw $e;
+                }
+
+                if ($delayBetweenReconnectAttempts > 0) {
+                    usleep($delayBetweenReconnectAttempts * 1000);
                 }
             }
         }
