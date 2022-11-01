@@ -668,7 +668,7 @@ class MqttClient implements ClientContract
         $this->runLoopEventHandlers($elapsedTime);
 
         // Read data from the socket - as much as available.
-        $this->buffer .= $this->readAllAvailableDataFromSocket();
+        $this->buffer .= $this->readAllAvailableDataFromSocket(true);
 
         // Try to parse a message from the buffer and handle it, as long as messages can be parsed.
         if (strlen($this->buffer) > 0) {
@@ -1257,7 +1257,7 @@ class MqttClient implements ClientContract
         $result = '';
 
         while (true) {
-            $buffer = $withAutoReconnectIfConfigured
+            $buffer = ($withAutoReconnectIfConfigured && $this->settings->shouldReconnectAutomatically())
                 ? $this->readFromSocketWithAutoReconnect(self::SOCKET_READ_BUFFER_SIZE, true)
                 : $this->readFromSocket(self::SOCKET_READ_BUFFER_SIZE, true);
 
