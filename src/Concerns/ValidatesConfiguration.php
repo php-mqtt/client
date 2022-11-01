@@ -47,6 +47,10 @@ trait ValidatesConfiguration
             throw new ConfigurationInvalidException('The maximum reconnect attempts cannot be fewer than 1.');
         }
 
+        if ($settings->getDelayBetweenReconnectAttempts() < 0) {
+            throw new ConfigurationInvalidException('The delay between reconnect attempts cannot be lower than 0.');
+        }
+
         if ($settings->getUsername() !== null && trim($settings->getUsername()) === '') {
             throw new ConfigurationInvalidException('The username may not consist of white space only.');
         }
