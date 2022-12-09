@@ -290,7 +290,7 @@ class MqttClient implements ClientContract
         }
 
         stream_set_timeout($socket, $this->settings->getSocketTimeout());
-        stream_set_blocking($socket, false);
+        stream_set_blocking($socket, $this->settings->shouldUseBlockingSocket());
 
         $this->logger->debug('Socket opened and ready to use.');
 

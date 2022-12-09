@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\MqttClient;
 use Tests\TestCase;
 
@@ -20,13 +21,20 @@ class PublishSubscribeTest extends TestCase
     public function publishSubscribeData(): array
     {
         return [
-            ['test/foo/bar/baz', 'test/foo/bar/baz', 'hello world', []],
-            ['test/foo/bar/+', 'test/foo/bar/baz', 'hello world', ['baz']],
-            ['test/foo/+/baz', 'test/foo/bar/baz', 'hello world', ['bar']],
-            ['test/foo/#', 'test/foo/bar/baz', 'hello world', ['bar/baz']],
-            ['test/foo/+/bar/#', 'test/foo/my/bar/baz', 'hello world', ['my', 'baz']],
-            ['test/foo/+/bar/#', 'test/foo/my/bar/baz/blub', 'hello world', ['my', 'baz/blub']],
-            ['test/foo/bar/baz', 'test/foo/bar/baz', random_bytes(2 * 1024 * 1024), []], // 2MB message
+            [false, 'test/foo/bar/baz', 'test/foo/bar/baz', 'hello world', []],
+            [false, 'test/foo/bar/+', 'test/foo/bar/baz', 'hello world', ['baz']],
+            [false, 'test/foo/+/baz', 'test/foo/bar/baz', 'hello world', ['bar']],
+            [false, 'test/foo/#', 'test/foo/bar/baz', 'hello world', ['bar/baz']],
+            [false, 'test/foo/+/bar/#', 'test/foo/my/bar/baz', 'hello world', ['my', 'baz']],
+            [false, 'test/foo/+/bar/#', 'test/foo/my/bar/baz/blub', 'hello world', ['my', 'baz/blub']],
+            [false, 'test/foo/bar/baz', 'test/foo/bar/baz', random_bytes(2 * 1024 * 1024), []], // 2MB message
+            [true, 'test/foo/bar/baz', 'test/foo/bar/baz', 'hello world', []],
+            [true, 'test/foo/bar/+', 'test/foo/bar/baz', 'hello world', ['baz']],
+            [true, 'test/foo/+/baz', 'test/foo/bar/baz', 'hello world', ['bar']],
+            [true, 'test/foo/#', 'test/foo/bar/baz', 'hello world', ['bar/baz']],
+            [true, 'test/foo/+/bar/#', 'test/foo/my/bar/baz', 'hello world', ['my', 'baz']],
+            [true, 'test/foo/+/bar/#', 'test/foo/my/bar/baz/blub', 'hello world', ['my', 'baz/blub']],
+            [true, 'test/foo/bar/baz', 'test/foo/bar/baz', random_bytes(2 * 1024 * 1024), []], // 2MB message
         ];
     }
 
@@ -34,6 +42,7 @@ class PublishSubscribeTest extends TestCase
      * @dataProvider publishSubscribeData
      */
     public function test_publishing_and_subscribing_using_quality_of_service_0_works_as_intended(
+        bool $useBlockingSocket,
         string $subscriptionTopicFilter,
         string $publishTopic,
         string $publishMessage,
@@ -41,8 +50,11 @@ class PublishSubscribeTest extends TestCase
     ): void
     {
         // We connect and subscribe to a topic using the first client.
+        $connectionSettings = (new ConnectionSettings())
+            ->useBlockingSocket($useBlockingSocket);
+
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
-        $subscriber->connect(null, true);
+        $subscriber->connect($connectionSettings, true);
 
         $subscriber->subscribe(
             $subscriptionTopicFilter,
@@ -76,6 +88,7 @@ class PublishSubscribeTest extends TestCase
      * @dataProvider publishSubscribeData
      */
     public function test_publishing_and_subscribing_using_quality_of_service_1_works_as_intended(
+        bool $useBlockingSocket,
         string $subscriptionTopicFilter,
         string $publishTopic,
         string $publishMessage,
@@ -83,8 +96,11 @@ class PublishSubscribeTest extends TestCase
     ): void
     {
         // We connect and subscribe to a topic using the first client.
+        $connectionSettings = (new ConnectionSettings())
+            ->useBlockingSocket($useBlockingSocket);
+
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
-        $subscriber->connect(null, true);
+        $subscriber->connect($connectionSettings, true);
 
         $subscriber->subscribe(
             $subscriptionTopicFilter,
@@ -118,6 +134,7 @@ class PublishSubscribeTest extends TestCase
      * @dataProvider publishSubscribeData
      */
     public function test_publishing_and_subscribing_using_quality_of_service_2_works_as_intended(
+        bool $useBlockingSocket,
         string $subscriptionTopicFilter,
         string $publishTopic,
         string $publishMessage,
@@ -125,8 +142,11 @@ class PublishSubscribeTest extends TestCase
     ): void
     {
         // We connect and subscribe to a topic using the first client.
+        $connectionSettings = (new ConnectionSettings())
+            ->useBlockingSocket($useBlockingSocket);
+
         $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
-        $subscriber->connect(null, true);
+        $subscriber->connect($connectionSettings, true);
 
         $subscription = function (string $topic, string $message, bool $retained, array $wildcards) use ($subscriber, $subscriptionTopicFilter, $publishTopic, $publishMessage, $matchedTopicWildcards) {
             // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
