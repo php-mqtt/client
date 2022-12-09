@@ -146,6 +146,9 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
     // which is required when using subscriptions and/or {@see MqttClient::loop()}.
     // In rare cases, it might be required to use a blocking socket though. One such example
     // is when sending large messages (e.g. binaries) and the broker has a limited receive buffer.
+    // 
+    // Note: When using a blocking socket, the MQTT client can get stuck if the socket is broken
+    //       or when the broker does not consume the sent data fast enough. Use with caution.
     ->useBlockingSocket(false)
     
     // The connect timeout defines the maximum amount of seconds the client will try to establish
