@@ -142,6 +142,12 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
     // The password used for authentication when connecting to the broker.
     ->setPassword(null)
     
+    // Whether to use a blocking socket or not. By default, the socket is non-blocking,
+    // which is required when using subscriptions and/or {@see MqttClient::loop()}.
+    // In rare cases, it might be required to use a blocking socket though. One such example
+    // is when sending large messages (e.g. binaries) and the broker has a limited receive buffer.
+    ->useBlockingSocket(false)
+    
     // The connect timeout defines the maximum amount of seconds the client will try to establish
     // a socket connection with the broker. The value cannot be less than 1 second.
     ->setConnectTimeout(60)

@@ -13,6 +13,7 @@ class ConnectionSettings
 {
     private ?string $username                          = null;
     private ?string $password                          = null;
+    private bool $useBlockingSocket                    = false;
     private int $connectTimeout                        = 60;
     private int $socketTimeout                         = 5;
     private int $resendTimeout                         = 10;
@@ -78,6 +79,32 @@ class ConnectionSettings
     public function getPassword(): ?string
     {
         return $this->password;
+    }
+
+    /**
+     * Whether to use a blocking socket or not. By default, the socket is non-blocking,
+     * which is required when using subscriptions and/or {@see MqttClient::loop()}.
+     * In rare cases, it might be required to use a blocking socket though. One such example
+     * is when sending large messages (e.g. binaries) and the broker has a limited receive buffer.
+     *
+     * @param bool $useBlockingSocket
+     * @return ConnectionSettings
+     */
+    public function useBlockingSocket(bool $useBlockingSocket): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->useBlockingModeForSocket = $useBlockingSocket;
+
+        return $copy;
+    }
+
+    /**
+     * @return bool
+     */
+    public function shouldUseBlockingSocket(): bool
+    {
+        return $this->useBlockingSocket;
     }
 
     /**
