@@ -290,7 +290,7 @@ class MqttClient implements ClientContract
         }
 
         stream_set_timeout($socket, $this->settings->getSocketTimeout());
-        stream_set_blocking($socket, $this->settings->shouldUseBlockingSocket());
+        stream_set_blocking($socket, false);
 
         $this->logger->debug('Socket opened and ready to use.');
 
@@ -1140,7 +1140,15 @@ class MqttClient implements ClientContract
         $calculatedLength = strlen($data);
         $length           = min($length ?? $calculatedLength, $calculatedLength);
 
+        if ($this->settings->shouldUseBlockingSocket()) {
+            socket_set_blocking($this->socket, true);
+        }
+
         $result = @fwrite($this->socket, $data, $length);
+
+        if ($this->settings->shouldUseBlockingSocket()) {
+            socket_set_blocking($this->socket, false);
+        }
 
         if ($result === false || $result !== $length) {
             $this->logger->error('Sending data over the socket to the broker failed.');
