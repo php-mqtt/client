@@ -97,7 +97,7 @@ class ConnectionSettings
     {
         $copy = clone $this;
 
-        $copy->useBlockingSocket  = $useBlockingSocket;
+        $copy->useBlockingSocket = $useBlockingSocket;
 
         return $copy;
     }
