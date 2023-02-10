@@ -272,16 +272,23 @@ trait OffersHooks
     }
 
     /**
-     * Registers an event handler which is called when the client connected to the broker.
+     * Registers an event handler which is called when the client established a connection to the broker.
+     * This also includes manual reconnects as well as auto-reconnects by the client itself.
      *
-     * The connected event handler is passed the MQTT client as first argument.
+     * The event handler is passed the MQTT client as first argument,
+     * followed by a flag which indicates whether an auto-reconnect occurred as second argument.
      *
      * Example:
      * ```php
      * $mqtt->registerConnectedEventHandler(function (
-     *     MqttClient $mqtt
+     *     MqttClient $mqtt,
+     *     bool $isAutoReconnect
      * ) use ($logger) {
-     *     $logger->info("Client successfully connected to the broker");
+     *     if ($isAutoReconnect) {
+     *         $logger->info("Client successfully auto-reconnected to the broker.);
+     *     } else {
+     *         $logger->info("Client successfully connected to the broker.");
+     *     }
      * });
      * ```
      *
@@ -323,17 +330,16 @@ trait OffersHooks
      * Runs all the registered connected event handlers.
      * Each event handler is executed in a try-catch block to avoid spilling exceptions.
      *
+     * @param bool $isAutoReconnect
      * @return void
      */
-    private function runConnectedEventHandlers(): void
+    private function runConnectedEventHandlers(bool $isAutoReconnect): void
     {
         foreach ($this->connectedEventHandlers as $handler) {
             try {
-                call_user_func($handler, $this);
+                call_user_func($handler, $this, $isAutoReconnect);
             } catch (\Throwable $e) {
-                $this->logger->error('Connected hook callback threw exception', [
-                    'exception' => $e,
-                ]);
+                $this->logger->error('Connected hook callback threw exception.', ['exception' => $e]);
             }
         }
     }
