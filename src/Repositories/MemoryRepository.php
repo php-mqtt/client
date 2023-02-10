@@ -191,11 +191,8 @@ class MemoryRepository implements Repository
      */
     public function addSubscription(Subscription $subscription): void
     {
-        foreach ($this->subscriptions as $registeredSubscription) {
-            if ($subscription->getTopicFilter() === $registeredSubscription->getTopicFilter()) {
-                return;
-            }
-        }
+        // Remove a potentially existing subscription for this topic filter.
+        $this->removeSubscription($subscription->getTopicFilter());
 
         $this->subscriptions[] = $subscription;
     }
@@ -223,16 +220,13 @@ class MemoryRepository implements Repository
      */
     public function removeSubscription(string $topicFilter): bool
     {
-        $result = false;
-
         foreach ($this->subscriptions as $index => $subscription) {
             if ($subscription->getTopicFilter() === $topicFilter) {
                 unset($this->subscriptions[$index]);
-                $result = true;
-                break;
+                return true;
             }
         }
 
-        return $result;
+        return false;
     }
 }
