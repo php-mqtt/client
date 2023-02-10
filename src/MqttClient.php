@@ -163,6 +163,7 @@ class MqttClient implements ClientContract
         }
 
         $this->connected = true;
+        $this->runConnectedEventHandlers();
     }
 
     /**

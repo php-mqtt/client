@@ -23,6 +23,9 @@ trait OffersHooks
     /** @var \SplObjectStorage|array<\Closure> */
     private $messageReceivedEventHandlers;
 
+    /** @var \SplObjectStorage|array<\Closure> */
+    private $connectedEventHandlers;
+
     /**
      * Needs to be called in order to initialize the trait.
      *
@@ -33,6 +36,7 @@ trait OffersHooks
         $this->loopEventHandlers            = new \SplObjectStorage();
         $this->publishEventHandlers         = new \SplObjectStorage();
         $this->messageReceivedEventHandlers = new \SplObjectStorage();
+        $this->connectedEventHandlers       = new \SplObjectStorage();
     }
 
     /**
@@ -261,6 +265,73 @@ trait OffersHooks
             } catch (\Throwable $e) {
                 $this->logger->error('Received message hook callback threw exception for received message on topic [{topic}].', [
                     'topic' => $topic,
+                    'exception' => $e,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Registers an event handler which is called when the client connected to the broker.
+     *
+     * The connected event handler is passed the MQTT client as first argument.
+     *
+     * Example:
+     * ```php
+     * $mqtt->registerConnectedEventHandler(function (
+     *     MqttClient $mqtt
+     * ) use ($logger) {
+     *     $logger->info("Client successfully connected to the broker");
+     * });
+     * ```
+     *
+     * Multiple event handlers can be registered at the same time.
+     *
+     * @param \Closure $callback
+     * @return MqttClient
+     */
+    public function registerConnectedEventHandler(\Closure $callback): MqttClient
+    {
+        $this->connectedEventHandlers->attach($callback);
+
+        /** @var MqttClient $this */
+        return $this;
+    }
+
+    /**
+     * Unregisters a connected event handler which prevents it from being called in the future.
+     *
+     * This does not affect other registered event handlers. It is possible
+     * to unregister all registered event handlers by passing null as callback.
+     *
+     * @param \Closure|null $callback
+     * @return MqttClient
+     */
+    public function unregisterConnectedEventHandler(\Closure $callback = null): MqttClient
+    {
+        if ($callback === null) {
+            $this->connectedEventHandlers->removeAll($this->connectedEventHandlers);
+        } else {
+            $this->connectedEventHandlers->detach($callback);
+        }
+
+        /** @var MqttClient $this */
+        return $this;
+    }
+
+    /**
+     * Runs all the registered connected event handlers.
+     * Each event handler is executed in a try-catch block to avoid spilling exceptions.
+     *
+     * @return void
+     */
+    private function runConnectedEventHandlers(): void
+    {
+        foreach ($this->connectedEventHandlers as $handler) {
+            try {
+                call_user_func($handler, $this);
+            } catch (\Throwable $e) {
+                $this->logger->error('Connected hook callback threw exception', [
                     'exception' => $e,
                 ]);
             }
