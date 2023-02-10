@@ -10,7 +10,7 @@ use PhpMqtt\Client\MqttClient;
 use Tests\TestCase;
 
 /**
- * Tests that the loop event handler work as intended.
+ * Tests that the publish event handler work as intended.
  *
  * @package Tests\Feature
  */

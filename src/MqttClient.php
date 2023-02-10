@@ -148,10 +148,11 @@ class MqttClient implements ClientContract
      * Connect to the MQTT broker using the configured settings.
      *
      * @param bool $useCleanSession
+     * @param bool $isAutoReconnect
      * @return void
      * @throws ConnectingToBrokerFailedException
      */
-    protected function connectInternal(bool $useCleanSession = false): void
+    protected function connectInternal(bool $useCleanSession = false, bool $isAutoReconnect = false): void
     {
         try {
             $this->establishSocketConnection();
@@ -163,6 +164,8 @@ class MqttClient implements ClientContract
         }
 
         $this->connected = true;
+
+        $this->runConnectedEventHandlers($isAutoReconnect);
     }
 
     /**
@@ -414,7 +417,7 @@ class MqttClient implements ClientContract
 
         for ($i = 1; $i <= $maxReconnectAttempts; $i++) {
             try {
-                $this->connectInternal();
+                $this->connectInternal(false, true);
 
                 return;
             } catch (ConnectingToBrokerFailedException $e) {
