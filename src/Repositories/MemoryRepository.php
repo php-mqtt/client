@@ -191,6 +191,12 @@ class MemoryRepository implements Repository
      */
     public function addSubscription(Subscription $subscription): void
     {
+        foreach ($this->subscriptions as $registeredSubscription) {
+            if ($subscription->getTopicFilter() === $registeredSubscription->getTopicFilter()) {
+                return;
+            }
+        }
+
         $this->subscriptions[] = $subscription;
     }
 
