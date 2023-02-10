@@ -6,8 +6,8 @@ namespace PhpMqtt\Client;
 
 /**
  * The settings used during connection to a broker.
- * 
- * This class is immutable and all setters return a clone of the original class because 
+ *
+ * This class is immutable and all setters return a clone of the original class because
  * connection settings must not change once passed to MqttClient.
  *
  * @package PhpMqtt\Client
