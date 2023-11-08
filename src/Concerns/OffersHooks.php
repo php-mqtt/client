@@ -255,20 +255,23 @@ trait OffersHooks
      * @param string $message
      * @param int    $qualityOfService
      * @param bool   $retained
-     * @return void
+     * @return bool False if an Event Handler threw an Exception, True otherwise.
      */
-    private function runMessageReceivedEventHandlers(string $topic, string $message, int $qualityOfService, bool $retained): void
+    private function runMessageReceivedEventHandlers(string $topic, string $message, int $qualityOfService, bool $retained): bool
     {
+        $one_callback_failed = false;
         foreach ($this->messageReceivedEventHandlers as $handler) {
             try {
                 call_user_func($handler, $this, $topic, $message, $qualityOfService, $retained);
             } catch (\Throwable $e) {
+                $one_callback_failed = true;
                 $this->logger->error('Received message hook callback threw exception for received message on topic [{topic}].', [
                     'topic' => $topic,
                     'exception' => $e,
                 ]);
             }
         }
+        return !$one_callback_failed;
     }
 
     /**
