@@ -87,6 +87,53 @@ class PublishSubscribeTest extends TestCase
     /**
      * @dataProvider publishSubscribeData
      */
+    public function test_publishing_and_subscribing_using_quality_of_service_0_with_message_retention_works_as_intended(
+        bool $useBlockingSocket,
+        string $subscriptionTopicFilter,
+        string $publishTopic,
+        string $publishMessage,
+        array $matchedTopicWildcards
+    ): void
+    {
+        // We publish a message from the first client, which disconnects before the other client even subscribes.
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
+        $publisher->connect(null, true);
+
+        $publisher->publish($publishTopic, $publishMessage, 0, true);
+
+        $publisher->disconnect();
+
+        // We connect and subscribe to a topic using the second client.
+        $connectionSettings = (new ConnectionSettings())
+            ->useBlockingSocket($useBlockingSocket);
+
+        $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
+        $subscriber->connect($connectionSettings, true);
+
+        $subscriber->subscribe(
+            $subscriptionTopicFilter,
+            function (string $topic, string $message, bool $retained, array $wildcards) use ($subscriber, $publishTopic, $publishMessage, $matchedTopicWildcards) {
+                // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
+                $this->assertEquals($publishTopic, $topic);
+                $this->assertEquals($publishMessage, $message);
+                $this->assertTrue($retained);
+                $this->assertEquals($matchedTopicWildcards, $wildcards);
+
+                $subscriber->interrupt(); // This allows us to exit the test as soon as possible.
+            },
+            0
+        );
+
+        // Then we loop on the subscriber to (hopefully) receive the published message.
+        $subscriber->loop(true);
+
+        // Finally, we disconnect for a graceful shutdown on the broker side.
+        $subscriber->disconnect();
+    }
+
+    /**
+     * @dataProvider publishSubscribeData
+     */
     public function test_publishing_and_subscribing_using_quality_of_service_1_works_as_intended(
         bool $useBlockingSocket,
         string $subscriptionTopicFilter,
@@ -133,6 +180,53 @@ class PublishSubscribeTest extends TestCase
     /**
      * @dataProvider publishSubscribeData
      */
+    public function test_publishing_and_subscribing_using_quality_of_service_1_with_message_retention_works_as_intended(
+        bool $useBlockingSocket,
+        string $subscriptionTopicFilter,
+        string $publishTopic,
+        string $publishMessage,
+        array $matchedTopicWildcards
+    ): void
+    {
+        // We publish a message from the first client, which disconnects before the other client even subscribes.
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
+        $publisher->connect(null, true);
+
+        $publisher->publish($publishTopic, $publishMessage, 1, true);
+
+        $publisher->disconnect();
+
+        // We connect and subscribe to a topic using the second client.
+        $connectionSettings = (new ConnectionSettings())
+            ->useBlockingSocket($useBlockingSocket);
+
+        $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
+        $subscriber->connect($connectionSettings, true);
+
+        $subscriber->subscribe(
+            $subscriptionTopicFilter,
+            function (string $topic, string $message, bool $retained, array $wildcards) use ($subscriber, $publishTopic, $publishMessage, $matchedTopicWildcards) {
+                // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
+                $this->assertEquals($publishTopic, $topic);
+                $this->assertEquals($publishMessage, $message);
+                $this->assertTrue($retained);
+                $this->assertEquals($matchedTopicWildcards, $wildcards);
+
+                $subscriber->interrupt(); // This allows us to exit the test as soon as possible.
+            },
+            1
+        );
+
+        // Then we loop on the subscriber to (hopefully) receive the published message.
+        $subscriber->loop(true);
+
+        // Finally, we disconnect for a graceful shutdown on the broker side.
+        $subscriber->disconnect();
+    }
+
+    /**
+     * @dataProvider publishSubscribeData
+     */
     public function test_publishing_and_subscribing_using_quality_of_service_2_works_as_intended(
         bool $useBlockingSocket,
         string $subscriptionTopicFilter,
@@ -173,6 +267,53 @@ class PublishSubscribeTest extends TestCase
 
         // Finally, we disconnect for a graceful shutdown on the broker side.
         $publisher->disconnect();
+        $subscriber->disconnect();
+    }
+
+    /**
+     * @dataProvider publishSubscribeData
+     */
+    public function test_publishing_and_subscribing_using_quality_of_service_2_with_message_retention_works_as_intended(
+        bool $useBlockingSocket,
+        string $subscriptionTopicFilter,
+        string $publishTopic,
+        string $publishMessage,
+        array $matchedTopicWildcards
+    ): void
+    {
+        // We publish a message from the first client. The loop is called until all QoS 2 handshakes are done.
+        $publisher = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'publisher');
+        $publisher->connect(null, true);
+
+        $publisher->publish($publishTopic, $publishMessage, 2, true);
+        $publisher->loop(true, true);
+
+        $publisher->disconnect();
+
+        // We connect and subscribe to a topic using the second client.
+        $connectionSettings = (new ConnectionSettings())
+            ->useBlockingSocket($useBlockingSocket);
+
+        $subscriber = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'subscriber');
+        $subscriber->connect($connectionSettings, true);
+
+        $subscription = function (string $topic, string $message, bool $retained, array $wildcards) use ($subscriber, $subscriptionTopicFilter, $publishTopic, $publishMessage, $matchedTopicWildcards) {
+            // By asserting something here, we will avoid a no-assertions-in-test warning, making the test pass.
+            $this->assertEquals($publishTopic, $topic);
+            $this->assertEquals($publishMessage, $message);
+            $this->assertTrue($retained);
+            $this->assertEquals($matchedTopicWildcards, $wildcards);
+
+            $subscriber->unsubscribe($subscriptionTopicFilter);
+            $subscriber->interrupt(); // This allows us to exit the test as soon as possible.
+        };
+
+        $subscriber->subscribe($subscriptionTopicFilter, $subscription, 2);
+
+        // Then we loop on the subscriber to (hopefully) receive the published message until the receive handshake is done.
+        $subscriber->loop(true, true);
+
+        // Finally, we disconnect for a graceful shutdown on the broker side.
         $subscriber->disconnect();
     }
 

@@ -757,7 +757,7 @@ class MqttClient implements ClientContract
                         $message->getTopic(),
                         $message->getContent(),
                         2,
-                        false
+                        $message->getRetained()
                     );
                     $this->repository->addPendingIncomingMessage($pendingMessage);
                 } catch (PendingMessageAlreadyExistsException $e) {
@@ -772,7 +772,7 @@ class MqttClient implements ClientContract
             }
 
             // For QoS 0 and QoS 1 we can deliver right away.
-            $this->deliverPublishedMessage($message->getTopic(), $message->getContent(), $message->getQualityOfService());
+            $this->deliverPublishedMessage($message->getTopic(), $message->getContent(), $message->getQualityOfService(), $message->getRetained());
             return;
         }
 
@@ -821,7 +821,8 @@ class MqttClient implements ClientContract
                 $this->deliverPublishedMessage(
                     $pendingMessage->getTopicName(),
                     $pendingMessage->getMessage(),
-                    $pendingMessage->getQualityOfServiceLevel()
+                    $pendingMessage->getQualityOfServiceLevel(),
+                    $pendingMessage->wantsToBeRetained()
                 );
 
                 $this->repository->removePendingIncomingMessage($message->getMessageId());
