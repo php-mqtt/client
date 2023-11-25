@@ -18,6 +18,7 @@ class Message
 {
     private MessageType $type;
     private int $qualityOfService;
+    private bool $retained;
     private ?int $messageId  = null;
     private ?string $topic   = null;
     private ?string $content = null;
@@ -30,11 +31,13 @@ class Message
      *
      * @param MessageType $type
      * @param int         $qualityOfService
+     * @param bool        $retained
      */
-    public function __construct(MessageType $type, int $qualityOfService = 0)
+    public function __construct(MessageType $type, int $qualityOfService = 0, bool $retained = false)
     {
         $this->type             = $type;
         $this->qualityOfService = $qualityOfService;
+        $this->retained         = $retained;
     }
 
     /**
@@ -51,6 +54,14 @@ class Message
     public function getQualityOfService(): int
     {
         return $this->qualityOfService;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getRetained(): bool
+    {
+        return $this->retained;
     }
 
     /**

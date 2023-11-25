@@ -419,8 +419,9 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     public function parseAndValidateMessage(string $message): ?Message
     {
         $qualityOfService = 0;
+        $retained         = false;
         $data             = '';
-        $result           = $this->tryDecodeMessage($message, $command, $qualityOfService, $data);
+        $result           = $this->tryDecodeMessage($message, $command, $qualityOfService, $retained, $data);
 
         if ($result === false) {
             throw new InvalidMessageException('The passed message could not be decoded.');
@@ -440,7 +441,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
                 throw new ProtocolViolationException('Unexpected connection acknowledgement.');
 
             case 0x03:
-                return $this->parseAndValidatePublishMessage($data, $qualityOfService);
+                return $this->parseAndValidatePublishMessage($data, $qualityOfService, $retained);
 
             case 0x04:
                 return $this->parseAndValidatePublishAcknowledgementMessage($data);
@@ -484,10 +485,17 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
      * @param string      $message
      * @param int|null    $command
      * @param int|null    $qualityOfService
+     * @param bool        $retained
      * @param string|null $data
      * @return bool
      */
-    protected function tryDecodeMessage(string $message, int &$command = null, int &$qualityOfService = null, string &$data = null): bool
+    protected function tryDecodeMessage(
+        string $message,
+        int &$command = null,
+        int &$qualityOfService = null,
+        bool &$retained = false,
+        string &$data = null
+    ): bool
     {
         // If we received no input, we can return immediately without doing work.
         if (strlen($message) === 0) {
@@ -504,6 +512,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         $byte             = $message[0];
         $command          = (int) (ord($byte) / 16);
         $qualityOfService = (ord($byte) & 0x06) >> 1;
+        $retained         = (bool) (ord($byte) & 0x01);
 
         // Read the second byte of a message (remaining length).
         // If the continuation bit (8) is set on the length byte, another byte will be read as length.
@@ -546,15 +555,16 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
      *
      * @param string $data
      * @param int    $qualityOfServiceLevel
+     * @param bool   $retained
      * @return Message|null
      */
-    protected function parseAndValidatePublishMessage(string $data, int $qualityOfServiceLevel): ?Message
+    protected function parseAndValidatePublishMessage(string $data, int $qualityOfServiceLevel, bool $retained): ?Message
     {
         $topicLength = (ord($data[0]) << 8) + ord($data[1]);
         $topic       = substr($data, 2, $topicLength);
         $content     = substr($data, ($topicLength + 2));
 
-        $message = new Message(MessageType::PUBLISH(), $qualityOfServiceLevel);
+        $message = new Message(MessageType::PUBLISH(), $qualityOfServiceLevel, $retained);
 
         if ($qualityOfServiceLevel > self::QOS_AT_MOST_ONCE) {
             if (strlen($content) < 2) {
