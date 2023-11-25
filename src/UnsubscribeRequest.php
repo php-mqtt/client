@@ -17,7 +17,6 @@ class UnsubscribeRequest extends PendingMessage
     /**
      * Creates a new unsubscribe request object.
      *
-     * @param int      $messageId
      * @param string[] $topicFilters
      */
     public function __construct(int $messageId, array $topicFilters)

@@ -329,7 +329,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         int $qualityOfService,
         bool $retain,
         int $messageId = null,
-        bool $isDuplicate = false
+        bool $isDuplicate = false,
     ): string
     {
         // Encode the topic as length prefixed string.

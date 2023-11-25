@@ -16,7 +16,11 @@ class Subscription
     /**
      * Creates a new subscription object.
      */
-    public function __construct(private string $topicFilter, private int $qualityOfService = 0, private ?\Closure $callback = null)
+    public function __construct(
+        private string $topicFilter,
+        private int $qualityOfService = 0,
+        private ?\Closure $callback = null,
+    )
     {
         $this->regexifyTopicFilter();
     }

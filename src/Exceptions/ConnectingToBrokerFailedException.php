@@ -28,7 +28,8 @@ class ConnectingToBrokerFailedException extends MqttClientException
         string $error,
         private ?string $connectionErrorCode = null,
         private ?string $connectionErrorMessage = null,
-    ) {
+    )
+    {
         parent::__construct(
             sprintf('[%s] Establishing a connection to the MQTT broker failed: %s', $code, $error),
             $code

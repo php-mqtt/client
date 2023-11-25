@@ -20,7 +20,12 @@ class Logger implements LoggerInterface
      *
      * @param LoggerInterface|null $logger
      */
-    public function __construct(private string $host, private int $port, private string $clientId, private ?LoggerInterface $logger = null)
+    public function __construct(
+        private string $host,
+        private int $port,
+        private string $clientId,
+        private ?LoggerInterface $logger = null,
+    )
     {
     }
 

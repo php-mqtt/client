@@ -26,7 +26,11 @@ class Message
     /**
      * Message constructor.
      */
-    public function __construct(private MessageType $type, private int $qualityOfService = 0, private bool $retained = false)
+    public function __construct(
+        private MessageType $type,
+        private int $qualityOfService = 0,
+        private bool $retained = false,
+    )
     {
     }
 

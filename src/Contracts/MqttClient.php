@@ -28,10 +28,7 @@ interface MqttClient
      * @throws ConfigurationInvalidException
      * @throws ConnectingToBrokerFailedException
      */
-    public function connect(
-        ConnectionSettings $settings = null,
-        bool $useCleanSession = false
-    ): void;
+    public function connect(ConnectionSettings $settings = null, bool $useCleanSession = false): void;
 
     /**
      * Sends a disconnect message to the broker and closes the socket.

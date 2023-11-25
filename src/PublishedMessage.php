@@ -22,7 +22,7 @@ class PublishedMessage extends PendingMessage
         private string $topicName,
         private string $message,
         private int $qualityOfService,
-        private bool $retain
+        private bool $retain,
     )
     {
         parent::__construct($messageId);

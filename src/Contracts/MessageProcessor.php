@@ -84,7 +84,7 @@ interface MessageProcessor
         int $qualityOfService,
         bool $retain,
         ?int $messageId = null,
-        bool $isDuplicate = false
+        bool $isDuplicate = false,
     ): string;
 
     /**
