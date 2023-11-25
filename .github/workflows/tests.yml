@@ -15,10 +15,10 @@ jobs:
 
     strategy:
       matrix:
-        php-version: ['7.4', '8.0', '8.1']
+        php-version: ['8.0', '8.1', '8.2', '8.3']
         mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.0', 'hivemq', 'emqx', 'rabbitmq']
         include:
-          - php-version: '8.1'
+          - php-version: '8.3'
             mqtt-broker: 'mosquitto-2.0'
             run-sonarqube-analysis: true
 
