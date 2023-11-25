@@ -17,7 +17,6 @@ class SubscribeRequest extends PendingMessage
     /**
      * Creates a new subscribe request message.
      *
-     * @param int            $messageId
      * @param Subscription[] $subscriptions
      */
     public function __construct(int $messageId, array $subscriptions)

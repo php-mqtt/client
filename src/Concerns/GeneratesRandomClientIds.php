@@ -13,8 +13,6 @@ trait GeneratesRandomClientIds
 {
     /**
      * Generates a random client id in the form of an md5 hash.
-     *
-     * @return string
      */
     protected function generateRandomClientId(): string
     {

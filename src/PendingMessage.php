@@ -19,26 +19,19 @@ use DateTime;
  */
 abstract class PendingMessage
 {
-    private int $messageId;
     private int $sendingAttempts = 1;
     private DateTime $lastSentAt;
 
     /**
      * Creates a new pending message object.
-     *
-     * @param int           $messageId
-     * @param DateTime|null $sentAt
      */
-    protected function __construct(int $messageId, DateTime $sentAt = null)
+    protected function __construct(private int $messageId, DateTime $sentAt = null)
     {
-        $this->messageId  = $messageId;
         $this->lastSentAt = $sentAt ?? new DateTime();
     }
 
     /**
      * Returns the message identifier.
-     *
-     * @return int
      */
     public function getMessageId(): int
     {
@@ -47,8 +40,6 @@ abstract class PendingMessage
 
     /**
      * Returns the date time when the message was last sent.
-     *
-     * @return DateTime
      */
     public function getLastSentAt(): DateTime
     {
@@ -57,8 +48,6 @@ abstract class PendingMessage
 
     /**
      * Returns the number of times the message has been sent.
-     *
-     * @return int
      */
     public function getSendingAttempts(): int
     {
@@ -67,9 +56,6 @@ abstract class PendingMessage
 
     /**
      * Sets the date time when the message was last sent.
-     *
-     * @param DateTime|null $value
-     * @return static
      */
     public function setLastSentAt(DateTime $value = null): self
     {
@@ -80,8 +66,6 @@ abstract class PendingMessage
 
     /**
      * Increments the sending attempts by one.
-     *
-     * @return static
      */
     public function incrementSendingAttempts(): self
     {

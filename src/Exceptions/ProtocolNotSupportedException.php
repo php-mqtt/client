@@ -13,8 +13,6 @@ class ProtocolNotSupportedException extends MqttClientException
 {
     /**
      * ProtocolNotSupportedException constructor.
-     *
-     * @param string $protocol
      */
     public function __construct(string $protocol)
     {

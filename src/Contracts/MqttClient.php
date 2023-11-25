@@ -25,21 +25,14 @@ interface MqttClient
      * If no custom settings are passed, the client will use the default settings.
      * See {@see ConnectionSettings} for more details about the defaults.
      *
-     * @param ConnectionSettings|null $settings
-     * @param bool                    $useCleanSession
-     * @return void
      * @throws ConfigurationInvalidException
      * @throws ConnectingToBrokerFailedException
      */
-    public function connect(
-        ConnectionSettings $settings = null,
-        bool $useCleanSession = false
-    ): void;
+    public function connect(ConnectionSettings $settings = null, bool $useCleanSession = false): void;
 
     /**
      * Sends a disconnect message to the broker and closes the socket.
      *
-     * @return void
      * @throws DataTransferException
      */
     public function disconnect(): void;
@@ -52,8 +45,6 @@ interface MqttClient
      * an indication whether the client is in a connected state or not.
      *
      * This information may be useful in applications where multiple parts use the client.
-     *
-     * @return bool
      */
     public function isConnected(): bool;
 
@@ -61,11 +52,6 @@ interface MqttClient
      * Publishes the given message on the given topic. If the additional quality of service
      * and retention flags are set, the message will be published using these settings.
      *
-     * @param string $topic
-     * @param string $message
-     * @param int    $qualityOfService
-     * @param bool   $retain
-     * @return void
      * @throws DataTransferException
      * @throws RepositoryException
      */
@@ -95,20 +81,14 @@ interface MqttClient
      * If no callback is passed, a subscription will still be made. Received messages are delivered only to
      * event handlers for received messages though.
      *
-     * @param string        $topicFilter
-     * @param callable|null $callback
-     * @param int           $qualityOfService
-     * @return void
      * @throws DataTransferException
      * @throws RepositoryException
      */
-    public function subscribe(string $topicFilter, callable $callback = null, int $qualityOfService = 0): void;
+    public function subscribe(string $topicFilter, ?callable $callback = null, int $qualityOfService = 0): void;
 
     /**
      * Unsubscribe from the given topic.
      *
-     * @param string $topicFilter
-     * @return void
      * @throws DataTransferException
      * @throws RepositoryException
      */
@@ -120,8 +100,6 @@ interface MqttClient
      *
      * Sending multiple interrupt signals has no effect, unless the client exits the loop,
      * which resets the signal for another loop.
-     *
-     * @return void
      */
     public function interrupt(): void;
 
@@ -139,16 +117,12 @@ interface MqttClient
      * a maximum of $queueWaitLimit seconds until we give up. We do not exit after the
      * given amount of time if there are open topic subscriptions though.
      *
-     * @param bool     $allowSleep
-     * @param bool     $exitWhenQueuesEmpty
-     * @param int|null $queueWaitLimit
-     * @return void
      * @throws DataTransferException
      * @throws InvalidMessageException
      * @throws MqttClientException
      * @throws ProtocolViolationException
      */
-    public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void;
+    public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, ?int $queueWaitLimit = null): void;
 
     /**
      * Runs an event loop iteration that handles messages from the server and calls the registered
@@ -159,10 +133,6 @@ interface MqttClient
      * Note: To ensure the event handlers called by this method will receive the correct elapsed time,
      *       the caller is responsible to provide the correct starting time of the loop as returned by `microtime(true)`.
      *
-     * @param float $loopStartedAt
-     * @param bool  $allowSleep
-     * @param int   $sleepMicroseconds
-     * @return void
      * @throws DataTransferException
      * @throws InvalidMessageException
      * @throws MqttClientException
@@ -172,36 +142,26 @@ interface MqttClient
 
     /**
      * Returns the host used by the client to connect to.
-     *
-     * @return string
      */
     public function getHost(): string;
 
     /**
      * Returns the port used by the client to connect to.
-     *
-     * @return int
      */
     public function getPort(): int;
 
     /**
      * Returns the identifier used by the client.
-     *
-     * @return string
      */
     public function getClientId(): string;
 
     /**
      * Returns the total number of received bytes, across reconnects.
-     *
-     * @return int
      */
     public function getReceivedBytes(): int;
 
     /**
      * Returns the total number of sent bytes, across reconnects.
-     *
-     * @return int
      */
     public function getSentBytes(): int;
 
@@ -225,9 +185,6 @@ interface MqttClient
      * ```
      *
      * Multiple event handlers can be registered at the same time.
-     *
-     * @param \Closure $callback
-     * @return MqttClient
      */
     public function registerLoopEventHandler(\Closure $callback): MqttClient;
 
@@ -237,9 +194,6 @@ interface MqttClient
      *
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
-     *
-     * @param \Closure|null $callback
-     * @return MqttClient
      */
     public function unregisterLoopEventHandler(\Closure $callback = null): MqttClient;
 
@@ -266,9 +220,6 @@ interface MqttClient
      * ```
      *
      * Multiple event handlers can be registered at the same time.
-     *
-     * @param \Closure $callback
-     * @return MqttClient
      */
     public function registerPublishEventHandler(\Closure $callback): MqttClient;
 
@@ -278,9 +229,6 @@ interface MqttClient
      *
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
-     *
-     * @param \Closure|null $callback
-     * @return MqttClient
      */
     public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient;
 
@@ -305,9 +253,6 @@ interface MqttClient
      * ```
      *
      * Multiple event handlers can be registered at the same time.
-     *
-     * @param \Closure $callback
-     * @return MqttClient
      */
     public function registerMessageReceivedEventHandler(\Closure $callback): MqttClient;
 
@@ -316,9 +261,6 @@ interface MqttClient
      *
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
-     *
-     * @param \Closure|null $callback
-     * @return MqttClient
      */
     public function unregisterMessageReceivedEventHandler(\Closure $callback = null): MqttClient;
 }

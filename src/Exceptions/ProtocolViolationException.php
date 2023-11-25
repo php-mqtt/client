@@ -13,8 +13,6 @@ class ProtocolViolationException extends MqttClientException
 {
     /**
      * ProtocolViolationException constructor.
-     *
-     * @param string $error
      */
     public function __construct(string $error)
     {

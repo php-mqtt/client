@@ -31,8 +31,6 @@ interface Repository
      * Re-initializes the repository by deleting all persisted data and restoring the original state,
      * which was given when the repository was first created. This is used when a clean session
      * is requested by a client during connection.
-     *
-     * @return bool
      */
     public function reset(): void;
 
@@ -40,23 +38,17 @@ interface Repository
      * Returns a new message id. The message id might have been used before,
      * but it is currently not being used (i.e. in a resend queue).
      *
-     * @return int
      * @throws RepositoryException
      */
     public function newMessageId(): int;
 
     /**
      * Returns the number of pending outgoing messages.
-     *
-     * @return int
      */
     public function countPendingOutgoingMessages(): int;
 
     /**
      * Gets a pending outgoing message with the given message identifier, if found.
-     *
-     * @param int $messageId
-     * @return PendingMessage|null
      */
     public function getPendingOutgoingMessage(int $messageId): ?PendingMessage;
 
@@ -67,7 +59,6 @@ interface Repository
      *
      * The messages are returned in the same order they were added to the repository.
      *
-     * @param DateTime|null $dateTime
      * @return PendingMessage[]
      */
     public function getPendingOutgoingMessagesLastSentBefore(DateTime $dateTime = null): array;
@@ -75,8 +66,6 @@ interface Repository
     /**
      * Adds a pending outgoing message to the repository.
      *
-     * @param PendingMessage $message
-     * @return void
      * @throws PendingMessageAlreadyExistsException
      */
     public function addPendingOutgoingMessage(PendingMessage $message): void;
@@ -88,8 +77,6 @@ interface Repository
      * otherwise `true` is returned if the message was marked as received, and `false`
      * in case it was already marked as received.
      *
-     * @param int $messageId
-     * @return bool
      * @throws PendingMessageNotFoundException
      */
     public function markPendingOutgoingPublishedMessageAsReceived(int $messageId): bool;
@@ -100,32 +87,22 @@ interface Repository
      * If a pending message with the given identifier is found and
      * successfully removed from the repository, `true` is returned.
      * Otherwise `false` will be returned.
-     *
-     * @param int $messageId
-     * @return bool
      */
     public function removePendingOutgoingMessage(int $messageId): bool;
 
     /**
      * Returns the number of pending incoming messages.
-     *
-     * @return int
      */
     public function countPendingIncomingMessages(): int;
 
     /**
      * Gets a pending incoming message with the given message identifier, if found.
-     *
-     * @param int $messageId
-     * @return PendingMessage|null
      */
     public function getPendingIncomingMessage(int $messageId): ?PendingMessage;
 
     /**
      * Adds a pending outgoing message to the repository.
      *
-     * @param PendingMessage $message
-     * @return void
      * @throws PendingMessageAlreadyExistsException
      */
     public function addPendingIncomingMessage(PendingMessage $message): void;
@@ -136,31 +113,22 @@ interface Repository
      * If a pending message with the given identifier is found and
      * successfully removed from the repository, `true` is returned.
      * Otherwise `false` will be returned.
-     *
-     * @param int $messageId
-     * @return bool
      */
     public function removePendingIncomingMessage(int $messageId): bool;
 
     /**
      * Returns the number of registered subscriptions.
-     *
-     * @return int
      */
     public function countSubscriptions(): int;
 
     /**
      * Adds a subscription to the repository.
-     *
-     * @param Subscription $subscription
-     * @return void
      */
     public function addSubscription(Subscription $subscription): void;
 
     /**
      * Gets all subscriptions matching the given topic.
      *
-     * @param string $topicName
      * @return Subscription[]
      */
     public function getSubscriptionsMatchingTopic(string $topicName): array;
@@ -170,9 +138,6 @@ interface Repository
      *
      * Returns `true` if a topic subscription existed and has been removed.
      * Otherwise, `false` is returned.
-     *
-     * @param string $topicFilter
-     * @return bool
      */
     public function removeSubscription(string $topicFilter): bool;
 }
