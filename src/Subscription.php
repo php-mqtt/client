@@ -11,31 +11,18 @@ namespace PhpMqtt\Client;
  */
 class Subscription
 {
-    private string $topicFilter;
     private string $regexifiedTopicFilter;
-    private int $qualityOfService;
-    private ?\Closure $callback;
 
     /**
      * Creates a new subscription object.
-     *
-     * @param string        $topicFilter
-     * @param int           $qualityOfService
-     * @param \Closure|null $callback
      */
-    public function __construct(string $topicFilter, int $qualityOfService = 0, ?\Closure $callback = null)
+    public function __construct(private string $topicFilter, private int $qualityOfService = 0, private ?\Closure $callback = null)
     {
-        $this->topicFilter      = $topicFilter;
-        $this->qualityOfService = $qualityOfService;
-        $this->callback         = $callback;
-
         $this->regexifyTopicFilter();
     }
 
     /**
      * Converts the topic filter into a regular expression.
-     *
-     * @return void
      */
     private function regexifyTopicFilter(): void
     {
@@ -45,7 +32,7 @@ class Subscription
         // from the topic filter. To do so, we look for the $share keyword and then try to find the second topic separator to
         // calculate the substring containing the actual topic filter.
         // Note: shared subscriptions always have the form: $share/<group>/<topic>
-        if (strpos($topicFilter, '$share/') === 0 && ($separatorIndex = strpos($topicFilter, '/', 7)) !== false) {
+        if (str_starts_with($topicFilter, '$share/') && ($separatorIndex = strpos($topicFilter, '/', 7)) !== false) {
             $topicFilter = substr($topicFilter, $separatorIndex + 1);
         }
 
@@ -54,8 +41,6 @@ class Subscription
 
     /**
      * Returns the topic of the subscription.
-     *
-     * @return string
      */
     public function getTopicFilter(): string
     {
@@ -64,9 +49,6 @@ class Subscription
 
     /**
      * Matches the given topic name matches to the subscription's topic filter.
-     *
-     * @param string $topicName
-     * @return bool
      */
     public function matchesTopic(string $topicName): bool
     {
@@ -84,9 +66,6 @@ class Subscription
      *   Result for invalid topic 'some/topic': []
      *
      * Note: This method should only be called if {@see matchesTopic} returned true. An empty array will be returned otherwise.
-     *
-     * @param string $topicName
-     * @return array
      */
     public function getMatchedWildcards(string $topicName): array
     {
@@ -99,8 +78,6 @@ class Subscription
 
     /**
      * Returns the callback for this subscription.
-     *
-     * @return \Closure|null
      */
     public function getCallback(): ?\Closure
     {
@@ -109,8 +86,6 @@ class Subscription
 
     /**
      * Returns the requested quality of service level.
-     *
-     * @return int
      */
     public function getQualityOfServiceLevel(): int
     {
@@ -119,9 +94,6 @@ class Subscription
 
     /**
      * Sets the actual quality of service level.
-     *
-     * @param int $qualityOfService
-     * @return void
      */
     public function setQualityOfServiceLevel(int $qualityOfService): void
     {

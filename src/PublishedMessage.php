@@ -12,40 +12,24 @@ namespace PhpMqtt\Client;
  */
 class PublishedMessage extends PendingMessage
 {
-    private string $topicName;
-    private string $message;
-    private int $qualityOfService;
-    private bool $retain;
     private bool $received = false;
 
     /**
      * Creates a new published message object.
-     *
-     * @param int    $messageId
-     * @param string $topicName
-     * @param string $message
-     * @param int    $qualityOfService
-     * @param bool   $retain
      */
     public function __construct(
         int $messageId,
-        string $topicName,
-        string $message,
-        int $qualityOfService,
-        bool $retain
+        private string $topicName,
+        private string $message,
+        private int $qualityOfService,
+        private bool $retain
     )
     {
         parent::__construct($messageId);
-        $this->topicName        = $topicName;
-        $this->message          = $message;
-        $this->qualityOfService = $qualityOfService;
-        $this->retain           = $retain;
     }
 
     /**
      * Returns the topic name of the published message.
-     *
-     * @return string
      */
     public function getTopicName(): string
     {
@@ -54,8 +38,6 @@ class PublishedMessage extends PendingMessage
 
     /**
      * Returns the content of the published message.
-     *
-     * @return string
      */
     public function getMessage(): string
     {
@@ -64,8 +46,6 @@ class PublishedMessage extends PendingMessage
 
     /**
      * Returns the requested quality of service level.
-     *
-     * @return int
      */
     public function getQualityOfServiceLevel(): int
     {
@@ -74,8 +54,6 @@ class PublishedMessage extends PendingMessage
 
     /**
      * Determines whether this message wants to be retained.
-     *
-     * @return bool
      */
     public function wantsToBeRetained(): bool
     {
@@ -84,8 +62,6 @@ class PublishedMessage extends PendingMessage
 
     /**
      * Determines whether the message has been confirmed as received.
-     *
-     * @return bool
      */
     public function hasBeenReceived(): bool
     {
@@ -95,10 +71,7 @@ class PublishedMessage extends PendingMessage
     /**
      * Marks the published message as received (QoS level 2).
      *
-     * Returns `true` if the message was not previously received. Otherwise
-     * `false` will be returned.
-     *
-     * @return bool
+     * Returns `true` if the message was not previously received. Otherwise `false` will be returned.
      */
     public function markAsReceived(): bool
     {

@@ -15,30 +15,13 @@ use Psr\Log\LogLevel;
  */
 class Logger implements LoggerInterface
 {
-    private string $host;
-    private int $port;
-    private string $clientId;
-    private ?LoggerInterface $logger;
-
     /**
      * Logger constructor.
      *
-     * @param string               $host
-     * @param int                  $port
-     * @param string               $clientId
      * @param LoggerInterface|null $logger
      */
-    public function __construct(
-        string $host,
-        int $port,
-        string $clientId,
-        LoggerInterface $logger = null
-    )
+    public function __construct(private string $host, private int $port, private string $clientId, private ?LoggerInterface $logger = null)
     {
-        $this->host     = $host;
-        $this->port     = $port;
-        $this->clientId = $clientId;
-        $this->logger   = $logger;
     }
 
     /**
@@ -46,7 +29,6 @@ class Logger implements LoggerInterface
      *
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function emergency($message, array $context = []): void
     {
@@ -61,7 +43,6 @@ class Logger implements LoggerInterface
      *
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function alert($message, array $context = []): void
     {
@@ -75,7 +56,6 @@ class Logger implements LoggerInterface
      *
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function critical($message, array $context = []): void
     {
@@ -88,7 +68,6 @@ class Logger implements LoggerInterface
      *
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function error($message, array $context = []): void
     {
@@ -103,7 +82,6 @@ class Logger implements LoggerInterface
      *
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function warning($message, array $context = []): void
     {
@@ -115,7 +93,6 @@ class Logger implements LoggerInterface
      *
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function notice($message, array $context = []): void
     {
@@ -129,7 +106,6 @@ class Logger implements LoggerInterface
      *
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function info($message, array $context = []): void
     {
@@ -141,7 +117,6 @@ class Logger implements LoggerInterface
      *
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function debug($message, array $context = []): void
     {
@@ -154,7 +129,6 @@ class Logger implements LoggerInterface
      * @param mixed  $level
      * @param string $message
      * @param array  $context
-     * @return void
      */
     public function log($level, $message, array $context = []): void
     {
@@ -167,9 +141,6 @@ class Logger implements LoggerInterface
 
     /**
      * Wraps the given log message by prepending the client id and broker.
-     *
-     * @param string $message
-     * @return string
      */
     protected function wrapLogMessage(string $message): string
     {
@@ -178,9 +149,6 @@ class Logger implements LoggerInterface
 
     /**
      * Adds global context like host, port and client id to the log context.
-     *
-     * @param array $context
-     * @return array
      */
     protected function mergeContext(array $context): array
     {

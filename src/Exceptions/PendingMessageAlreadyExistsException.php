@@ -13,8 +13,6 @@ class PendingMessageAlreadyExistsException extends RepositoryException
 {
     /**
      * PendingMessageAlreadyExistsException constructor.
-     *
-     * @param int $messageId
      */
     public function __construct(int $messageId)
     {
