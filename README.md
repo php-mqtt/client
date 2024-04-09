@@ -23,7 +23,7 @@ The package is available on [packagist.org](https://packagist.org/packages/php-m
 composer require php-mqtt/client
 ```
 
-The package requires PHP version 7.4 or higher.
+The package requires PHP version 8.0 or higher.
 
 ## Usage
 
