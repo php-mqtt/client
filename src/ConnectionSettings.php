@@ -37,6 +37,7 @@ class ConnectionSettings
     private ?string $tlsClientCertificateFile          = null;
     private ?string $tlsClientCertificateKeyFile       = null;
     private ?string $tlsClientCertificateKeyPassphrase = null;
+    private ?string $tlsAlpn                           = null;
 
     /**
      * The username used for authentication when connecting to the broker.
@@ -531,4 +532,25 @@ class ConnectionSettings
     {
         return $this->tlsClientCertificateKeyPassphrase;
     }
+
+    /**
+     * The TLS ALPN is used to establish a TLS encrypted mqtt connection on port 443,
+     * which usually is reserved for TLS encrypted HTTP traffic.
+     *
+     * @return ConnectionSettings A copy of the original object with the new setting applied.
+     */
+    public function setTlsAlpn(?string $tlsAlpn): ConnectionSettings
+    {
+        $copy = clone $this;
+
+        $copy->tlsAlpn = $tlsAlpn;
+
+        return $copy;
+    }
+
+    public function getTlsAlpn(): ?string
+    {
+        return $this->tlsAlpn;
+    }
+
 }

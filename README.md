@@ -243,6 +243,10 @@ $connectionSettings = (new \PhpMqtt\Client\ConnectionSettings)
     // This option requires ConnectionSettings::setTlsClientCertificateFile() and
     // ConnectionSettings::setTlsClientCertificateKeyFile() to be used as well.
     ->setTlsClientCertificateKeyPassphrase(null);
+
+     // The TLS ALPN is used to establish a TLS encrypted mqtt connection on port 443,
+     // which usually is reserved for TLS encrypted HTTP traffic.
+     ->setTlsAlpn(null);
 ```
 
 ## Features
