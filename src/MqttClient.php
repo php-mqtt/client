@@ -197,6 +197,9 @@ class MqttClient implements ClientContract
                 $tlsOptions['passphrase'] = $this->settings->getTlsClientCertificateKeyPassphrase();
             }
 
+            if ($this->settings->getTlsAlpn() !== null) {
+                $tlsOptions['alpn_protocols'] = $this->settings->getTlsAlpn();
+ 
             $contextOptions['ssl'] = $tlsOptions;
         }
 
