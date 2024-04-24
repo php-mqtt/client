@@ -199,6 +199,7 @@ class MqttClient implements ClientContract
 
             if ($this->settings->getTlsAlpn() !== null) {
                 $tlsOptions['alpn_protocols'] = $this->settings->getTlsAlpn();
+            }
  
             $contextOptions['ssl'] = $tlsOptions;
         }
