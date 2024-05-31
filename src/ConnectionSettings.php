@@ -552,5 +552,4 @@ class ConnectionSettings
     {
         return $this->tlsAlpn;
     }
-
 }
