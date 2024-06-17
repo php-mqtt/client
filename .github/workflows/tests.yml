@@ -133,7 +133,7 @@ jobs:
           sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.report-junit.xml
 
       - name: Run SonarQube analysis
-        uses: sonarsource/sonarcloud-github-action@v2.2.0
+        uses: sonarsource/sonarcloud-github-action@v2.3.0
         if: matrix.run-sonarqube-analysis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
