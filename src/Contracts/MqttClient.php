@@ -28,7 +28,7 @@ interface MqttClient
      * @throws ConfigurationInvalidException
      * @throws ConnectingToBrokerFailedException
      */
-    public function connect(ConnectionSettings $settings = null, bool $useCleanSession = false): void;
+    public function connect(?ConnectionSettings $settings = null, bool $useCleanSession = false): void;
 
     /**
      * Sends a disconnect message to the broker and closes the socket.
@@ -195,7 +195,7 @@ interface MqttClient
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
      */
-    public function unregisterLoopEventHandler(\Closure $callback = null): MqttClient;
+    public function unregisterLoopEventHandler(?\Closure $callback = null): MqttClient;
 
     /**
      * Registers a loop event handler which is called when a message is published.
@@ -230,7 +230,7 @@ interface MqttClient
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
      */
-    public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient;
+    public function unregisterPublishEventHandler(?\Closure $callback = null): MqttClient;
 
     /**
      * Registers an event handler which is called when a message is received from the broker.
@@ -262,5 +262,5 @@ interface MqttClient
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
      */
-    public function unregisterMessageReceivedEventHandler(\Closure $callback = null): MqttClient;
+    public function unregisterMessageReceivedEventHandler(?\Closure $callback = null): MqttClient;
 }

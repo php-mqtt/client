@@ -14,7 +14,7 @@ class MqttClientException extends \Exception
     /**
      * MqttClientException constructor.
      */
-    public function __construct(string $message = '', int $code = 0, \Throwable $parentException = null)
+    public function __construct(string $message = '', int $code = 0, ?\Throwable $parentException = null)
     {
         if (empty($message)) {
             parent::__construct(

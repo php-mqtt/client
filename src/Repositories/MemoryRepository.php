@@ -86,7 +86,7 @@ class MemoryRepository implements Repository
     /**
      * {@inheritDoc}
      */
-    public function getPendingOutgoingMessagesLastSentBefore(\DateTime $dateTime = null): array
+    public function getPendingOutgoingMessagesLastSentBefore(?\DateTime $dateTime = null): array
     {
         $result = [];
 
