@@ -73,7 +73,7 @@ trait OffersHooks
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
      */
-    public function unregisterLoopEventHandler(\Closure $callback = null): MqttClient
+    public function unregisterLoopEventHandler(?\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
             $this->loopEventHandlers->removeAll($this->loopEventHandlers);
@@ -139,7 +139,7 @@ trait OffersHooks
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
      */
-    public function unregisterPublishEventHandler(\Closure $callback = null): MqttClient
+    public function unregisterPublishEventHandler(?\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
             $this->publishEventHandlers->removeAll($this->publishEventHandlers);
@@ -205,7 +205,7 @@ trait OffersHooks
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
      */
-    public function unregisterMessageReceivedEventHandler(\Closure $callback = null): MqttClient
+    public function unregisterMessageReceivedEventHandler(?\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
             $this->messageReceivedEventHandlers->removeAll($this->messageReceivedEventHandlers);
@@ -272,7 +272,7 @@ trait OffersHooks
      * This does not affect other registered event handlers. It is possible
      * to unregister all registered event handlers by passing null as callback.
      */
-    public function unregisterConnectedEventHandler(\Closure $callback = null): MqttClient
+    public function unregisterConnectedEventHandler(?\Closure $callback = null): MqttClient
     {
         if ($callback === null) {
             $this->connectedEventHandlers->removeAll($this->connectedEventHandlers);

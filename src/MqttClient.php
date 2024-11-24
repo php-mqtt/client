@@ -75,8 +75,8 @@ class MqttClient implements ClientContract
         private int $port = 1883,
         ?string $clientId = null,
         string $protocol = self::MQTT_3_1,
-        Repository $repository = null,
-        LoggerInterface $logger = null
+        ?Repository $repository = null,
+        ?LoggerInterface $logger = null
     )
     {
         if (!in_array($protocol, [self::MQTT_3_1, self::MQTT_3_1_1])) {
@@ -97,7 +97,7 @@ class MqttClient implements ClientContract
     /**
      * {@inheritDoc}
      */
-    public function connect(ConnectionSettings $settings = null, bool $useCleanSession = false): void
+    public function connect(?ConnectionSettings $settings = null, bool $useCleanSession = false): void
     {
         // Always abruptly close any previous connection if we are opening a new one.
         // The caller should make sure this does not happen.
@@ -546,7 +546,7 @@ class MqttClient implements ClientContract
     /**
      * {@inheritDoc}
      */
-    public function subscribe(string $topicFilter, callable $callback = null, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
+    public function subscribe(string $topicFilter, ?callable $callback = null, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
     {
         $this->ensureConnected();
 
@@ -598,7 +598,7 @@ class MqttClient implements ClientContract
     /**
      * {@inheritDoc}
      */
-    public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, int $queueWaitLimit = null): void
+    public function loop(bool $allowSleep = true, bool $exitWhenQueuesEmpty = false, ?int $queueWaitLimit = null): void
     {
         $this->logger->debug('Starting client loop to process incoming messages and the resend queue.');
 

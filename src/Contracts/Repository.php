@@ -61,7 +61,7 @@ interface Repository
      *
      * @return PendingMessage[]
      */
-    public function getPendingOutgoingMessagesLastSentBefore(DateTime $dateTime = null): array;
+    public function getPendingOutgoingMessagesLastSentBefore(?DateTime $dateTime = null): array;
 
     /**
      * Adds a pending outgoing message to the repository.

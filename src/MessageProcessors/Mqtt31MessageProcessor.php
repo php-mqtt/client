@@ -31,7 +31,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
     /**
      * {@inheritDoc}
      */
-    public function tryFindMessageInBuffer(string $buffer, int $bufferLength, string &$message = null, int &$requiredBytes = -1): bool
+    public function tryFindMessageInBuffer(string $buffer, int $bufferLength, ?string &$message = null, int &$requiredBytes = -1): bool
     {
         // If we received no input, we can return immediately without doing work.
         if ($bufferLength === 0) {
@@ -328,7 +328,7 @@ class Mqtt31MessageProcessor extends BaseMessageProcessor implements MessageProc
         string $message,
         int $qualityOfService,
         bool $retain,
-        int $messageId = null,
+        ?int $messageId = null,
         bool $isDuplicate = false,
     ): string
     {

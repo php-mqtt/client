@@ -25,7 +25,7 @@ abstract class PendingMessage
     /**
      * Creates a new pending message object.
      */
-    protected function __construct(private int $messageId, DateTime $sentAt = null)
+    protected function __construct(private int $messageId, ?DateTime $sentAt = null)
     {
         $this->lastSentAt = $sentAt ?? new DateTime();
     }
@@ -57,7 +57,7 @@ abstract class PendingMessage
     /**
      * Sets the date time when the message was last sent.
      */
-    public function setLastSentAt(DateTime $value = null): self
+    public function setLastSentAt(?DateTime $value = null): self
     {
         $this->lastSentAt = $value ?? new DateTime();
 
