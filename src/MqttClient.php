@@ -654,25 +654,7 @@ class MqttClient implements ClientContract
 
         // If the last ping we sent has not been answered within the configured keep alive interval,
         // we assume the connection is dead and try to reconnect if configured to do so.
-        if ($this->pingResponseExpectedUntil !== null && microtime(true) > $this->pingResponseExpectedUntil) {
-            $this->logger->warning(
-                'The broker did not respond to our ping request within the configured keep alive interval. Assuming the connection is dead.'
-            );
-
-            $this->closeSocket();
-
-            $this->lastPingAt                = null;
-            $this->pingResponseExpectedUntil = null;
-
-            if (!$this->settings->shouldReconnectAutomatically()) {
-                throw new DataTransferException(
-                    DataTransferException::EXCEPTION_RX_DATA,
-                    'No ping response received in time. The connection is dead.'
-                );
-            }
-
-            $this->reconnect();
-        }
+        $this->handlePingTimeout();
 
         // If the last message of the broker has been received more seconds ago
         // than specified by the keep alive time, we will send a ping to ensure
@@ -1052,8 +1034,39 @@ class MqttClient implements ClientContract
         $this->logger->debug('Sending ping to the broker to keep the connection alive.');
 
         $this->writeToSocketWithAutoReconnect($this->messageProcessor->buildPingRequestMessage());
-
+        
+        // Set the deadline for receiving a PINGRESP message according to MQTT specification requirements.
         $this->pingResponseExpectedUntil = microtime(true) + $this->settings->getKeepAliveInterval();
+    }
+
+    /**
+     * Handles a ping timeout by closing the socket and trying to reconnect if configured to do so.
+     *
+     * @throws DataTransferException
+     */
+    protected function handlePingTimeout(): void
+    {
+        if ($this->pingResponseExpectedUntil === null || microtime(true) < $this->pingResponseExpectedUntil) {
+            return;
+        }
+
+        $this->logger->warning(
+            'The broker did not respond to our ping request within the configured keep alive interval. Assuming the connection is dead.'
+        );
+
+        $this->closeSocket();
+
+        $this->lastPingAt                = null;
+        $this->pingResponseExpectedUntil = null;
+
+        if (!$this->settings->shouldReconnectAutomatically()) {
+            throw new DataTransferException(
+                DataTransferException::EXCEPTION_RX_DATA,
+                'No ping response received in time. The connection is dead.'
+            );
+        }
+
+        $this->reconnect();
     }
 
     /**
