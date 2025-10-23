@@ -49,6 +49,23 @@ If you do not want to pass a `$clientId`, a random one will be generated for you
 
 Be also aware that most of the methods can throw exceptions. The above example does not add any exception handling for brevity.
 
+Be aware that for publications with QoS levels 1 or 2 a later call to `loop` method is required in order for the additional acknowledgement messages from the broker to be correctly processed. Not doing so will avoid QoS 2 from being delivered at all and QoS 1 messages might or might not arrive depending on specific broker implementation details.
+
+An example:
+
+```php
+$server   = 'some-broker.example.com';
+$port     = 1883;
+$clientId = 'test-publisher';
+
+$mqtt = new \PhpMqtt\Client\MqttClient($server, $port, $clientId);
+$mqtt->connect();
+$mqtt->publish('php-mqtt/client/test', 'Hello Exactly Once World!', 2);
+// You can set a third optional parameter as a timeout
+$mqtt->loop(true, true);
+$mqtt->disconnect();
+```
+
 ### Subscribe
 
 Subscribing is a little more complex than publishing as it requires to run an event loop which reads, parses and handles messages from the broker:
@@ -96,6 +113,7 @@ A fifth parameter allows passing a repository (currently, only a `MemoryReposito
 Lastly, a logger can be passed as sixth parameter. If none is given, a null logger is used instead.
 
 Example:
+
 ```php
 $mqtt = new \PhpMqtt\Client\MqttClient(
     $server, 
@@ -112,10 +130,12 @@ The `Logger` must implement the `Psr\Log\LoggerInterface`.
 ### Connection Settings
 
 The `connect()` method of the `MqttClient` takes two optional parameters:
+
 1. A `ConnectionSettings` instance
 2. A `boolean` flag indicating whether a clean session should be requested (a random client id does this implicitly)
 
 Example:
+
 ```php
 $mqtt = new \PhpMqtt\Client\MqttClient($server, $port, $clientId);
 
@@ -395,14 +415,17 @@ $mqtt->unregisterConnectedEventHandler(); // Unregister all event handlers
 ### Certificates (TLS)
 
 To run the tests (especially the TLS tests), you will need to create certificates. A command has been provided for this:
+
 ```sh
 sh create-certificates.sh
 ```
+
 This will create all required certificates in the `.ci/tls/` directory. The same script is used for continuous integration as well.
 
 ### MQTT Broker for Testing
 
 Running the tests expects an MQTT broker to be running. The easiest way to run an MQTT broker is through Docker:
+
 ```sh
 docker run --rm -it \
   -p 1883:1883 \
@@ -414,6 +437,7 @@ docker run --rm -it \
   -v $(pwd)/.ci/mosquitto.passwd:/mosquitto/config/mosquitto.passwd \
   eclipse-mosquitto:1.6
 ```
+
 When run from the project directory, this will spawn a Mosquitto MQTT broker configured with the generated TLS certificates and a custom configuration.
 
 In case you intend to run a different broker or using a different method, or use a public broker instead,
