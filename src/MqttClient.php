@@ -1191,6 +1191,14 @@ class MqttClient implements ClientContract
      */
     protected function readFromSocket(int $limit = self::SOCKET_READ_BUFFER_SIZE, bool $withoutBlocking = false): string
     {
+        if (feof($this->socket)) {
+            $this->logger->error('The socket has been closed (by the broker) and reached EOF.');
+            throw new DataTransferException(
+                DataTransferException::EXCEPTION_RX_DATA,
+                'The socket has reached EOF which indicates it has been closed by the broker.'
+            );
+        }
+
         if ($withoutBlocking) {
             $result = fread($this->socket, $limit);
 
