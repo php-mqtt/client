@@ -16,10 +16,10 @@ jobs:
     strategy:
       matrix:
         php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
-        mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.0']
+        mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.1']
         include:
           - php-version: '8.5'
-            mqtt-broker: 'mosquitto-2.0'
+            mqtt-broker: 'mosquitto-2.1'
             run-sonarqube-analysis: true
 
     steps:
@@ -63,7 +63,7 @@ jobs:
           timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} mqtt-broker)" = "healthy" ]; do sleep 2; done'
 
       - name: Start Mosquitto 2.0 message broker
-        if: matrix.mqtt-broker == 'mosquitto-2.0'
+        if: matrix.mqtt-broker == 'mosquitto-2.1'
         run: |
           docker run --detach --name mqtt-broker \
             -p 1883:1883 -p 1884:1884 -p 8883:8883 -p 8884:8884 \
