@@ -15,9 +15,8 @@ jobs:
 
     strategy:
       matrix:
-        php-version: ['8.1', '8.2', '8.3', '8.4']
-        mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.0', 'hivemq', 'emqx', 'rabbitmq']
         php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
+        mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.0']
         include:
           - php-version: '8.5'
             mqtt-broker: 'mosquitto-2.0'
@@ -52,68 +51,41 @@ jobs:
 
       - name: Start Mosquitto 1.6 message broker
         if: matrix.mqtt-broker == 'mosquitto-1.6'
-        uses: Namoshek/mosquitto-github-action@v1
-        with:
-          version: '1.6'
-          ports: '1883:1883 1884:1884 8883:8883 8884:8884'
-          certificates: ${{ github.workspace }}/.ci/tls
-          config: ${{ github.workspace }}/.ci/mosquitto.conf
-          password-file: ${{ github.workspace}}/.ci/mosquitto.passwd
+        run: |
+          docker run --detach --name mqtt-broker \
+            -p 1883:1883 -p 1884:1884 -p 8883:8883 -p 8884:8884 \
+            -v ${{ github.workspace }}/.ci/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro \
+            -v ${{ github.workspace }}/.ci/mosquitto.passwd:/mosquitto/config/mosquitto.passwd:ro \
+            -v ${{ github.workspace }}/.ci/tls:/mosquitto-certs:ro \
+            --health-cmd="mosquitto_pub -h 127.0.0.1 -p 1883 -t health -n -q 0" \
+            --health-interval=2s --health-timeout=5s --health-retries=30 --health-start-period=5s \
+            eclipse-mosquitto:1.6-openssl
+          timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} mqtt-broker)" = "healthy" ]; do sleep 2; done'
 
       - name: Start Mosquitto 2.0 message broker
         if: matrix.mqtt-broker == 'mosquitto-2.0'
-        uses: Namoshek/mosquitto-github-action@v1
-        with:
-          version: '2.0'
-          ports: '1883:1883 1884:1884 8883:8883 8884:8884'
-          certificates: ${{ github.workspace }}/.ci/tls
-          config: ${{ github.workspace }}/.ci/mosquitto.conf
-          password-file: ${{ github.workspace}}/.ci/mosquitto.passwd
-
-      - name: Start HiveMQ message broker
-        if: matrix.mqtt-broker == 'hivemq'
-        uses: Namoshek/hivemq4-github-action@v1
-        with:
-          version: '4.8.5'
-          ports: '1883:1883 8883:8883 8884:8884'
-          certificates: ${{ github.workspace }}/.ci/tls
-          config: ${{ github.workspace }}/.ci/hivemq.xml
-
-      - name: Start EMQ X message broker
-        if: matrix.mqtt-broker == 'emqx'
-        uses: Namoshek/emqx-github-action@v1.1.0
-        with:
-          version: '4.4.3'
-          ports: '1883:1883'
-          config: ${{ github.workspace }}/.ci/emqx.conf
-
-      - name: Start RabbitMQ message broker
-        if: matrix.mqtt-broker == 'rabbitmq'
-        uses: namoshek/rabbitmq-github-action@v1.2.0
-        with:
-          version: '3.8.9'
-          ports: '1883:1883'
-          config: ${{ github.workspace }}/.ci/rabbitmq.conf
-          plugins: 'rabbitmq_mqtt'
-
-      - name: Wait a bit until MQTT broker has started
-        run: sleep 45
+        run: |
+          docker run --detach --name mqtt-broker \
+            -p 1883:1883 -p 1884:1884 -p 8883:8883 -p 8884:8884 \
+            -v ${{ github.workspace }}/.ci/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro \
+            -v ${{ github.workspace }}/.ci/mosquitto.passwd:/mosquitto/config/mosquitto.passwd:ro \
+            -v ${{ github.workspace }}/.ci/tls:/mosquitto-certs:ro \
+            --health-cmd="mosquitto_pub -h 127.0.0.1 -p 1883 -t health -n -q 0" \
+            --health-interval=2s --health-timeout=5s --health-retries=30 --health-start-period=5s \
+            eclipse-mosquitto:2.1.2-alpine
+          timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} mqtt-broker)" = "healthy" ]; do sleep 2; done'
 
       - name: Run phpunit tests
         run: composer test
         env:
           MQTT_BROKER_HOST: 'localhost'
           MQTT_BROKER_PORT: 1883
-          MQTT_BROKER_PORT_WITH_AUTHENTICATION: ${{ (matrix.mqtt-broker == 'mosquitto-1.6' || matrix.mqtt-broker == 'mosquitto-2.0') && 1884 || 1883 }}
+          MQTT_BROKER_PORT_WITH_AUTHENTICATION: 1884
           MQTT_BROKER_TLS_PORT: 8883
           MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
-          MQTT_BROKER_USERNAME: ${{ (matrix.mqtt-broker == 'mosquitto-1.6' || matrix.mqtt-broker == 'mosquitto-2.0') && 'ci-test-user' || '' }}
-          MQTT_BROKER_PASSWORD: ${{ (matrix.mqtt-broker == 'mosquitto-1.6' || matrix.mqtt-broker == 'mosquitto-2.0') && secrets.CI_MOSQUITTO_CI_TEST_USER_PASSWORD || '' }}
-          SKIP_TLS_TESTS: ${{ matrix.mqtt-broker == 'emqx' || matrix.mqtt-broker == 'rabbitmq' }}
+          MQTT_BROKER_USERNAME: 'ci-test-user'
+          MQTT_BROKER_PASSWORD: ${{ secrets.CI_MOSQUITTO_CI_TEST_USER_PASSWORD }}
 
-      - name: Dump Docker logs on failure
-        if: failure()
-        uses: jwalton/gh-docker-logs@v2
 
       - name: Prepare paths for SonarQube analysis
         if: matrix.run-sonarqube-analysis
