@@ -36,7 +36,6 @@
     <rule ref="Generic.Formatting.DisallowMultipleStatements"/>
     <rule ref="Generic.Formatting.MultipleStatementAlignment"/>
     <rule ref="Generic.Formatting.SpaceAfterCast"/>
-    <rule ref="Generic.Functions.CallTimePassByReference"/>
     <rule ref="Generic.Functions.FunctionCallArgumentSpacing"/>
     <rule ref="Generic.Functions.OpeningFunctionBraceBsdAllman"/>
     <rule ref="Generic.Metrics.CyclomaticComplexity">
@@ -62,7 +61,6 @@
             <property name="indent" value="4"/>
         </properties>
     </rule>
-    <rule ref="MySource.PHP.EvalObjectFactory"/>
     <rule ref="PEAR.Commenting.ClassComment">
         <exclude name="PEAR.Commenting.ClassComment.MissingAuthorTag"/>
         <exclude name="PEAR.Commenting.ClassComment.MissingCategoryTag"/>
