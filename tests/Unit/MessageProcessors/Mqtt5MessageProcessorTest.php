@@ -5,9 +5,19 @@ declare(strict_types=1);
 namespace Tests\Unit\MessageProcessors;
 
 use PhpMqtt\Client\ConnectionSettings;
+use PhpMqtt\Client\Contracts\AuthenticationHandler;
 use PhpMqtt\Client\Logger;
 use PhpMqtt\Client\MessageProcessors\Mqtt5MessageProcessor;
+use PhpMqtt\Client\Mqtt5\AuthenticationEvent;
+use PhpMqtt\Client\Mqtt5\AuthenticationOptions;
+use PhpMqtt\Client\Mqtt5\ConnectionOptions;
 use PhpMqtt\Client\Mqtt5\ConnectionResult;
+use PhpMqtt\Client\Protocol\Mqtt5\PacketCodec;
+use PhpMqtt\Client\Protocol\Mqtt5\PropertyCodec;
+use PhpMqtt\Client\Protocol\Packets\AuthPacket;
+use PhpMqtt\Client\Protocol\Properties;
+use PhpMqtt\Client\Protocol\PropertyIdentifier;
+use PhpMqtt\Client\Protocol\ReasonCode;
 use PHPUnit\Framework\TestCase;
 
 class Mqtt5MessageProcessorTest extends TestCase
@@ -41,5 +51,36 @@ class Mqtt5MessageProcessorTest extends TestCase
         $wire = $this->processor->buildPublishMessage('a', 'b', 0, false);
 
         $this->assertSame('30050001610062', bin2hex($wire));
+    }
+
+    public function test_enhanced_authentication_challenge_uses_configured_handler(): void
+    {
+        $handler = new class implements AuthenticationHandler {
+            public function respond(AuthenticationEvent $event): ?AuthenticationOptions
+            {
+                return new AuthenticationOptions($event->getMethod(), 'response');
+            }
+        };
+        $this->processor->setConnectionOptions(new ConnectionOptions(
+            null,
+            null,
+            new AuthenticationOptions('SCRAM', 'initial'),
+            $handler
+        ));
+        $challenge = (new PacketCodec())->encode(
+            new AuthPacket(
+                ReasonCode::CONTINUE_AUTHENTICATION,
+                Properties::empty()
+                    ->with(PropertyIdentifier::AUTHENTICATION_METHOD, 'SCRAM')
+                    ->with(PropertyIdentifier::AUTHENTICATION_DATA, 'challenge')
+            ),
+            PropertyCodec::DIRECTION_SERVER_TO_CLIENT
+        );
+
+        $response = $this->processor->processConnectionHandshake($challenge);
+        $packet   = (new PacketCodec())->decode($response, PropertyCodec::DIRECTION_CLIENT_TO_SERVER);
+
+        $this->assertInstanceOf(AuthPacket::class, $packet);
+        $this->assertSame('response', $packet->getProperties()->get(PropertyIdentifier::AUTHENTICATION_DATA));
     }
 }

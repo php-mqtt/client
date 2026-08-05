@@ -34,6 +34,8 @@ class PacketFramerTest extends TestCase
     public function test_framer_enforces_configured_limit_from_the_header(): void
     {
         $this->expectException(MalformedPacketException::class);
+        $packet        = null;
+        $requiredBytes = -1;
 
         (new PacketFramer(10))->tryExtract(hex2bin('3009'), $packet, $requiredBytes);
     }
@@ -41,6 +43,8 @@ class PacketFramerTest extends TestCase
     public function test_framer_rejects_non_canonical_remaining_length(): void
     {
         $this->expectException(MalformedPacketException::class);
+        $packet        = null;
+        $requiredBytes = -1;
 
         (new PacketFramer())->tryExtract(hex2bin('308000'), $packet, $requiredBytes);
     }

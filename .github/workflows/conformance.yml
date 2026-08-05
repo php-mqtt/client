@@ -1,0 +1,93 @@
+name: Scheduled MQTT conformance
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  brokers:
+    name: MQTT 5 against ${{ matrix.broker }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        broker: [mosquitto, emqx, hivemq]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: composer install --prefer-dist
+      - name: Start broker
+        run: |
+          case "${{ matrix.broker }}" in
+            mosquitto)
+              printf 'listener 1883\nallow_anonymous true\n' > "$RUNNER_TEMP/mosquitto.conf"
+              docker run --detach --name mqtt-broker -p 1883:1883 \
+                -v "$RUNNER_TEMP/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+                eclipse-mosquitto:2.1.2-alpine@sha256:6f8d8a947c506f8a2290ec65cd4bd2bc7cb4d43fb5f6271f861cb013e2ef9797
+              ;;
+            emqx)
+              docker run --detach --name mqtt-broker -p 1883:1883 \
+                emqx/emqx:6.1.4@sha256:54c203b8301fa135e0e4adbcb37fcaf80039029b64f841a3eb837d4f539ddda1
+              ;;
+            hivemq)
+              docker run --detach --name mqtt-broker -p 1883:1883 \
+                hivemq/hivemq-ce:2024.5@sha256:9e4457e13974978970c0ec9e2b13951726956cb26f8ec00add13df9c1ffce8ac
+              ;;
+          esac
+          timeout 120 bash -c 'until echo > /dev/tcp/127.0.0.1/1883; do sleep 2; done'
+      - run: vendor/bin/phpunit tests/Feature/Mqtt5PublishSubscribeTest.php --testdox
+        env:
+          MQTT_BROKER_HOST: localhost
+          MQTT_BROKER_PORT: 1883
+      - if: failure()
+        run: docker logs mqtt-broker > "${{ matrix.broker }}.log" 2>&1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: ${{ matrix.broker }}-failure-log
+          path: ${{ matrix.broker }}.log
+
+  paho:
+    name: Paho MQTT 5 scripted broker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout pinned Paho test harness
+        # EPL-2.0 OR EDL-1.0 license reviewed; the harness receives no repository secrets.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: eclipse-paho/paho.mqtt.testing
+          ref: 9d7bb80bb8b9d9cfc0b52f8cb4c1916401281103
+          path: paho-testing
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: composer install --prefer-dist
+      - name: Start Paho MQTT 5 broker
+        working-directory: paho-testing/interoperability
+        run: |
+          python3 startbroker.py > "$RUNNER_TEMP/paho-broker.log" 2>&1 &
+          timeout 60 bash -c 'until echo > /dev/tcp/127.0.0.1/1883; do sleep 1; done'
+      - run: vendor/bin/phpunit tests/Feature/Mqtt5PublishSubscribeTest.php --testdox
+        env:
+          MQTT_BROKER_HOST: localhost
+          MQTT_BROKER_PORT: 1883
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: paho-failure-log
+          path: ${{ runner.temp }}/paho-broker.log

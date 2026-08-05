@@ -12,7 +12,7 @@
 
 [`php-mqtt/client`](https://packagist.org/packages/php-mqtt/client) was created by, and is maintained
 by [Marvin Mall](https://github.com/namoshek).
-It allows you to connect to an MQTT broker where you can publish messages and subscribe to topics.
+It allows you to connect to MQTT 3.1, MQTT 3.1.1, and MQTT 5.0 brokers to publish messages and subscribe to topics.
 The current implementation supports all QoS levels ([with limitations](#limitations)).
 
 ## Installation
@@ -107,8 +107,8 @@ $mqtt->disconnect();
 ### Client Settings
 
 As shown in the examples above, the `MqttClient` takes the server, port and client id as first, second and third parameter.
-As fourth parameter, the protocol level can be passed. Currently supported is MQTT v3.1,
-available as constant `MqttClient::MQTT_3_1`.
+As fourth parameter, the protocol level can be passed. Supported constants are `MqttClient::MQTT_3_1`,
+`MqttClient::MQTT_3_1_1`, and `MqttClient::MQTT_5_0`. The default remains MQTT 3.1 for backward compatibility.
 A fifth parameter allows passing a repository (currently, only a `MemoryRepository` is available by default).
 Lastly, a logger can be passed as sixth parameter. If none is given, a null logger is used instead.
 
@@ -374,22 +374,82 @@ $mqtt->unregisterConnectedEventHandler($callback); // Unregister specific event 
 $mqtt->unregisterConnectedEventHandler(); // Unregister all event handlers
 ```
 
+### MQTT 5
+
+Select MQTT 5 explicitly; the constructor and basic API remain unchanged:
+
+```php
+use PhpMqtt\Client\MqttClient;
+
+$mqtt = new MqttClient($server, $port, $clientId, MqttClient::MQTT_5_0);
+$mqtt->connect();
+$mqtt->publish('example/topic', 'payload');
+$mqtt->disconnect();
+```
+
+The optional `Contracts\Mqtt5Client` API exposes typed options, results, properties, and callbacks without
+changing `Contracts\MqttClient`. Properties are ordered and preserve duplicate User Properties and
+Subscription Identifiers:
+
+```php
+use PhpMqtt\Client\Mqtt5\ConnectionOptions;
+use PhpMqtt\Client\Mqtt5\PublishOptions;
+use PhpMqtt\Client\Protocol\Properties;
+use PhpMqtt\Client\Protocol\PropertyIdentifier;
+
+$connectionProperties = Properties::empty()
+    ->with(PropertyIdentifier::SESSION_EXPIRY_INTERVAL, 3600)
+    ->with(PropertyIdentifier::RECEIVE_MAXIMUM, 20)
+    ->with(PropertyIdentifier::MAXIMUM_PACKET_SIZE, 1048576)
+    ->with(PropertyIdentifier::TOPIC_ALIAS_MAXIMUM, 10);
+
+$result = $mqtt->connectWithOptions(null, true, new ConnectionOptions($connectionProperties));
+
+$publishProperties = Properties::empty()
+    ->with(PropertyIdentifier::CONTENT_TYPE, 'application/json')
+    ->with(PropertyIdentifier::MESSAGE_EXPIRY_INTERVAL, 60)
+    ->with(PropertyIdentifier::USER_PROPERTY, ['trace-id', 'example']);
+
+$mqtt->publishWithOptions(
+    'example/topic',
+    '{"status":"ok"}',
+    1,
+    false,
+    new PublishOptions($publishProperties)
+);
+```
+
+`ConnectionResult` exposes Session Present, an assigned client identifier, CONNACK properties, Server Keep
+Alive, and negotiated feature limits. Batched subscriptions use `SubscribeOptions` and per-filter
+`SubscriptionOptions`. Typed callbacks are available for incoming publications, operation results, server
+DISCONNECT, and AUTH while legacy callback signatures remain unchanged.
+
+For MQTT 5, the existing `$useCleanSession` argument means **Clean Start**. Session lifetime is controlled
+separately by the Session Expiry Interval property. Automatic reconnect uses CONNACK Session Present to resume
+in-flight state or replay known subscriptions when the broker has lost the session.
+
+Enhanced authentication is configured with `AuthenticationOptions` and an implementation of
+`Contracts\AuthenticationHandler`. Redirect reasons and Server Reference are exposed to the caller; this
+client does not automatically connect to another host.
+
 ## Features
 
 - Supported MQTT Versions
   - [x] v3 (just don't use v3.1 features like username & password)
   - [x] v3.1
   - [x] v3.1.1
-  - [ ] v5.0
+  - [x] v5.0
 - Transport
   - [x] TCP (unsecured)
   - [x] TLS (secured, verifies the peer using a certificate authority file)
+  - [ ] WebSocket (not advertised or implemented)
 - Connect
   - [x] Last Will
   - [x] Message Retention
   - [x] Authentication (username & password)
   - [x] TLS encrypted connections
-  - [ ] Clean Session (can be set and sent, but the client has no persistence for QoS 2 messages)
+  - [x] Clean Session / MQTT 5 Clean Start
+  - [x] MQTT 5 enhanced authentication and negotiated capabilities
 - Publish
   - [x] QoS Level 0
   - [x] QoS Level 1 (limitation: no persisted state across sessions)
@@ -398,7 +458,7 @@ $mqtt->unregisterConnectedEventHandler(); // Unregister all event handlers
   - [x] QoS Level 0
   - [x] QoS Level 1
   - [x] QoS Level 2 (limitation: no persisted state across sessions)
-- Supported Message Length: unlimited _(no limits enforced, although the MQTT protocol supports only up to 256MB which one shouldn't use even remotely anyway)_
+- Packet size: MQTT protocol maximum plus lower negotiated MQTT 5 inbound/outbound limits
 - Logging possible (`Psr\Log\LoggerInterface` can be passed to the client)
 - Persistence Drivers
   - [x] In-Memory Driver
@@ -409,6 +469,11 @@ $mqtt->unregisterConnectedEventHandler(); // Unregister all event handlers
 - Message flows with a QoS level higher than 0 are not persisted as the default implementation uses an in-memory repository for data.
   To avoid issues with broken message flows, use the clean session flag to indicate that you don't care about old data.
   It will not only instruct the broker to consider the connection new (without previous state), but will also reset the registered repository.
+- `MemoryRepository` state is lost when the PHP process exits. A legacy custom repository is wrapped by
+  `LegacyRepositoryAdapter`; MQTT 5 queue metadata and the adapter's subscription index are process-local.
+- TCP and TLS are supported. WebSocket transport is conditional work and is not currently advertised.
+- Wire diagnostics do not log CONNECT, AUTH, credentials, or payload bytes. Applications should apply the
+  same redaction policy to custom loggers and callbacks.
   
 ## Developing & Testing
 
@@ -435,13 +500,17 @@ docker run --rm -it \
   -v $(pwd)/.ci/tls:/mosquitto-certs \
   -v $(pwd)/.ci/mosquitto.conf:/mosquitto/config/mosquitto.conf \
   -v $(pwd)/.ci/mosquitto.passwd:/mosquitto/config/mosquitto.passwd \
-  eclipse-mosquitto:1.6
+  eclipse-mosquitto:2.1.2-alpine
 ```
 
 When run from the project directory, this will spawn a Mosquitto MQTT broker configured with the generated TLS certificates and a custom configuration.
 
 In case you intend to run a different broker or using a different method, or use a public broker instead,
 you will need to adjust the environment variables defined in `phpunit.xml` accordingly.
+
+Run broker-free checks with `composer test:cs` and `composer test:unit`. Run the broker-backed suite with
+`composer test:feature`. MQTT 5 release conformance is tracked in
+[`docs/mqtt5-compliance.md`](docs/mqtt5-compliance.md).
 
 ## License
 

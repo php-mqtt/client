@@ -10,14 +10,14 @@ use PHPUnit\Framework\TestCase;
 class TopicTest extends TestCase
 {
     /**
-     * @dataProvider matches
+     * @dataProvider topicMatches
      */
     public function test_topic_matching(string $filter, string $topic, bool $expected): void
     {
         $this->assertSame($expected, Topic::matches($filter, $topic));
     }
 
-    public function matches(): array
+    public function topicMatches(): array
     {
         return [
             ['sport/+/player1', 'sport/tennis/player1', true],

@@ -2,100 +2,135 @@ name: Tests
 
 on:
   push:
-    branches:
-      - master
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COMPOSER_NO_INTERACTION: '1'
 
 jobs:
-  test-all:
-    name: Test PHP ${{ matrix.php-version }} using broker [${{ matrix.mqtt-broker }}]
-
+  quality:
+    name: Composer and PHPCS
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
-        mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.1']
-        include:
-          - php-version: '8.5'
-            mqtt-broker: 'mosquitto-2.1'
-            run-sonarqube-analysis: true
-
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
-          fetch-depth: 0
-
-      - name: Setup PHP ${{ matrix.php-version }}
-        uses: shivammathur/setup-php@v2
+          php-version: '8.3'
+          coverage: none
+      - id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          php-version: ${{ matrix.php-version }}
-          tools: phpunit:9.5.0
-          coverage: pcov
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-quality-${{ hashFiles('composer.json') }}
+      - run: composer validate --strict
+      - run: composer install --prefer-dist
+      - run: composer test:cs
 
-      - name: Setup problem matchers for PHP
-        run: echo "::add-matcher::${{ runner.tool_cache }}/php.json"
+  unit:
+    name: Unit PHP ${{ matrix.php }} / ${{ matrix.dependencies }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
+        dependencies: [lowest, latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ matrix.php }}-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
+      - if: matrix.dependencies == 'lowest'
+        run: composer update --prefer-lowest --prefer-stable --prefer-dist
+      - if: matrix.dependencies == 'latest'
+        run: composer update --prefer-dist
+      - run: vendor/bin/phpunit --testsuite=Unit --testdox
 
-      - name: Setup problem matchers for PHPUnit
-        run: echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
-
-      - name: Install Composer dependencies
-        run: composer install --prefer-dist
-
-      - name: Generate certificates for tests
+  integration:
+    name: MQTT 3.1 / 3.1.1 / 5.0 integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: composer install --prefer-dist
+      - name: Generate disposable broker credentials and TLS certificates
         run: |
+          credential="$(openssl rand -hex 24)"
+          echo "MQTT_BROKER_PASSWORD=$credential" >> "$GITHUB_ENV"
           sh create-certificates.sh
-          chmod u+rx,g+rx ${{ github.workspace }}/.ci/tls
-          chmod a+r ${{ github.workspace }}/.ci/tls/*
-
-      - name: Start Mosquitto 1.6 message broker
-        if: matrix.mqtt-broker == 'mosquitto-1.6'
+          docker run --rm \
+            -v "$RUNNER_TEMP:/work" \
+            eclipse-mosquitto:2.1.2-alpine@sha256:6f8d8a947c506f8a2290ec65cd4bd2bc7cb4d43fb5f6271f861cb013e2ef9797 \
+            mosquitto_passwd -b -c /work/mosquitto.passwd ci-test-user "$credential"
+          sed 's|/mosquitto/config/mosquitto.passwd|/mosquitto/config/generated.passwd|' \
+            .ci/mosquitto.conf > "$RUNNER_TEMP/mosquitto.conf"
+      - name: Start Mosquitto
         run: |
           docker run --detach --name mqtt-broker \
             -p 1883:1883 -p 1884:1884 -p 8883:8883 -p 8884:8884 \
-            -v ${{ github.workspace }}/.ci/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro \
-            -v ${{ github.workspace }}/.ci/mosquitto.passwd:/mosquitto/config/mosquitto.passwd:ro \
-            -v ${{ github.workspace }}/.ci/tls:/mosquitto-certs:ro \
+            -v "$RUNNER_TEMP/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            -v "$RUNNER_TEMP/mosquitto.passwd:/mosquitto/config/generated.passwd:ro" \
+            -v "$GITHUB_WORKSPACE/.ci/tls:/mosquitto-certs:ro" \
             --health-cmd="mosquitto_pub -h 127.0.0.1 -p 1883 -t health -n -q 0" \
-            --health-interval=2s --health-timeout=5s --health-retries=30 --health-start-period=5s \
-            eclipse-mosquitto:1.6-openssl
-          timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} mqtt-broker)" = "healthy" ]; do sleep 2; done'
-
-      - name: Start Mosquitto 2.0 message broker
-        if: matrix.mqtt-broker == 'mosquitto-2.1'
-        run: |
-          docker run --detach --name mqtt-broker \
-            -p 1883:1883 -p 1884:1884 -p 8883:8883 -p 8884:8884 \
-            -v ${{ github.workspace }}/.ci/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro \
-            -v ${{ github.workspace }}/.ci/mosquitto.passwd:/mosquitto/config/mosquitto.passwd:ro \
-            -v ${{ github.workspace }}/.ci/tls:/mosquitto-certs:ro \
-            --health-cmd="mosquitto_pub -h 127.0.0.1 -p 1883 -t health -n -q 0" \
-            --health-interval=2s --health-timeout=5s --health-retries=30 --health-start-period=5s \
-            eclipse-mosquitto:2.1.2-alpine
-          timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} mqtt-broker)" = "healthy" ]; do sleep 2; done'
-
-      - name: Run phpunit tests
-        run: composer test
+            --health-interval=2s --health-timeout=5s --health-retries=30 \
+            eclipse-mosquitto:2.1.2-alpine@sha256:6f8d8a947c506f8a2290ec65cd4bd2bc7cb4d43fb5f6271f861cb013e2ef9797
+          timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} mqtt-broker)" = healthy ]; do sleep 2; done'
+      - name: Run feature tests
+        run: vendor/bin/phpunit --testsuite=Feature --testdox
         env:
-          MQTT_BROKER_HOST: 'localhost'
+          MQTT_BROKER_HOST: localhost
           MQTT_BROKER_PORT: 1883
           MQTT_BROKER_PORT_WITH_AUTHENTICATION: 1884
           MQTT_BROKER_TLS_PORT: 8883
           MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
-          MQTT_BROKER_USERNAME: 'ci-test-user'
-          MQTT_BROKER_PASSWORD: ${{ secrets.CI_MOSQUITTO_CI_TEST_USER_PASSWORD }}
+          MQTT_BROKER_USERNAME: ci-test-user
+      - name: Capture broker log
+        if: failure()
+        run: docker logs mqtt-broker > broker.log 2>&1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: mosquitto-failure-log
+          path: broker.log
 
-
-      - name: Prepare paths for SonarQube analysis
-        if: matrix.run-sonarqube-analysis
-        run: |
-          sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.coverage-clover.xml
-          sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.report-junit.xml
-
-      - name: Run SonarQube analysis
-        uses: sonarsource/sonarqube-scan-action@v8.2.1
-        if: matrix.run-sonarqube-analysis
+  coverage:
+    name: Coverage and Sonar
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          coverage: pcov
+      - run: composer install --prefer-dist
+      - run: vendor/bin/phpunit --testsuite=Unit --coverage-clover=phpunit.coverage-clover.xml --log-junit=phpunit.report-junit.xml
+      - uses: sonarsource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
