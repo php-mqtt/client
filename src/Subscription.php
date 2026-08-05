@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client;
 
+use PhpMqtt\Client\Protocol\Topic;
+
 /**
  * A simple DTO for subscriptions to a topic which need to be stored in a repository.
  *
@@ -11,8 +13,6 @@ namespace PhpMqtt\Client;
  */
 class Subscription
 {
-    private string $regexifiedTopicFilter;
-
     /**
      * Creates a new subscription object.
      */
@@ -22,25 +22,6 @@ class Subscription
         private ?\Closure $callback = null,
     )
     {
-        $this->regexifyTopicFilter();
-    }
-
-    /**
-     * Converts the topic filter into a regular expression.
-     */
-    private function regexifyTopicFilter(): void
-    {
-        $topicFilter = $this->topicFilter;
-
-        // If the topic filter is for a shared subscription, we remove the shared subscription prefix as well as the group name
-        // from the topic filter. To do so, we look for the $share keyword and then try to find the second topic separator to
-        // calculate the substring containing the actual topic filter.
-        // Note: shared subscriptions always have the form: $share/<group>/<topic>
-        if (str_starts_with($topicFilter, '$share/') && ($separatorIndex = strpos($topicFilter, '/', 7)) !== false) {
-            $topicFilter = substr($topicFilter, $separatorIndex + 1);
-        }
-
-        $this->regexifiedTopicFilter = '/^' . str_replace(['$', '/', '+', '#'], ['\$', '\/', '([^\/]*)', '(.*)'], $topicFilter) . '$/';
     }
 
     /**
@@ -56,7 +37,7 @@ class Subscription
      */
     public function matchesTopic(string $topicName): bool
     {
-        return (bool) preg_match($this->regexifiedTopicFilter, $topicName);
+        return Topic::matches($this->topicFilter, $topicName);
     }
 
     /**
@@ -73,11 +54,7 @@ class Subscription
      */
     public function getMatchedWildcards(string $topicName): array
     {
-        if (!preg_match($this->regexifiedTopicFilter, $topicName, $matches)) {
-            return [];
-        }
-
-        return array_slice($matches, 1);
+        return Topic::matchedWildcards($this->topicFilter, $topicName);
     }
 
     /**
