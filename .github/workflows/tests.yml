@@ -80,10 +80,12 @@ jobs:
           credential="$(openssl rand -hex 24)"
           echo "MQTT_BROKER_PASSWORD=$credential" >> "$GITHUB_ENV"
           sh create-certificates.sh
-          docker run --rm \
+          chmod -R a+rX .ci/tls
+          docker run --rm --user "$(id -u):$(id -g)" \
             -v "$RUNNER_TEMP:/work" \
             eclipse-mosquitto:2.1.2-alpine@sha256:6f8d8a947c506f8a2290ec65cd4bd2bc7cb4d43fb5f6271f861cb013e2ef9797 \
             mosquitto_passwd -b -c /work/mosquitto.passwd ci-test-user "$credential"
+          chmod 644 "$RUNNER_TEMP/mosquitto.passwd"
           sed 's|/mosquitto/config/mosquitto.passwd|/mosquitto/config/generated.passwd|' \
             .ci/mosquitto.conf > "$RUNNER_TEMP/mosquitto.conf"
       - name: Start Mosquitto
