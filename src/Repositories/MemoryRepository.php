@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PhpMqtt\Client\Repositories;
 
-use PhpMqtt\Client\Contracts\Repository;
+use PhpMqtt\Client\Contracts\Mqtt5Repository;
 use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
 use PhpMqtt\Client\Exceptions\RepositoryException;
@@ -18,7 +18,7 @@ use PhpMqtt\Client\Subscription;
  *
  * @package PhpMqtt\Client\Repositories
  */
-class MemoryRepository implements Repository
+class MemoryRepository implements Mqtt5Repository
 {
     private int $nextMessageId = 1;
 
@@ -31,6 +31,12 @@ class MemoryRepository implements Repository
     /** @var array<int, Subscription> */
     private array $subscriptions = [];
 
+    /** @var array<int, PublishedMessage> */
+    private array $queuedPublications = [];
+
+    /** @var array<string, mixed> */
+    private array $sessionMetadata = [];
+
     /**
      * {@inheritDoc}
      */
@@ -40,6 +46,8 @@ class MemoryRepository implements Repository
         $this->pendingOutgoingMessages = [];
         $this->pendingIncomingMessages = [];
         $this->subscriptions           = [];
+        $this->queuedPublications      = [];
+        $this->sessionMetadata         = [];
     }
 
     /**
@@ -91,12 +99,17 @@ class MemoryRepository implements Repository
         $result = [];
 
         foreach ($this->pendingOutgoingMessages as $pendingMessage) {
-            if ($pendingMessage->getLastSentAt() < $dateTime) {
+            if ($dateTime === null || $pendingMessage->getLastSentAt() < $dateTime) {
                 $result[] = $pendingMessage;
             }
         }
 
         return $result;
+    }
+
+    public function getPendingOutgoingMessages(): array
+    {
+        return array_values($this->pendingOutgoingMessages);
     }
 
     /**
@@ -133,7 +146,7 @@ class MemoryRepository implements Repository
             return false;
         }
 
-        unset($this->pendingOutgoingMessages[$messageId]);
+        unset($this->pendingOutgoingMessages[$messageId], $this->queuedPublications[$messageId]);
         return true;
     }
 
@@ -215,6 +228,11 @@ class MemoryRepository implements Repository
         return $result;
     }
 
+    public function getSubscriptions(): array
+    {
+        return array_values($this->subscriptions);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -228,5 +246,36 @@ class MemoryRepository implements Repository
         }
 
         return false;
+    }
+
+    public function addQueuedPublication(PublishedMessage $publication): void
+    {
+        $this->queuedPublications[$publication->getMessageId()] = $publication;
+    }
+
+    public function getQueuedPublications(): array
+    {
+        return array_values($this->queuedPublications);
+    }
+
+    public function removeQueuedPublication(int $messageId): bool
+    {
+        if (!isset($this->queuedPublications[$messageId])) {
+            return false;
+        }
+
+        unset($this->queuedPublications[$messageId]);
+
+        return true;
+    }
+
+    public function setSessionMetadata(string $key, $value): void
+    {
+        $this->sessionMetadata[$key] = $value;
+    }
+
+    public function getSessionMetadata(string $key)
+    {
+        return $this->sessionMetadata[$key] ?? null;
     }
 }

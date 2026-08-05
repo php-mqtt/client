@@ -20,6 +20,8 @@ use MyCLabs\Enum\Enum;
  * @method static MessageType UNSUBSCRIBE_ACKNOWLEDGEMENT()
  * @method static MessageType PING_REQUEST()
  * @method static MessageType PING_RESPONSE()
+ * @method static MessageType DISCONNECT()
+ * @method static MessageType AUTHENTICATION()
  *
  * @package PhpMqtt\Client
  */
@@ -34,4 +36,6 @@ class MessageType extends Enum
     private const UNSUBSCRIBE_ACKNOWLEDGEMENT = 'UNSUBACK';
     private const PING_REQUEST                = 'PINGREQ';
     private const PING_RESPONSE               = 'PINGRESP';
+    private const DISCONNECT                  = 'DISCONNECT';
+    private const AUTHENTICATION              = 'AUTH';
 }

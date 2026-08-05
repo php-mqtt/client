@@ -38,7 +38,14 @@ class SupportedProtocolsTest extends TestCase
         new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-protocol', '3');
     }
 
-    public function test_client_does_not_support_mqtt_5_protocol(): void
+    public function test_client_supports_mqtt_5_protocol(): void
+    {
+        $client = new MqttClient($this->mqttBrokerHost, $this->mqttBrokerPort, 'test-protocol', MqttClient::MQTT_5_0);
+
+        $this->assertInstanceOf(MqttClient::class, $client);
+    }
+
+    public function test_client_does_not_support_ambiguous_mqtt_5_protocol(): void
     {
         $this->expectException(ProtocolNotSupportedException::class);
 

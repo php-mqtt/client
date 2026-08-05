@@ -5,24 +5,54 @@ declare(strict_types=1);
 namespace PhpMqtt\Client;
 
 use PhpMqtt\Client\Concerns\GeneratesRandomClientIds;
+use PhpMqtt\Client\Concerns\OffersMqtt5Hooks;
 use PhpMqtt\Client\Concerns\OffersHooks;
 use PhpMqtt\Client\Concerns\ValidatesConfiguration;
 use PhpMqtt\Client\Contracts\MessageProcessor;
 use PhpMqtt\Client\Contracts\MqttClient as ClientContract;
+use PhpMqtt\Client\Contracts\Mqtt5Client as Mqtt5ClientContract;
+use PhpMqtt\Client\Contracts\Mqtt5MessageProcessor as Mqtt5MessageProcessorContract;
+use PhpMqtt\Client\Contracts\Mqtt5Repository;
 use PhpMqtt\Client\Contracts\Repository;
 use PhpMqtt\Client\Exceptions\ClientNotConnectedToBrokerException;
 use PhpMqtt\Client\Exceptions\ConfigurationInvalidException;
 use PhpMqtt\Client\Exceptions\ConnectingToBrokerFailedException;
 use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\InvalidMessageException;
+use PhpMqtt\Client\Exceptions\MalformedPacketException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\Exceptions\PendingMessageAlreadyExistsException;
 use PhpMqtt\Client\Exceptions\PendingMessageNotFoundException;
 use PhpMqtt\Client\Exceptions\ProtocolNotSupportedException;
+use PhpMqtt\Client\Exceptions\ProtocolErrorException;
 use PhpMqtt\Client\Exceptions\ProtocolViolationException;
 use PhpMqtt\Client\MessageProcessors\Mqtt311MessageProcessor;
 use PhpMqtt\Client\MessageProcessors\Mqtt31MessageProcessor;
+use PhpMqtt\Client\MessageProcessors\Mqtt5MessageProcessor;
+use PhpMqtt\Client\Mqtt5\AuthenticationEvent;
+use PhpMqtt\Client\Mqtt5\AuthenticationOptions;
+use PhpMqtt\Client\Mqtt5\ConnectionOptions;
+use PhpMqtt\Client\Mqtt5\ConnectionResult;
+use PhpMqtt\Client\Mqtt5\DisconnectOptions;
+use PhpMqtt\Client\Mqtt5\FlowStage;
+use PhpMqtt\Client\Mqtt5\IncomingPublication;
+use PhpMqtt\Client\Mqtt5\OperationResult;
+use PhpMqtt\Client\Mqtt5\PublishOptions;
+use PhpMqtt\Client\Mqtt5\ServerDisconnect;
+use PhpMqtt\Client\Mqtt5\SubscribeOptions;
+use PhpMqtt\Client\Mqtt5\SubscriptionOptions;
+use PhpMqtt\Client\Mqtt5\UnsubscribeOptions;
+use PhpMqtt\Client\Protocol\PacketType;
+use PhpMqtt\Client\Protocol\Packets\AcknowledgementPacket;
+use PhpMqtt\Client\Protocol\Packets\AuthPacket;
+use PhpMqtt\Client\Protocol\Packets\DisconnectPacket;
+use PhpMqtt\Client\Protocol\Packets\PublishPacket;
+use PhpMqtt\Client\Protocol\Packets\ResultPacket;
+use PhpMqtt\Client\Protocol\Properties;
+use PhpMqtt\Client\Protocol\PropertyIdentifier;
+use PhpMqtt\Client\Protocol\ReasonCode;
 use PhpMqtt\Client\Repositories\MemoryRepository;
+use PhpMqtt\Client\Repositories\LegacyRepositoryAdapter;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -30,14 +60,16 @@ use Psr\Log\LoggerInterface;
  *
  * @package PhpMqtt\Client
  */
-class MqttClient implements ClientContract
+class MqttClient implements ClientContract, Mqtt5ClientContract
 {
     use GeneratesRandomClientIds;
+    use OffersMqtt5Hooks;
     use OffersHooks;
     use ValidatesConfiguration;
 
     public const MQTT_3_1   = '3.1';
     public const MQTT_3_1_1 = '3.1.1';
+    public const MQTT_5_0   = '5.0';
 
     public const QOS_AT_MOST_ONCE        = 0;
     public const QOS_AT_LEAST_ONCE       = 1;
@@ -55,6 +87,16 @@ class MqttClient implements ClientContract
     private bool $interrupted  = false;
     private int $bytesReceived = 0;
     private int $bytesSent     = 0;
+    private ?ConnectionOptions $mqtt5ConnectionOptions = null;
+    private ?ConnectionResult $connectionResult         = null;
+    private bool $cleanStart                              = false;
+    private ?int $effectiveKeepAlive                      = null;
+
+    /** @var array<int, string> */
+    private array $incomingTopicAliases = [];
+
+    /** @var array<int, string> */
+    private array $outgoingTopicAliases = [];
 
     /** @var resource|null */
     protected $socket;
@@ -80,25 +122,61 @@ class MqttClient implements ClientContract
         ?LoggerInterface $logger = null
     )
     {
-        if (!in_array($protocol, [self::MQTT_3_1, self::MQTT_3_1_1])) {
+        if (!in_array($protocol, [self::MQTT_3_1, self::MQTT_3_1_1, self::MQTT_5_0], true)) {
             throw new ProtocolNotSupportedException($protocol);
         }
-        $this->clientId   = $clientId ?? $this->generateRandomClientId();
-        $this->repository = $repository ?? new MemoryRepository();
+        $this->clientId = $clientId ?? $this->generateRandomClientId();
+
+        $repository = $repository ?? new MemoryRepository();
+        if ($protocol === self::MQTT_5_0 && !$repository instanceof Mqtt5Repository) {
+            $repository = new LegacyRepositoryAdapter($repository);
+        }
+
+        $this->repository = $repository;
         $this->logger     = new Logger($this->host, $this->port, $this->clientId, $logger);
 
         $this->messageProcessor = match ($protocol) {
             self::MQTT_3_1_1 => new Mqtt311MessageProcessor($this->clientId, $this->logger),
+            self::MQTT_5_0 => new Mqtt5MessageProcessor($this->clientId, $this->logger),
             default => new Mqtt31MessageProcessor($this->clientId, $this->logger),
         };
 
         $this->initializeEventHandlers();
+        $this->initializeMqtt5EventHandlers();
     }
 
     /**
      * {@inheritDoc}
      */
     public function connect(?ConnectionSettings $settings = null, bool $useCleanSession = false): void
+    {
+        $this->mqtt5ConnectionOptions = null;
+        $this->connectConfigured($settings, $useCleanSession);
+    }
+
+    /**
+     * Connects with typed MQTT 5 options while preserving the legacy connect method.
+     */
+    public function connectWithOptions(
+        ?ConnectionSettings $settings = null,
+        bool $cleanStart = false,
+        ?ConnectionOptions $options = null
+    ): ConnectionResult
+    {
+        $processor = $this->mqtt5Processor();
+
+        $this->mqtt5ConnectionOptions = $options ?? new ConnectionOptions();
+        $processor->setConnectionOptions($this->mqtt5ConnectionOptions);
+        $this->connectConfigured($settings, $cleanStart);
+
+        if ($this->connectionResult === null) {
+            throw new MqttClientException('The MQTT 5 broker did not return a connection result.');
+        }
+
+        return $this->connectionResult;
+    }
+
+    private function connectConfigured(?ConnectionSettings $settings, bool $useCleanSession): void
     {
         // Always abruptly close any previous connection if we are opening a new one.
         // The caller should make sure this does not happen.
@@ -107,12 +185,20 @@ class MqttClient implements ClientContract
         $this->logger->debug('Connecting to broker.');
 
         $this->settings = $settings ?? new ConnectionSettings();
+        $this->cleanStart = $useCleanSession;
+        $this->effectiveKeepAlive = $this->settings->getKeepAliveInterval();
 
         $this->ensureConnectionSettingsAreValid($this->settings);
 
+        if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            $this->messageProcessor->setConnectionOptions($this->mqtt5ConnectionOptions);
+        }
+
         // Because a clean session would make reconnects inherently more complex since all subscriptions would need to be replayed after reconnecting,
         // we simply do not allow using these two features together.
-        if ($useCleanSession && $this->settings->shouldReconnectAutomatically()) {
+        if ($useCleanSession
+            && $this->settings->shouldReconnectAutomatically()
+            && !$this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
             throw new ConfigurationInvalidException('Automatic reconnects cannot be used together with the clean session flag.');
         }
 
@@ -131,6 +217,13 @@ class MqttClient implements ClientContract
      */
     protected function connectInternal(bool $useCleanSession = false, bool $isAutoReconnect = false): void
     {
+        $this->incomingTopicAliases = [];
+        $this->outgoingTopicAliases = [];
+
+        if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            $this->messageProcessor->setConnectionOptions($this->mqtt5ConnectionOptions);
+        }
+
         try {
             $this->establishSocketConnection();
             $this->performConnectionHandshake($useCleanSession);
@@ -142,7 +235,52 @@ class MqttClient implements ClientContract
 
         $this->connected = true;
 
+        try {
+            if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+                $this->applyMqtt5ConnectionResult($useCleanSession);
+
+                if ($isAutoReconnect) {
+                    if ($this->connectionResult?->isSessionPresent()) {
+                        $this->resumeMqtt5Session();
+                    } else {
+                        $this->rebuildMqtt5Session();
+                    }
+                }
+            }
+        } catch (\Throwable $exception) {
+            $this->closeSocket();
+            throw $exception;
+        }
+
         $this->runConnectedEventHandlers($isAutoReconnect);
+    }
+
+    private function applyMqtt5ConnectionResult(bool $cleanStart): void
+    {
+        $this->connectionResult = $this->mqtt5Processor()->getConnectionResult();
+
+        if ($this->connectionResult === null) {
+            throw new \LogicException('No MQTT 5 connection result is available.');
+        }
+
+        if ($cleanStart && $this->connectionResult->isSessionPresent()) {
+            throw new ProtocolViolationException('The broker set Session Present for a Clean Start connection');
+        }
+
+        $assignedClientId = $this->connectionResult->getAssignedClientId();
+        if ($assignedClientId !== null) {
+            $this->clientId = $assignedClientId;
+            $this->mqtt5Processor()->setClientId($assignedClientId);
+            $this->mqtt5Repository()->setSessionMetadata('assignedClientId', $assignedClientId);
+        }
+
+        $this->mqtt5Repository()->setSessionMetadata(
+            'sessionExpiryInterval',
+            $this->mqtt5ConnectionOptions?->getProperties()->get(PropertyIdentifier::SESSION_EXPIRY_INTERVAL) ?? 0
+        );
+
+        $serverKeepAlive = $this->connectionResult->getCapabilities()->getServerKeepAlive();
+        $this->effectiveKeepAlive = $serverKeepAlive ?? $this->settings->getKeepAliveInterval();
     }
 
     /**
@@ -349,10 +487,21 @@ class MqttClient implements ClientContract
                     // Remove the parsed data from the buffer.
                     $buffer = substr($buffer, strlen($message));
 
-                    // Process the acknowledgement message.
-                    $this->messageProcessor->handleConnectAcknowledgement($message);
+                    if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+                        $response = $this->messageProcessor->processConnectionHandshake($message);
 
-                    break;
+                        if ($response !== null) {
+                            $this->writeToSocket($response);
+                        }
+
+                        if ($this->messageProcessor->getConnectionResult() !== null) {
+                            break;
+                        }
+                    } else {
+                        // Process the acknowledgement message.
+                        $this->messageProcessor->handleConnectAcknowledgement($message);
+                        break;
+                    }
                 }
 
                 // If no acknowledgement has been received from the broker within the configured connection timeout period,
@@ -452,6 +601,59 @@ class MqttClient implements ClientContract
         return $this->bytesSent;
     }
 
+    public function getConnectionResult(): ?ConnectionResult
+    {
+        return $this->connectionResult;
+    }
+
+    public function authenticate(AuthenticationOptions $options): void
+    {
+        $this->ensureConnected();
+        $this->writeToSocketWithAutoReconnect(
+            $this->mqtt5Processor()->buildAuthenticationMessage($options, ReasonCode::REAUTHENTICATE)
+        );
+    }
+
+    private function mqtt5Processor(): Mqtt5MessageProcessorContract
+    {
+        if (!$this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            throw new \LogicException('This operation is available only when MQTT 5.0 is selected.');
+        }
+
+        return $this->messageProcessor;
+    }
+
+    private function requiredConnectionResult(): ConnectionResult
+    {
+        if ($this->connectionResult === null) {
+            throw new \LogicException('No MQTT 5 connection has been negotiated.');
+        }
+
+        return $this->connectionResult;
+    }
+
+    private function mqtt5Repository(): Mqtt5Repository
+    {
+        if (!$this->repository instanceof Mqtt5Repository) {
+            throw new \LogicException('The MQTT 5 repository adapter is not configured.');
+        }
+
+        return $this->repository;
+    }
+
+    private function countMqtt5InflightPublications(): int
+    {
+        $count = 0;
+
+        foreach ($this->mqtt5Repository()->getPendingOutgoingMessages() as $pendingMessage) {
+            if ($pendingMessage instanceof PublishedMessage && $pendingMessage->getFlowStage() !== FlowStage::QUEUED) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -480,6 +682,11 @@ class MqttClient implements ClientContract
      */
     public function disconnect(): void
     {
+        if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            $this->disconnectWithOptions();
+            return;
+        }
+
         $this->ensureConnected();
 
         $this->sendDisconnect();
@@ -494,11 +701,45 @@ class MqttClient implements ClientContract
         $this->connected = false;
     }
 
+    public function disconnectWithOptions(?DisconnectOptions $options = null): void
+    {
+        $this->ensureConnected();
+        $processor = $this->mqtt5Processor();
+        $options   = $options ?? new DisconnectOptions();
+
+        $sessionExpiry = $options->getProperties()->get(PropertyIdentifier::SESSION_EXPIRY_INTERVAL);
+        $connectExpiry = $this->mqtt5ConnectionOptions?->getProperties()->get(PropertyIdentifier::SESSION_EXPIRY_INTERVAL);
+        if ($sessionExpiry !== null && $sessionExpiry > 0 && ($connectExpiry ?? 0) === 0) {
+            throw new \InvalidArgumentException(
+                'DISCONNECT cannot increase Session Expiry Interval from zero to a non-zero value.'
+            );
+        }
+
+        $this->writeToSocketWithAutoReconnect($processor->buildDisconnectMessageWithOptions($options));
+        $this->shutdownSocket();
+    }
+
+    private function shutdownSocket(): void
+    {
+        if ($this->socket !== null && is_resource($this->socket)) {
+            $this->logger->debug('Closing the socket to the broker.');
+            stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
+        }
+
+        $this->socket    = null;
+        $this->connected = false;
+    }
+
     /**
      * {@inheritDoc}
      */
     public function publish(string $topic, string $message, int $qualityOfService = 0, bool $retain = false): void
     {
+        if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            $this->publishWithOptions($topic, $message, $qualityOfService, $retain);
+            return;
+        }
+
         $this->ensureConnected();
 
         $messageId = null;
@@ -511,6 +752,87 @@ class MqttClient implements ClientContract
         }
 
         $this->publishMessage($topic, $message, $qualityOfService, $retain, $messageId);
+    }
+
+    public function publishWithOptions(
+        string $topic,
+        string $message,
+        int $qualityOfService = 0,
+        bool $retain = false,
+        ?PublishOptions $options = null
+    ): ?int
+    {
+        $this->ensureConnected();
+        $processor    = $this->mqtt5Processor();
+        $options      = $options ?? new PublishOptions();
+        $capabilities = $this->requiredConnectionResult()->getCapabilities();
+
+        if ($qualityOfService > $capabilities->getMaximumQualityOfService()) {
+            throw new \InvalidArgumentException('The requested QoS exceeds the server Maximum QoS.');
+        }
+
+        if ($retain && !$capabilities->isRetainAvailable()) {
+            throw new \InvalidArgumentException('The server does not support retained messages.');
+        }
+
+        $topicAlias = $options->getProperties()->get(PropertyIdentifier::TOPIC_ALIAS);
+        if ($topicAlias !== null && $topicAlias > $capabilities->getTopicAliasMaximum()) {
+            throw new \InvalidArgumentException('The Topic Alias exceeds the server Topic Alias Maximum.');
+        }
+
+        if ($topicAlias !== null) {
+            if ($topic !== '') {
+                $this->outgoingTopicAliases[$topicAlias] = $topic;
+            } elseif (!isset($this->outgoingTopicAliases[$topicAlias])) {
+                throw new \InvalidArgumentException('An empty topic cannot use an unregistered Topic Alias.');
+            }
+        }
+
+        $messageId = null;
+        $queuePublication = false;
+        if ($qualityOfService > self::QOS_AT_MOST_ONCE) {
+            $queuePublication = $this->countMqtt5InflightPublications() >= $capabilities->getReceiveMaximum();
+            $messageId        = $this->repository->newMessageId();
+            $pendingMessage = new PublishedMessage(
+                $messageId,
+                $topic !== '' || $topicAlias === null ? $topic : $this->outgoingTopicAliases[$topicAlias],
+                $message,
+                $qualityOfService,
+                $retain,
+                $options->getProperties(),
+                $queuePublication ? FlowStage::QUEUED : null
+            );
+            $this->repository->addPendingOutgoingMessage($pendingMessage);
+
+            if ($queuePublication) {
+                $this->mqtt5Repository()->addQueuedPublication($pendingMessage);
+            }
+        }
+
+        $this->logger->debug('Publishing a message on topic [{topic}].', [
+            'topic' => $topic,
+            'payloadLength' => strlen($message),
+            'qos' => $qualityOfService,
+            'retain' => $retain,
+            'messageId' => $messageId,
+        ]);
+        $this->runPublishEventHandlers($topic, $message, $messageId, $qualityOfService, $retain);
+
+        if ($queuePublication) {
+            return $messageId;
+        }
+
+        $data = $processor->buildPublishMessageWithOptions(
+            $topic,
+            $message,
+            $qualityOfService,
+            $retain,
+            $messageId,
+            $options
+        );
+        $this->writeToSocketWithAutoReconnect($data);
+
+        return $messageId;
     }
 
     /**
@@ -526,12 +848,13 @@ class MqttClient implements ClientContract
         int $qualityOfService,
         bool $retain,
         ?int $messageId = null,
-        bool $isDuplicate = false
+        bool $isDuplicate = false,
+        ?PublishOptions $options = null
     ): void
     {
-        $this->logger->debug('Publishing a message on topic [{topic}]: {message}', [
+        $this->logger->debug('Publishing a message on topic [{topic}].', [
             'topic' => $topic,
-            'message' => $message,
+            'payloadLength' => strlen($message),
             'qos' => $qualityOfService,
             'retain' => $retain,
             'messageId' => $messageId,
@@ -540,7 +863,26 @@ class MqttClient implements ClientContract
 
         $this->runPublishEventHandlers($topic, $message, $messageId, $qualityOfService, $retain);
 
-        $data = $this->messageProcessor->buildPublishMessage($topic, $message, $qualityOfService, $retain, $messageId, $isDuplicate);
+        if ($options !== null && $this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            $data = $this->messageProcessor->buildPublishMessageWithOptions(
+                $topic,
+                $message,
+                $qualityOfService,
+                $retain,
+                $messageId,
+                $options,
+                $isDuplicate
+            );
+        } else {
+            $data = $this->messageProcessor->buildPublishMessage(
+                $topic,
+                $message,
+                $qualityOfService,
+                $retain,
+                $messageId,
+                $isDuplicate
+            );
+        }
 
         $this->writeToSocketWithAutoReconnect($data);
     }
@@ -550,6 +892,13 @@ class MqttClient implements ClientContract
      */
     public function subscribe(string $topicFilter, ?callable $callback = null, int $qualityOfService = self::QOS_AT_MOST_ONCE): void
     {
+        if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            $this->subscribeWithOptions(new SubscribeOptions([
+                new SubscriptionOptions($topicFilter, $qualityOfService, $callback),
+            ]));
+            return;
+        }
+
         $this->ensureConnected();
 
         $this->logger->debug('Subscribing to topic [{topicFilter}] with maximum QoS [{qos}].', [
@@ -570,11 +919,61 @@ class MqttClient implements ClientContract
         $this->writeToSocketWithAutoReconnect($data);
     }
 
+    public function subscribeWithOptions(SubscribeOptions $options): int
+    {
+        $this->ensureConnected();
+        $processor    = $this->mqtt5Processor();
+        $capabilities = $this->requiredConnectionResult()->getCapabilities();
+        $subscriptions = [];
+
+        if ($options->getProperties()->has(PropertyIdentifier::SUBSCRIPTION_IDENTIFIER)
+            && !$capabilities->areSubscriptionIdentifiersAvailable()) {
+            throw new \InvalidArgumentException('The server does not support Subscription Identifiers.');
+        }
+
+        foreach ($options->getSubscriptions() as $subscription) {
+            $topicFilter = $subscription->getTopicFilter();
+
+            if ((str_contains($topicFilter, '+') || str_contains($topicFilter, '#'))
+                && !$capabilities->areWildcardSubscriptionsAvailable()) {
+                throw new \InvalidArgumentException('The server does not support wildcard subscriptions.');
+            }
+
+            if (str_starts_with($topicFilter, '$share/')) {
+                if (!$capabilities->areSharedSubscriptionsAvailable()) {
+                    throw new \InvalidArgumentException('The server does not support shared subscriptions.');
+                }
+
+                if ($subscription->usesNoLocal()) {
+                    throw new \InvalidArgumentException('No Local cannot be set on a shared subscription.');
+                }
+            }
+
+            $subscriptions[] = new Subscription(
+                $topicFilter,
+                $subscription->getQualityOfService(),
+                $subscription->getCallback()
+            );
+        }
+
+        $messageId     = $this->repository->newMessageId();
+        $pendingMessage = new SubscribeRequest($messageId, $subscriptions);
+        $this->repository->addPendingOutgoingMessage($pendingMessage);
+        $this->writeToSocketWithAutoReconnect($processor->buildSubscribeMessageWithOptions($messageId, $options));
+
+        return $messageId;
+    }
+
     /**
      * {@inheritDoc}
      */
     public function unsubscribe(string $topicFilter): void
     {
+        if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            $this->unsubscribeWithOptions(new UnsubscribeOptions([$topicFilter]));
+            return;
+        }
+
         $this->ensureConnected();
 
         $this->logger->debug('Unsubscribing from topic [{topicFilter}].', ['topicFilter' => $topicFilter]);
@@ -589,12 +988,25 @@ class MqttClient implements ClientContract
         $this->writeToSocketWithAutoReconnect($data);
     }
 
+    public function unsubscribeWithOptions(UnsubscribeOptions $options): int
+    {
+        $this->ensureConnected();
+        $processor = $this->mqtt5Processor();
+        $messageId = $this->repository->newMessageId();
+
+        $pendingMessage = new UnsubscribeRequest($messageId, $options->getTopicFilters());
+        $this->repository->addPendingOutgoingMessage($pendingMessage);
+        $this->writeToSocketWithAutoReconnect($processor->buildUnsubscribeMessageWithOptions($messageId, $options));
+
+        return $messageId;
+    }
+
     /**
      * Returns the next time the broker expects to be pinged.
      */
     protected function nextPingAt(): float
     {
-        return ($this->lastPingAt + $this->settings->getKeepAliveInterval());
+        return ($this->lastPingAt + ($this->effectiveKeepAlive ?? $this->settings->getKeepAliveInterval()));
     }
 
     /**
@@ -677,7 +1089,17 @@ class MqttClient implements ClientContract
         while (true) {
             $data          = '';
             $requiredBytes = -1;
-            $hasMessage    = $this->messageProcessor->tryFindMessageInBuffer($this->buffer, strlen($this->buffer), $data, $requiredBytes);
+            try {
+                $hasMessage = $this->messageProcessor->tryFindMessageInBuffer(
+                    $this->buffer,
+                    strlen($this->buffer),
+                    $data,
+                    $requiredBytes
+                );
+            } catch (MalformedPacketException $exception) {
+                $this->sendMqtt5Disconnect(ReasonCode::MALFORMED_PACKET);
+                throw $exception;
+            }
 
             // When there is no full message in the buffer, we stop processing for now and go on
             // with the next iteration.
@@ -689,7 +1111,15 @@ class MqttClient implements ClientContract
             $this->buffer = substr($this->buffer, strlen($data));
 
             // We then pass the message over to the message processor to parse and validate it.
-            $message = $this->messageProcessor->parseAndValidateMessage($data);
+            try {
+                $message = $this->messageProcessor->parseAndValidateMessage($data);
+            } catch (MalformedPacketException $exception) {
+                $this->sendMqtt5Disconnect(ReasonCode::MALFORMED_PACKET);
+                throw $exception;
+            } catch (ProtocolErrorException $exception) {
+                $this->sendMqtt5Disconnect(ReasonCode::PROTOCOL_ERROR);
+                throw $exception;
+            }
 
             // The result is used by us to perform required actions according to the protocol.
             if ($message !== null) {
@@ -706,8 +1136,46 @@ class MqttClient implements ClientContract
      */
     protected function handleMessage(Message $message): void
     {
+        $mqtt5Packet = $message instanceof Mqtt5Message ? $message->getPacket() : null;
+
+        if ($mqtt5Packet instanceof DisconnectPacket) {
+            $this->runServerDisconnectEventHandlers(new ServerDisconnect(
+                $mqtt5Packet->getReasonCode(),
+                $mqtt5Packet->getProperties()
+            ));
+            $this->closeSocket();
+            return;
+        }
+
+        if ($mqtt5Packet instanceof AuthPacket) {
+            $event = new AuthenticationEvent($mqtt5Packet->getReasonCode(), $mqtt5Packet->getProperties());
+            $this->runAuthenticationEventHandlers($event);
+
+            $response = $this->mqtt5Processor()->respondToAuthentication();
+            if ($response !== null) {
+                $this->writeToSocketWithAutoReconnect($response);
+            }
+            return;
+        }
+
+        if ($mqtt5Packet instanceof AcknowledgementPacket && ReasonCode::isError($mqtt5Packet->getReasonCode())) {
+            $this->repository->removePendingOutgoingMessage($mqtt5Packet->getPacketIdentifier());
+            $this->runOperationResultEventHandlers(new OperationResult(
+                $mqtt5Packet->getType(),
+                $mqtt5Packet->getPacketIdentifier(),
+                [$mqtt5Packet->getReasonCode()],
+                $mqtt5Packet->getProperties()
+            ));
+            $this->flushMqtt5PublicationQueue();
+            return;
+        }
+
         // PUBLISH (incoming)
         if ($message->getType()->equals(MessageType::PUBLISH())) {
+            $publishPacket = $mqtt5Packet instanceof PublishPacket
+                ? $this->resolveIncomingTopicAlias($mqtt5Packet, $message)
+                : null;
+
             if ($message->getQualityOfService() === self::QOS_AT_LEAST_ONCE) {
                 // QoS 1.
                 $this->sendPublishAcknowledgement($message->getMessageId());
@@ -715,13 +1183,24 @@ class MqttClient implements ClientContract
 
             if ($message->getQualityOfService() === self::QOS_EXACTLY_ONCE) {
                 // QoS 2, part 1.
+                $receiveMaximum = $this->mqtt5ConnectionOptions?->getProperties()
+                    ->get(PropertyIdentifier::RECEIVE_MAXIMUM) ?? 65535;
+                if ($publishPacket !== null
+                    && $this->repository->countPendingIncomingMessages() >= $receiveMaximum
+                    && $this->repository->getPendingIncomingMessage($message->getMessageId()) === null) {
+                    $this->sendMqtt5Disconnect(ReasonCode::RECEIVE_MAXIMUM_EXCEEDED);
+                    return;
+                }
+
                 try {
                     $pendingMessage = new PublishedMessage(
                         $message->getMessageId(),
                         $message->getTopic(),
                         $message->getContent(),
                         2,
-                        $message->getRetained()
+                        $message->getRetained(),
+                        $publishPacket?->getProperties(),
+                        $publishPacket !== null ? FlowStage::AWAITING_PUBREL : null
                     );
                     $this->repository->addPendingIncomingMessage($pendingMessage);
                 } catch (PendingMessageAlreadyExistsException) {
@@ -736,6 +1215,9 @@ class MqttClient implements ClientContract
             }
 
             // For QoS 0 and QoS 1 we can deliver right away.
+            if ($publishPacket !== null) {
+                $this->runIncomingPublicationEventHandlers(new IncomingPublication($publishPacket));
+            }
             $this->deliverPublishedMessage($message->getTopic(), $message->getContent(), $message->getQualityOfService(), $message->getRetained());
             return;
         }
@@ -748,6 +1230,15 @@ class MqttClient implements ClientContract
                 $this->logger->notice('Received publish acknowledgement from the broker for already acknowledged message.', [
                     'messageId' => $message->getMessageId()
                 ]);
+            }
+            if ($mqtt5Packet instanceof AcknowledgementPacket) {
+                $this->runOperationResultEventHandlers(new OperationResult(
+                    $mqtt5Packet->getType(),
+                    $mqtt5Packet->getPacketIdentifier(),
+                    [$mqtt5Packet->getReasonCode()],
+                    $mqtt5Packet->getProperties()
+                ));
+                $this->flushMqtt5PublicationQueue();
             }
             return;
         }
@@ -770,6 +1261,14 @@ class MqttClient implements ClientContract
 
             // We always reply blindly to keep the flow moving.
             $this->sendPublishRelease($message->getMessageId());
+            if ($mqtt5Packet instanceof AcknowledgementPacket) {
+                $this->runOperationResultEventHandlers(new OperationResult(
+                    $mqtt5Packet->getType(),
+                    $mqtt5Packet->getPacketIdentifier(),
+                    [$mqtt5Packet->getReasonCode()],
+                    $mqtt5Packet->getProperties()
+                ));
+            }
             return;
         }
 
@@ -788,6 +1287,17 @@ class MqttClient implements ClientContract
                     $pendingMessage->getQualityOfServiceLevel(),
                     $pendingMessage->wantsToBeRetained()
                 );
+                if ($message instanceof Mqtt5Message) {
+                    $this->runIncomingPublicationEventHandlers(new IncomingPublication(new PublishPacket(
+                        $pendingMessage->getTopicName(),
+                        $pendingMessage->getMessage(),
+                        $pendingMessage->getQualityOfServiceLevel(),
+                        $pendingMessage->wantsToBeRetained(),
+                        false,
+                        $pendingMessage->getMessageId(),
+                        $pendingMessage->getProperties()
+                    )));
+                }
 
                 $this->repository->removePendingIncomingMessage($message->getMessageId());
             }
@@ -806,6 +1316,15 @@ class MqttClient implements ClientContract
                 $this->logger->notice('Received publish completion from the broker for already acknowledged message.', [
                     'messageId' => $message->getMessageId(),
                 ]);
+            }
+            if ($mqtt5Packet instanceof AcknowledgementPacket) {
+                $this->runOperationResultEventHandlers(new OperationResult(
+                    $mqtt5Packet->getType(),
+                    $mqtt5Packet->getPacketIdentifier(),
+                    [$mqtt5Packet->getReasonCode()],
+                    $mqtt5Packet->getProperties()
+                ));
+                $this->flushMqtt5PublicationQueue();
             }
             return;
         }
@@ -832,9 +1351,10 @@ class MqttClient implements ClientContract
             foreach ($message->getAcknowledgedQualityOfServices() as $index => $qualityOfService) {
                 // Starting from MQTT 3.1.1, the broker is able to reject individual subscriptions.
                 // Instead of failing the whole bulk, we log the incident and skip the single subscription.
-                if ($qualityOfService === 128) {
+                if (ReasonCode::isError($qualityOfService)) {
                     $this->logger->notice('The broker rejected the subscription to [{topicFilter}].', [
                         'topicFilter' => $acknowledgedSubscriptions[$index]->getTopicFilter(),
+                        'reasonCode' => $qualityOfService,
                     ]);
                     continue;
                 }
@@ -848,6 +1368,14 @@ class MqttClient implements ClientContract
             }
 
             $this->repository->removePendingOutgoingMessage($message->getMessageId());
+            if ($mqtt5Packet instanceof ResultPacket) {
+                $this->runOperationResultEventHandlers(new OperationResult(
+                    $mqtt5Packet->getType(),
+                    $mqtt5Packet->getPacketIdentifier(),
+                    $mqtt5Packet->getReasonCodes(),
+                    $mqtt5Packet->getProperties()
+                ));
+            }
             return;
         }
 
@@ -861,11 +1389,25 @@ class MqttClient implements ClientContract
                 return;
             }
 
-            foreach ($pendingMessage->getTopicFilters() as $topicFilter) {
-                $this->repository->removeSubscription($topicFilter);
+            foreach ($pendingMessage->getTopicFilters() as $index => $topicFilter) {
+                $reasonCode = $mqtt5Packet instanceof ResultPacket
+                    ? ($mqtt5Packet->getReasonCodes()[$index] ?? ReasonCode::UNSPECIFIED_ERROR)
+                    : ReasonCode::SUCCESS;
+
+                if (!ReasonCode::isError($reasonCode)) {
+                    $this->repository->removeSubscription($topicFilter);
+                }
             }
 
             $this->repository->removePendingOutgoingMessage($message->getMessageId());
+            if ($mqtt5Packet instanceof ResultPacket) {
+                $this->runOperationResultEventHandlers(new OperationResult(
+                    $mqtt5Packet->getType(),
+                    $mqtt5Packet->getPacketIdentifier(),
+                    $mqtt5Packet->getReasonCodes(),
+                    $mqtt5Packet->getProperties()
+                ));
+            }
             return;
         }
 
@@ -883,6 +1425,78 @@ class MqttClient implements ClientContract
             $this->pingResponseExpectedUntil = null;
             return;
         }
+    }
+
+    private function resolveIncomingTopicAlias(PublishPacket $packet, Message $message): PublishPacket
+    {
+        $topicAlias = $packet->getProperties()->get(PropertyIdentifier::TOPIC_ALIAS);
+
+        if ($topicAlias === null) {
+            return $packet;
+        }
+
+        $maximum = $this->mqtt5ConnectionOptions?->getProperties()
+            ->get(PropertyIdentifier::TOPIC_ALIAS_MAXIMUM) ?? 0;
+        if ($topicAlias > $maximum) {
+            $this->sendMqtt5Disconnect(ReasonCode::TOPIC_ALIAS_INVALID);
+            throw new ProtocolViolationException('The server exceeded the client Topic Alias Maximum');
+        }
+
+        $topic = $packet->getTopic();
+        if ($topic !== '') {
+            $this->incomingTopicAliases[$topicAlias] = $topic;
+        } elseif (!isset($this->incomingTopicAliases[$topicAlias])) {
+            $this->sendMqtt5Disconnect(ReasonCode::TOPIC_ALIAS_INVALID);
+            throw new ProtocolViolationException('The server used an unknown Topic Alias');
+        } else {
+            $topic = $this->incomingTopicAliases[$topicAlias];
+            $message->setTopic($topic);
+        }
+
+        return new PublishPacket(
+            $topic,
+            $packet->getPayload(),
+            $packet->getQualityOfService(),
+            $packet->shouldRetain(),
+            $packet->isDuplicate(),
+            $packet->getPacketIdentifier(),
+            $packet->getProperties()
+        );
+    }
+
+    private function sendMqtt5Disconnect(int $reasonCode): void
+    {
+        if (!$this->messageProcessor instanceof Mqtt5MessageProcessorContract || !$this->connected) {
+            $this->closeSocket();
+            return;
+        }
+
+        try {
+            $options = new DisconnectOptions($reasonCode);
+            $this->writeToSocket($this->messageProcessor->buildDisconnectMessageWithOptions($options));
+        } catch (\Throwable $exception) {
+            $this->logger->debug('Unable to send MQTT 5 DISCONNECT before closing the connection.', [
+                'exception' => $exception,
+            ]);
+        } finally {
+            $this->closeSocket();
+        }
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function replaceProperty(Properties $properties, int $identifier, $value): Properties
+    {
+        $result = Properties::empty();
+
+        foreach ($properties as $property) {
+            if ($property->getIdentifier() !== $identifier) {
+                $result = $result->withProperty($property);
+            }
+        }
+
+        return $result->with($identifier, $value);
     }
 
     /**
@@ -903,7 +1517,7 @@ class MqttClient implements ClientContract
 
         $this->logger->debug('Delivering message received on topic [{topic}] with QoS [{qos}] from the broker to [{subscribers}] subscribers.', [
             'topic' => $topic,
-            'message' => $message,
+            'payloadLength' => strlen($message),
             'qos' => $qualityOfServiceLevel,
             'subscribers' => count($subscribers),
         ]);
@@ -918,7 +1532,6 @@ class MqttClient implements ClientContract
             } catch (\Throwable $e) {
                 $this->logger->error('Subscriber callback threw exception for published message on topic [{topic}].', [
                     'topic' => $topic,
-                    'message' => $message,
                     'exception' => $e,
                 ]);
             }
@@ -935,6 +1548,10 @@ class MqttClient implements ClientContract
      */
     protected function resendPendingMessages(): void
     {
+        if ($this->messageProcessor instanceof Mqtt5MessageProcessorContract) {
+            return;
+        }
+
         /** @noinspection PhpUnhandledExceptionInspection */
         $dateTime = (new \DateTime())->sub(new \DateInterval('PT' . $this->settings->getResendTimeout() . 'S'));
         $messages = $this->repository->getPendingOutgoingMessagesLastSentBefore($dateTime);
@@ -945,14 +1562,18 @@ class MqttClient implements ClientContract
                     'messageId' => $pendingMessage->getMessageId(),
                 ]);
 
-                $this->publishMessage(
-                    $pendingMessage->getTopicName(),
-                    $pendingMessage->getMessage(),
-                    $pendingMessage->getQualityOfServiceLevel(),
-                    $pendingMessage->wantsToBeRetained(),
-                    $pendingMessage->getMessageId(),
-                    true
-                );
+                if ($pendingMessage->hasBeenReceived()) {
+                    $this->sendPublishRelease($pendingMessage->getMessageId());
+                } else {
+                    $this->publishMessage(
+                        $pendingMessage->getTopicName(),
+                        $pendingMessage->getMessage(),
+                        $pendingMessage->getQualityOfServiceLevel(),
+                        $pendingMessage->wantsToBeRetained(),
+                        $pendingMessage->getMessageId(),
+                        true
+                    );
+                }
             } elseif ($pendingMessage instanceof SubscribeRequest) {
                 $this->logger->debug('Re-sending pending subscribe request to the broker.', [
                     'messageId' => $pendingMessage->getMessageId(),
@@ -973,6 +1594,149 @@ class MqttClient implements ClientContract
 
             $pendingMessage->setLastSentAt(new \DateTime());
             $pendingMessage->incrementSendingAttempts();
+        }
+    }
+
+    private function resumeMqtt5Session(): void
+    {
+        $messages = $this->repository->getPendingOutgoingMessagesLastSentBefore();
+
+        foreach ($messages as $pendingMessage) {
+            if ($pendingMessage instanceof PublishedMessage) {
+                if ($pendingMessage->hasExpired()) {
+                    $this->repository->removePendingOutgoingMessage($pendingMessage->getMessageId());
+                    continue;
+                }
+
+                if ($pendingMessage->hasBeenReceived()) {
+                    $this->sendPublishRelease($pendingMessage->getMessageId());
+                    continue;
+                }
+
+                $properties = $pendingMessage->getProperties();
+                $remainingExpiry = $pendingMessage->getRemainingExpiryInterval();
+                if ($remainingExpiry !== null) {
+                    $properties = $this->replaceProperty(
+                        $properties,
+                        PropertyIdentifier::MESSAGE_EXPIRY_INTERVAL,
+                        $remainingExpiry
+                    );
+                }
+
+                $this->publishMessage(
+                    $pendingMessage->getTopicName(),
+                    $pendingMessage->getMessage(),
+                    $pendingMessage->getQualityOfServiceLevel(),
+                    $pendingMessage->wantsToBeRetained(),
+                    $pendingMessage->getMessageId(),
+                    true,
+                    new PublishOptions($properties)
+                );
+            } elseif ($pendingMessage instanceof SubscribeRequest) {
+                $subscriptions = array_map(
+                    static fn (Subscription $subscription): SubscriptionOptions => new SubscriptionOptions(
+                        $subscription->getTopicFilter(),
+                        $subscription->getQualityOfServiceLevel(),
+                        $subscription->getCallback()
+                    ),
+                    $pendingMessage->getSubscriptions()
+                );
+                $data = $this->mqtt5Processor()->buildSubscribeMessageWithOptions(
+                    $pendingMessage->getMessageId(),
+                    new SubscribeOptions($subscriptions)
+                );
+                $this->writeToSocket($data);
+            } elseif ($pendingMessage instanceof UnsubscribeRequest) {
+                $data = $this->mqtt5Processor()->buildUnsubscribeMessageWithOptions(
+                    $pendingMessage->getMessageId(),
+                    new UnsubscribeOptions($pendingMessage->getTopicFilters())
+                );
+                $this->writeToSocket($data);
+            }
+        }
+    }
+
+    private function rebuildMqtt5Session(): void
+    {
+        foreach ($this->mqtt5Repository()->getPendingOutgoingMessages() as $pendingMessage) {
+            if ($pendingMessage instanceof PublishedMessage) {
+                if ($pendingMessage->hasExpired()) {
+                    $this->repository->removePendingOutgoingMessage($pendingMessage->getMessageId());
+                    continue;
+                }
+
+                if ($pendingMessage->getFlowStage() === FlowStage::QUEUED) {
+                    continue;
+                }
+
+                $pendingMessage->setFlowStage(
+                    $pendingMessage->getQualityOfServiceLevel() === self::QOS_EXACTLY_ONCE
+                        ? FlowStage::AWAITING_PUBREC
+                        : FlowStage::AWAITING_PUBACK
+                );
+                $data = $this->mqtt5Processor()->buildPublishMessageWithOptions(
+                    $pendingMessage->getTopicName(),
+                    $pendingMessage->getMessage(),
+                    $pendingMessage->getQualityOfServiceLevel(),
+                    $pendingMessage->wantsToBeRetained(),
+                    $pendingMessage->getMessageId(),
+                    new PublishOptions($pendingMessage->getProperties())
+                );
+                $this->writeToSocket($data);
+            }
+        }
+
+        foreach ($this->mqtt5Repository()->getSubscriptions() as $subscription) {
+            $messageId = $this->repository->newMessageId();
+            $request   = new SubscribeRequest($messageId, [$subscription]);
+            $this->repository->addPendingOutgoingMessage($request);
+            $options = new SubscribeOptions([
+                new SubscriptionOptions(
+                    $subscription->getTopicFilter(),
+                    $subscription->getQualityOfServiceLevel(),
+                    $subscription->getCallback()
+                ),
+            ]);
+            $this->writeToSocket($this->mqtt5Processor()->buildSubscribeMessageWithOptions($messageId, $options));
+        }
+
+        $this->flushMqtt5PublicationQueue();
+    }
+
+    private function flushMqtt5PublicationQueue(): void
+    {
+        if (!$this->messageProcessor instanceof Mqtt5MessageProcessorContract || $this->connectionResult === null) {
+            return;
+        }
+
+        $receiveMaximum = $this->connectionResult->getCapabilities()->getReceiveMaximum();
+
+        foreach ($this->mqtt5Repository()->getQueuedPublications() as $publication) {
+            if ($this->countMqtt5InflightPublications() >= $receiveMaximum) {
+                return;
+            }
+
+            if ($publication->hasExpired()) {
+                $this->repository->removePendingOutgoingMessage($publication->getMessageId());
+                continue;
+            }
+
+            $publication->setFlowStage(
+                $publication->getQualityOfServiceLevel() === self::QOS_EXACTLY_ONCE
+                    ? FlowStage::AWAITING_PUBREC
+                    : FlowStage::AWAITING_PUBACK
+            );
+            $this->mqtt5Repository()->removeQueuedPublication($publication->getMessageId());
+
+            $data = $this->mqtt5Processor()->buildPublishMessageWithOptions(
+                $publication->getTopicName(),
+                $publication->getMessage(),
+                $publication->getQualityOfServiceLevel(),
+                $publication->wantsToBeRetained(),
+                $publication->getMessageId(),
+                new PublishOptions($publication->getProperties())
+            );
+            $this->writeToSocketWithAutoReconnect($data);
         }
     }
 
@@ -1036,7 +1800,7 @@ class MqttClient implements ClientContract
         $this->writeToSocketWithAutoReconnect($this->messageProcessor->buildPingRequestMessage());
         
         // Set the deadline for receiving a PINGRESP message according to MQTT specification requirements.
-        $this->pingResponseExpectedUntil = microtime(true) + $this->settings->getKeepAliveInterval();
+        $this->pingResponseExpectedUntil = microtime(true) + ($this->effectiveKeepAlive ?? $this->settings->getKeepAliveInterval());
     }
 
     /**
@@ -1144,7 +1908,7 @@ class MqttClient implements ClientContract
 
         $this->bytesSent += $length;
 
-        $this->logger->debug('Sent data over the socket: {data}', ['data' => $data]);
+        $this->logger->debug('Sent [{bytes}] bytes over the socket.', ['bytes' => $length]);
 
         // After writing successfully to the socket, the broker should have received a new message from us.
         // Because we only need to send a ping if no other messages are delivered, we can safely reset the ping timer.
@@ -1212,7 +1976,9 @@ class MqttClient implements ClientContract
 
             $this->bytesReceived += strlen($result);
 
-            $this->logger->debug('Read data from the socket (without blocking): {data}', ['data' => $result]);
+            $this->logger->debug('Read [{bytes}] bytes from the socket without blocking.', [
+                'bytes' => strlen($result),
+            ]);
 
             return $result;
         }
@@ -1237,7 +2003,7 @@ class MqttClient implements ClientContract
 
         $this->bytesReceived += strlen($result);
 
-        $this->logger->debug('Read data from the socket: {data}', ['data' => $result]);
+        $this->logger->debug('Read [{bytes}] bytes from the socket.', ['bytes' => strlen($result)]);
 
         return $result;
     }
