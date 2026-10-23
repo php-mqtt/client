@@ -15,6 +15,8 @@
         <env name="MQTT_BROKER_PORT_WITH_AUTHENTICATION" value="1884"/>
         <env name="MQTT_BROKER_TLS_PORT" value="8883"/>
         <env name="MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT" value="8884"/>
+        <env name="MQTT_BROKER_USERNAME" value="ci-test-user"/>
+        <env name="MQTT_BROKER_PASSWORD" value="KUpwf3Mcjx_fvGSI9SMSH1SFyDv0E_l2l!Nao4LLT13!TRL9"/>
         <env name="TLS_CERT_DIR" value=".ci/tls"/>
         <env name="SKIP_TLS_TESTS" value="false"/>
     </php>

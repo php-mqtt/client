@@ -4,8 +4,11 @@ on:
   push:
     branches:
       - master
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
 
 jobs:
   test-all:
@@ -15,17 +18,13 @@ jobs:
 
     strategy:
       matrix:
-        php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
-        mqtt-broker: ['mosquitto-1.6', 'mosquitto-2.1']
-        include:
-          - php-version: '8.5'
-            mqtt-broker: 'mosquitto-2.1'
-            run-sonarqube-analysis: true
+        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+        mqtt-broker: ["mosquitto-1.6", "mosquitto-2.1"]
 
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup PHP ${{ matrix.php-version }}
         uses: shivammathur/setup-php@v2
@@ -78,24 +77,11 @@ jobs:
       - name: Run phpunit tests
         run: composer test
         env:
-          MQTT_BROKER_HOST: 'localhost'
+          # NOTE: The MQTT_BROKER_USERNAME and MQTT_BROKER_PASSWORD are fixed,
+          #       public values defined in .ci/mosquitto.passwd for CI tests.
+          #       Do not use these credentials in production.
+          MQTT_BROKER_HOST: "localhost"
           MQTT_BROKER_PORT: 1883
           MQTT_BROKER_PORT_WITH_AUTHENTICATION: 1884
           MQTT_BROKER_TLS_PORT: 8883
           MQTT_BROKER_TLS_WITH_CLIENT_CERT_PORT: 8884
-          MQTT_BROKER_USERNAME: 'ci-test-user'
-          MQTT_BROKER_PASSWORD: ${{ secrets.CI_MOSQUITTO_CI_TEST_USER_PASSWORD }}
-
-
-      - name: Prepare paths for SonarQube analysis
-        if: matrix.run-sonarqube-analysis
-        run: |
-          sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.coverage-clover.xml
-          sed -i "s|$GITHUB_WORKSPACE|/github/workspace|g" phpunit.report-junit.xml
-
-      - name: Run SonarQube analysis
-        uses: sonarsource/sonarqube-scan-action@v8.3.0
-        if: matrix.run-sonarqube-analysis
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
